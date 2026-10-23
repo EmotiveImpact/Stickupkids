@@ -1,5 +1,5 @@
-// Rigged, animated characters from a glTF (art/crew/make_crew.py for now,
-// the AI-generated models later). Each crew member and enemy is an instance
+// Rigged, animated characters from glTF: the AI character pipeline's models,
+// one per kind, all on the same skeleton and clip names. Each crew member and enemy is an instance
 // with its own skeleton, its own animation groups and a light that carries
 // the baked light at its feet.
 
@@ -120,12 +120,8 @@ export class CharacterKit {
       } else {
         rims.push(new RimPlugin(mat));
       }
-      if (mat.name.endsWith('Cloth')) {
-        // Lifted off black so the silhouette holds at night.
-        mat.albedoColor = Color3.FromHexString(look.cloth ?? '#3a4052').toLinearSpace();
-      } else if (mat.name.endsWith('Dark')) {
-        mat.albedoColor = Color3.FromHexString('#181a21').toLinearSpace();
-      }
+      // The AI models carry their colours in the vertices; a cloth tint only darkens them.
+      if (look.cloth && mat.name.endsWith('Cloth')) mat.albedoColor = Color3.FromHexString(look.cloth).toLinearSpace();
     }
     const groups = new Map<string, AnimationGroup>();
     for (const g of inst.animationGroups) {
@@ -186,8 +182,8 @@ export class Character {
     return this.groups.has(clip);
   }
 
-  /** Crossfade to a looping clip. */
-  play(clip: string, speed = 1) {
+  /** Crossfade to a clip. A clip that does not loop holds its last frame (Down). */
+  play(clip: string, speed = 1, loop = true) {
     const g = this.groups.get(clip) ?? this.groups.get('Idle');
     if (!g) return;
     if (this.frozen) {
@@ -202,6 +198,14 @@ export class Character {
       g.weight = 0;
       g.start(true, speed);
       g.weight = 0;
+      // A one-shot clip loops once, then holds on its last frame. Letting it
+      // stop instead would drop it from the blend and spring back to rest.
+      if (!loop) {
+        g.onAnimationGroupLoopObservable.addOnce(() => {
+          g.pause();
+          g.goToFrame(g.to);
+        });
+      }
     }
     if (this.cur) this.fading.push(this.cur);
     this.cur = g;

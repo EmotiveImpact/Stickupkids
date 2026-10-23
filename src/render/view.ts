@@ -34,7 +34,7 @@ import type { Level, Vec } from '../sim/level.ts';
 import { planSegments, type Crew, type Enemy, type Sim, type SimEvent, type Waypoint } from '../sim/sim.ts';
 import { PALETTE, WALL_H } from './palette.ts';
 import { Coords, mat } from './world.ts';
-import { loadEstate, MAX_LIGHTS, type Estate } from './estate.ts';
+import { loadEstate, type Estate } from './estate.ts';
 import { CHAR_SCALE, CharacterKit, type Character } from './characters.ts';
 import { Atmosphere, dotTexture, glowTexture } from './atmosphere.ts';
 import { Constants } from '@babylonjs/core/Engines/constants';
@@ -131,7 +131,7 @@ export class View {
   private bpAmount = 1;
   private bpTarget = 1;
   private estate: Estate | null = null;
-  private kit: CharacterKit | null = null;
+  private readonly kits = new Map<string, CharacterKit>();
   private atmosphere: Atmosphere | null = null;
   private shadowLight: DirectionalLight;
   private shadows: ShadowGenerator;
@@ -244,9 +244,11 @@ export class View {
 
   private async load() {
     const scene = this.scene;
-    const [estate, kit] = await Promise.all([loadEstate(scene), CharacterKit.load(scene, 'models/crew')]);
+    // One rigged model per kind, from the AI character pipeline (art in /mnt/project-files/ai-models).
+    const kinds = ['crew', 'dealer', 'soldier', 'runner', 'dog'];
+    const [estate, ...kits] = await Promise.all([loadEstate(scene), ...kinds.map((k) => CharacterKit.load(scene, `models/ai/${k}`))]);
     this.estate = estate;
-    this.kit = kit;
+    kinds.forEach((k, i) => this.kits.set(k, kits[i]));
     this.shadowLight.includedOnlyMeshes = estate.receivers;
 
     // A soft moon key so characters keep their shape between pools of light.
@@ -449,16 +451,9 @@ export class View {
 
   // ------------------------------------------------------------ actors
 
-  private actorLight(name: string, meshes: AbstractMesh[]) {
-    const l = new HemisphericLight(name, Vector3.Up(), this.scene);
-    l.specular = Color3.Black();
-    l.includedOnlyMeshes = meshes;
-    return l;
-  }
-
   private makeCrewActor(color: string): Actor {
     const scene = this.scene;
-    const char = this.kit!.spawn(scene, 'crew', { slot: color });
+    const char = this.kits.get('crew')!.spawn(scene, 'crew', { slot: color });
     const { root, body } = char;
     for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
     const bag = MeshBuilder.CreateCapsule('bag', { height: 0.62, radius: 0.17, orientation: new Vector3(1, 0, 0) }, scene);
@@ -493,56 +488,10 @@ export class View {
 
   private makeEnemyActor(kind: string): Actor {
     const scene = this.scene;
-    let root: TransformNode;
-    let body: TransformNode;
-    let char: Character | null = null;
-    let light: HemisphericLight;
-    if (kind === 'dog') {
-      root = new TransformNode('dog', scene);
-      body = new TransformNode('dogBody', scene);
-      body.parent = root;
-      const fur = new PBRMaterial('dogFur', scene);
-      fur.albedoColor = Color3.FromHexString('#2a2a30').toLinearSpace();
-      fur.metallic = 0;
-      fur.roughness = 0.9;
-      fur.environmentIntensity = 0;
-      const parts: Mesh[] = [];
-      const torso = MeshBuilder.CreateCapsule('dog', { height: 0.78, radius: 0.16, orientation: new Vector3(0, 0, 1) }, scene);
-      torso.position.y = 0.46;
-      const head = MeshBuilder.CreateBox('dogHead', { width: 0.2, height: 0.2, depth: 0.32 }, scene);
-      head.position.set(0, 0.62, 0.42);
-      parts.push(torso, head);
-      for (const [dx, dz] of [[-0.09, -0.24], [0.09, -0.24], [-0.09, 0.24], [0.09, 0.24]]) {
-        const leg = MeshBuilder.CreateCylinder('leg', { diameter: 0.07, height: 0.36 }, scene);
-        leg.position.set(dx, 0.18, dz);
-        parts.push(leg);
-      }
-      parts.forEach((p) => (p.material = fur));
-      const collar = MeshBuilder.CreateTorus('collar', { diameter: 0.22, thickness: 0.04 }, scene);
-      collar.rotation.x = Math.PI / 2.6;
-      collar.position.set(0, 0.6, 0.3);
-      const cm = new PBRMaterial('collar', scene);
-      cm.albedoColor = Color3.FromHexString(PALETTE.enemy).toLinearSpace();
-      cm.emissiveColor = cm.albedoColor.clone();
-      cm.emissiveIntensity = 1.2;
-      cm.environmentIntensity = 0;
-      collar.material = cm;
-      parts.push(collar);
-      for (const p of parts) {
-        p.parent = body;
-        p.isPickable = false;
-        this.shadows.addShadowCaster(p, false);
-      }
-      light = this.actorLight('dogLight', parts);
-    } else {
-      const cloth = kind === 'dealer' ? '#4a4f60' : kind === 'runner' ? '#5c6276' : '#262a34';
-      char = this.kit!.spawn(scene, kind, { slot: PALETTE.enemy, cloth });
-      root = char.root;
-      body = char.body;
-      light = char.light;
-      for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
-    }
-    const s = char ? CHAR_SCALE : 1;
+    const char = this.kits.get(kind)!.spawn(scene, kind, { slot: PALETTE.enemy });
+    const { root, body, light } = char;
+    for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
+    const s = CHAR_SCALE;
     const ring = MeshBuilder.CreateTorus('ring', { diameter: (kind === 'dog' ? 0.66 : 0.6) / s, thickness: 0.035 / s, tessellation: 32 }, scene);
     ring.material = mat(scene, PALETTE.enemy, { emissive: PALETTE.enemy, unlit: true });
     ring.parent = root;
@@ -583,18 +532,33 @@ export class View {
     a.last = { x, y };
   }
 
-  private animate(a: Actor, pose: 'move' | 'idle' | 'crouch' | 'down') {
+  private animate(a: Actor, pose: 'move' | 'idle' | 'crouch' | 'down' | 'hands' | 'aim') {
     const c = a.char;
     if (!c) return;
     if (pose === 'down') {
-      c.freeze();
+      if (c.has('Down')) c.play('Down', 1, false);
+      else c.freeze();
       return;
     }
-    if (pose === 'crouch') c.play('CrouchIdle');
-    else if (pose === 'move' && a.speed > 0.15) {
+    if (pose === 'hands' && c.has('HandsUp')) c.play('HandsUp');
+    else if (pose === 'crouch' || pose === 'hands') c.play(a.speed > 0.15 && c.has('CrouchWalk') ? 'CrouchWalk' : 'CrouchIdle');
+    else if (pose !== 'idle' && a.speed > 0.15) {
       if (a.speed < 1.9) c.play('Walk', Math.max(0.6, a.speed / (WALK * CHAR_SCALE)));
       else c.play('Run', Math.max(0.6, a.speed / (RUN * CHAR_SCALE)));
-    } else c.play('Idle');
+    } else if (pose === 'aim') c.play(c.has('Aim') ? 'Aim' : c.has('Bark') ? 'Bark' : 'Idle');
+    else c.play('Idle');
+  }
+
+  /** Lie a body down: the Down clip if the model has one, else tip it over. */
+  private layDown(a: Actor, dog: boolean) {
+    if (a.char?.has('Down')) {
+      a.body.rotation.x = 0;
+      a.body.position.y = 0;
+    } else {
+      a.body.rotation.x = -Math.PI / 2;
+      a.body.position.y = dog ? 0.1 : 0.14;
+    }
+    this.animate(a, 'down');
   }
 
   /** Words that rise and fade over a spot on the map: HANDS UP, DOWN. */
@@ -1086,16 +1050,14 @@ export class View {
     a.body.rotation.y = this.co.rotY(c.facing);
     a.char?.update(dt);
     if (c.state === 'down') {
-      a.body.rotation.x = -Math.PI / 2;
-      a.body.position.y = 0.14;
       a.ring.visibility = 0.35;
-      this.animate(a, 'down');
+      this.layDown(a, false);
       return;
     }
     a.body.rotation.x = 0;
     a.body.position.y = 0;
     a.ring.visibility = 1;
-    this.animate(a, c.state === 'pick' || c.state === 'loot' ? 'crouch' : c.state === 'moving' ? 'move' : 'idle');
+    this.animate(a, c.state === 'pick' || c.state === 'loot' ? 'crouch' : c.state === 'fight' ? 'aim' : c.state === 'moving' ? 'move' : 'idle');
     const sel = plan && plan.selected === i + 1;
     a.ring.scaling.setAll(sel ? 1.25 : 1);
     a.bag!.setEnabled(c.carrying.length > 0);
@@ -1132,16 +1094,14 @@ export class View {
       a.ring.material = mat(this.scene, tint, { emissive: tint, unlit: true });
     }
     if (e.state === 'down') {
-      a.body.rotation.x = -Math.PI / 2;
-      a.body.position.y = e.kind === 'dog' ? 0.1 : 0.14;
       a.ring.visibility = 0.3;
-      this.animate(a, 'down');
+      this.layDown(a, e.kind === 'dog');
     } else if (e.state === 'subdued') {
       a.ring.visibility = 0.45;
-      this.animate(a, 'crouch');
+      this.animate(a, 'hands');
     } else {
       a.ring.visibility = 1;
-      this.animate(a, 'move');
+      this.animate(a, e.state === 'hostile' ? 'aim' : 'move');
       const fan = sim.grid.visionFan(e.x, e.y, e.facing, e.fov, e.range, 36);
       this.setCone(a.cone, fan, e.x, e.y, 0.05);
       (a.cone.material as StandardMaterial).alpha = e.state === 'hostile' ? 0.32 : e.state === 'suspicious' ? 0.26 : 0.18;
