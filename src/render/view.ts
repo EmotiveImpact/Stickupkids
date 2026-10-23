@@ -109,7 +109,8 @@ interface Fx {
 }
 
 /** Character models in public/models/ai/. A level can name others; until they arrive the kind's model stands in. */
-const MODELS = new Set(['crew', 'dealer', 'soldier', 'runner', 'dog']);
+// The Burgess Park gang arrive one by one from Meshy; anyone without a model yet uses their kind's.
+const MODELS = new Set(['crew', 'dealer', 'soldier', 'runner', 'dog', 'gang-leader', 'gang-lookout']);
 const modelFor = (e: { kind: string; model?: string }) => (e.model && MODELS.has(e.model) ? e.model : e.kind);
 
 /** Enemies who are held up or down drop their red: grey reads as out of the fight. */
