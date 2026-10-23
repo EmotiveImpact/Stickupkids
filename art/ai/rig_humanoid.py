@@ -44,6 +44,7 @@ def import_glb(path):
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
+    names = [o.name for o in new]
     meshes = [o for o in new if o.type == "MESH"]
     bpy.ops.object.select_all(action="DESELECT")
     for o in meshes:
@@ -53,9 +54,12 @@ def import_glb(path):
     if len(meshes) > 1:
         bpy.ops.object.join()
     o = bpy.context.object
-    for x in new:
-        if x is not o:
+    for n in names:  # joined meshes are already gone, so look up by name
+        x = bpy.data.objects.get(n)
+        if x is not None and x is not o:
             bpy.data.objects.remove(x)
+    for m in list(o.modifiers):
+        o.modifiers.remove(m)
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     return o
 
