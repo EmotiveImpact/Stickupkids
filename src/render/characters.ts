@@ -6,7 +6,6 @@
 import {
   Color3,
   HemisphericLight,
-  LoadAssetContainerAsync,
   MaterialPluginBase,
   PBRMaterial,
   TransformNode,
@@ -19,7 +18,7 @@ import {
   type Scene,
   type UniformBuffer,
 } from './babylon.ts';
-import { MAX_LIGHTS } from './estate.ts';
+import { MAX_LIGHTS, loadModel } from './estate.ts';
 
 /** The model is 1.78 m; a touch over life size reads better from above. */
 export const CHAR_SCALE = 1.12;
@@ -91,8 +90,9 @@ export class CharacterKit {
     this.container = container;
   }
 
-  static async load(scene: Scene, url: string): Promise<CharacterKit> {
-    return new CharacterKit(await LoadAssetContainerAsync(url, scene));
+  /** `path` without extension, as for loadModel. */
+  static async load(scene: Scene, path: string): Promise<CharacterKit> {
+    return new CharacterKit(await loadModel(path, scene));
   }
 
   spawn(scene: Scene, name: string, look: Look): Character {

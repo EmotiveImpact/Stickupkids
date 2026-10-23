@@ -57,10 +57,20 @@ export interface Estate {
 /** Lights each lit material can take at once: the shadow light, torches, muzzle flashes. */
 export const MAX_LIGHTS = 10;
 
+// A host that will not serve .glb (the claude.ai artifact) gets each model as
+// glTF JSON with its buffer embedded; that build defines __MODEL_EXT__.
+declare const __MODEL_EXT__: string | undefined;
+const MODEL_EXT = typeof __MODEL_EXT__ === 'string' ? __MODEL_EXT__ : '.glb';
+
+/** Load models/<name> as an asset container. */
+export function loadModel(path: string, scene: Scene) {
+  return LoadAssetContainerAsync(path + MODEL_EXT, scene, MODEL_EXT.endsWith('.json') ? { pluginExtension: '.gltf' } : undefined);
+}
+
 export async function loadEstate(scene: Scene, base = 'models/'): Promise<Estate> {
   const meta = (await (await fetch(base + 'estate-materials.json')).json()) as Meta;
   const [container, probe] = await Promise.all([
-    LoadAssetContainerAsync(base + 'estate.glb', scene),
+    loadModel(base + 'estate', scene),
     Probe.load(base + 'estate-probe.png', meta.probe.max, meta.probe.perUnit),
   ]);
   container.addAllToScene();

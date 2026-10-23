@@ -239,7 +239,7 @@ export class View {
 
   private async load() {
     const scene = this.scene;
-    const [estate, kit] = await Promise.all([loadEstate(scene), CharacterKit.load(scene, 'models/crew.glb')]);
+    const [estate, kit] = await Promise.all([loadEstate(scene), CharacterKit.load(scene, 'models/crew')]);
     this.estate = estate;
     this.kit = kit;
     this.shadowLight.includedOnlyMeshes = estate.receivers;
