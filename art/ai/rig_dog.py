@@ -24,6 +24,7 @@ scene.render.fps = 30
 before = set(bpy.data.objects)
 bpy.ops.import_scene.gltf(filepath=A.src)
 new = [o for o in bpy.data.objects if o not in before]
+names = [o.name for o in new]
 meshes = [o for o in new if o.type == "MESH"]
 bpy.ops.object.select_all(action="DESELECT")
 for o in meshes:
@@ -33,8 +34,9 @@ bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
 if len(meshes) > 1:
     bpy.ops.object.join()
 body = bpy.context.object
-for x in new:
-    if x is not body:
+for n in names:  # joined meshes are already gone, so look up by name
+    x = bpy.data.objects.get(n)
+    if x is not None and x is not body:
         bpy.data.objects.remove(x)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 body.name = body.data.name = "Dog"

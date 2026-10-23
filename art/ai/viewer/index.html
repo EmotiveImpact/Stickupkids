@@ -1,0 +1,230 @@
+<title>Stickupkids Line-up</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500&display=swap">
+<style>
+/* Full-bleed 3D stage with a glass control panel docked bottom-left. Single dark look by choice, matching the game UI. */
+:root {
+  --night: #0B1220; --glass: rgba(18, 26, 43, 0.86); --edge: #2A3A5C; --fg: #E6ECF7; --muted: #8C9AB5;
+  --slot: #22E3FF; --enemy: #FF3B4E;
+  --display: "Rajdhani", "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; }
+body { background: var(--night); color: var(--fg); font-family: var(--body); overflow: hidden; }
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+.panel {
+  position: fixed; z-index: 2;
+  left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: min(380px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto;
+  background: var(--glass); border: 1px solid var(--edge); border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.3), 0 0 18px -6px var(--slot);
+  padding: 14px 16px 16px; display: grid; gap: 12px; backdrop-filter: blur(6px);
+}
+h1 { margin: 0; font: 700 26px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
+h1 span { color: var(--slot); }
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.label { font: 600 12px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+button {
+  font: 600 14px/1 var(--display); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--fg); background: transparent; border: 1px solid var(--edge); border-radius: 8px;
+  padding: 8px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--slot); outline-offset: 2px; }
+button[aria-pressed="true"] { border-color: var(--slot); color: var(--slot); box-shadow: inset 0 0 10px -4px var(--slot); }
+button:disabled { opacity: .4; cursor: default; }
+.swatch { width: 34px; height: 34px; padding: 0; }
+.stats { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--fg); font-weight: 500; }
+.hint, .loading {
+  position: fixed; z-index: 2; top: calc(14px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
+  font: 600 12px/1.4 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); text-align: right;
+}
+.loading { top: auto; right: auto; left: 50%; top: 40%; transform: translateX(-50%); font-size: 16px; }
+@media (max-width: 520px) {
+  .panel { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding: 12px; gap: 10px; max-height: 55%; }
+  h1 { font-size: 22px; }
+  .hint { display: none; }
+}
+</style>
+
+<canvas id="stage" aria-label="3D character viewer"></canvas>
+<div class="hint">Drag to orbit, scroll to zoom</div>
+<div class="loading" id="loading">Loading</div>
+<section class="panel">
+  <div>
+    <h1 id="title">Crew</h1>
+    <p class="sub">AI stand-ins: Qwen-Image reference, TripoSR mesh, auto-rigged in Blender. Higher quality meshes (TRELLIS or Tripo) replace these through the same rig.</p>
+  </div>
+  <div>
+    <div class="label">Character</div>
+    <div class="row" id="chars"></div>
+  </div>
+  <div>
+    <div class="label">Animation</div>
+    <div class="row" id="anims"></div>
+  </div>
+  <div id="slotbox">
+    <div class="label">Slot colour</div>
+    <div class="row" id="slots"></div>
+  </div>
+  <div>
+    <div class="label">View</div>
+    <div class="row">
+      <button id="v-spin" aria-pressed="false">Turntable</button>
+      <button id="v-top" aria-pressed="false">Raid top-down</button>
+      <button id="v-bones" aria-pressed="false">Bones</button>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.0/babylon.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.0/babylon.glTF2FileLoader.min.js"></script>
+<script>
+const CHARS = [
+  { id: "crew", name: "Crew", role: "Player crew, rifle" },
+  { id: "dealer", name: "Dealer", role: "Enemy" },
+  { id: "soldier", name: "Soldier", role: "Enemy" },
+  { id: "runner", name: "Runner", role: "Lookout" },
+  { id: "dog", name: "Dog", role: "Guard dog" },
+];
+const SLOTS = [
+  { name: "Slot 1", hex: "#22E3FF" }, { name: "Slot 2", hex: "#FF2D9B" },
+  { name: "Slot 3", hex: "#A6FF2E" }, { name: "Slot 4", hex: "#FFB020" },
+  { name: "Enemy", hex: "#FF3B4E" },
+];
+const LABEL = { CrouchIdle: "Crouch", CrouchWalk: "Crouch walk", HandsUp: "Hands up" };
+const hex = (h) => BABYLON.Color3.FromHexString(h);
+
+const canvas = document.getElementById("stage");
+const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+const scene = new BABYLON.Scene(engine);
+scene.clearColor = BABYLON.Color4.FromHexString("#0B1220FF");
+scene.ambientColor = new BABYLON.Color3(0.3, 0.34, 0.45);
+
+const cam = new BABYLON.ArcRotateCamera("cam", Math.PI / 2 - 0.5, 1.3, 4.2, new BABYLON.Vector3(0, 0.9, 0), scene);
+cam.lowerRadiusLimit = 1.2; cam.upperRadiusLimit = 12; cam.upperBetaLimit = 1.55; cam.minZ = 0.05;
+cam.wheelDeltaPercentage = 0.01; cam.pinchDeltaPercentage = 0.004; cam.panningSensibility = 0;
+cam.attachControl(canvas, true);
+
+const hemi = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
+hemi.diffuse = hex("#9fb2dc"); hemi.groundColor = hex("#1a2133"); hemi.intensity = 1.0;
+const moon = new BABYLON.DirectionalLight("moon", new BABYLON.Vector3(-0.5, -1, 0.6), scene);
+moon.position = new BABYLON.Vector3(4, 8, -5); moon.diffuse = hex("#5a86e0"); moon.intensity = 1.6;
+const key = new BABYLON.DirectionalLight("key", new BABYLON.Vector3(0.3, -0.5, -1), scene);
+key.diffuse = hex("#e6ecf7"); key.intensity = 1.8; key.excludedMeshes = [];
+const street = new BABYLON.PointLight("street", new BABYLON.Vector3(2.2, 2.4, -1.6), scene);
+street.diffuse = hex("#FF9A2E"); street.intensity = 6; street.range = 8;
+const shadows = new BABYLON.ShadowGenerator(1024, moon);
+shadows.usePercentageCloserFiltering = true; shadows.darkness = 0.35;
+
+const ground = BABYLON.MeshBuilder.CreateDisc("ground", { radius: 3, tessellation: 64 }, scene);
+ground.rotation.x = Math.PI / 2;
+const gm = new BABYLON.StandardMaterial("gm", scene);
+gm.diffuseColor = hex("#0E1424"); gm.specularColor = BABYLON.Color3.Black();
+ground.material = gm; ground.receiveShadows = true;
+key.excludedMeshes.push(ground); hemi.excludedMeshes.push(ground);
+const ring = BABYLON.MeshBuilder.CreateTorus("ring", { diameter: 1.1, thickness: 0.025, tessellation: 64 }, scene);
+ring.position.y = 0.01;
+const rm = new BABYLON.StandardMaterial("rm", scene);
+rm.emissiveColor = hex("#22E3FF"); rm.disableLighting = true; ring.material = rm;
+
+const cache = {};
+let current = null, slotHex = SLOTS[0].hex, playing = null, spin = false, topView = false, bonesView = null;
+
+async function load(id) {
+  if (cache[id]) return cache[id];
+  const txt = await (await fetch(`models/${id}.gltf.json`)).text();
+  const res = await BABYLON.SceneLoader.ImportMeshAsync("", "", "data:" + txt, scene, null, ".gltf");
+  const root = res.meshes[0];
+  res.animationGroups.forEach((g) => g.stop());
+  const meshes = res.meshes.filter((m) => m.getTotalVertices() > 0);
+  meshes.forEach((m) => { shadows.addShadowCaster(m); m.receiveShadows = true; });
+  let tris = 0; meshes.forEach((m) => (tris += m.getTotalIndices() / 3));
+  const slotMats = scene.materials.filter((m) => m.name === "Slot" && meshes.some((x) => x.material === m || (x.material && x.material.subMaterials && x.material.subMaterials.includes(m))));
+  const entry = { root, groups: res.animationGroups, meshes, tris: Math.round(tris), skeleton: res.skeletons[0], slotMats };
+  // slot materials: give them a glow so the tint reads at night
+  entry.slotMats.forEach((m) => { if (m.emissiveColor) m.emissiveIntensity = 1; });
+  root.setEnabled(false);
+  cache[id] = entry;
+  return entry;
+}
+
+function applySlot() {
+  if (!current) return;
+  const c = hex(slotHex);
+  current.slotMats.forEach((m) => { if (m.albedoColor) m.albedoColor = c; if (m.emissiveColor) m.emissiveColor = c.scale(0.35); });
+  rm.emissiveColor = c;
+  document.documentElement.style.setProperty("--slot", slotHex);
+}
+
+function play(name) {
+  if (!current) return;
+  current.groups.forEach((g) => g.stop());
+  const g = current.groups.find((x) => x.name === name) || current.groups[0];
+  if (!g) return;
+  const once = ["Kick", "Down", "Shoot"].includes(g.name);
+  g.start(!once, 1.0, g.from, g.to, false);
+  playing = g.name;
+  document.querySelectorAll("#anims button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.a === playing));
+}
+
+async function show(id) {
+  document.getElementById("loading").style.display = "block";
+  document.querySelectorAll("#chars button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.c === id));
+  const e = await load(id);
+  if (current) { current.groups.forEach((g) => g.stop()); current.root.setEnabled(false); }
+  current = e; e.root.setEnabled(true);
+  const info = CHARS.find((c) => c.id === id);
+  document.getElementById("title").innerHTML = `${info.name} <span>${info.role}</span>`;
+  const box = document.getElementById("anims"); box.innerHTML = "";
+  e.groups.forEach((g) => {
+    const b = document.createElement("button"); b.textContent = LABEL[g.name] || g.name; b.dataset.a = g.name;
+    b.onclick = () => play(g.name); box.appendChild(b);
+  });
+  document.getElementById("slotbox").style.display = e.slotMats.length ? "" : "none";
+  cam.target.y = id === "dog" ? 0.35 : 0.9;
+  if (!topView) cam.radius = id === "dog" ? 2.4 : 4.2;
+  applySlot();
+  if (!e.slotMats.length) rm.emissiveColor = hex(info.role === "Enemy" ? "#FF3B4E" : "#8C9AB5");
+  setBones(!!bonesView);
+  play(e.groups.some((g) => g.name === playing) ? playing : "Idle");
+  document.getElementById("stats").innerHTML =
+    `<span><b>${e.tris.toLocaleString("en-GB")}</b> tris</span><span><b>${e.skeleton ? e.skeleton.bones.length : 0}</b> bones</span><span><b>${e.groups.length}</b> clips</span>`;
+  document.getElementById("loading").style.display = "none";
+}
+
+function setBones(on) {
+  if (bonesView) { bonesView.dispose(); bonesView = null; }
+  if (on && current && current.skeleton) {
+    const m = current.meshes.find((x) => x.skeleton);
+    if (m) { bonesView = new BABYLON.Debug.SkeletonViewer(current.skeleton, m, scene, false, 3, { displayMode: BABYLON.Debug.SkeletonViewer.DISPLAY_SPHERE_AND_SPURS }); bonesView.isEnabled = true; }
+  }
+  document.getElementById("v-bones").setAttribute("aria-pressed", on);
+}
+
+CHARS.forEach((c) => {
+  const b = document.createElement("button"); b.textContent = c.name; b.dataset.c = c.id;
+  b.onclick = () => show(c.id); document.getElementById("chars").appendChild(b);
+});
+SLOTS.forEach((s, i) => {
+  const b = document.createElement("button"); b.className = "swatch"; b.title = s.name; b.setAttribute("aria-label", s.name);
+  b.style.background = s.hex; b.setAttribute("aria-pressed", i === 0);
+  b.onclick = () => { slotHex = s.hex; document.querySelectorAll("#slots button").forEach((x) => x.setAttribute("aria-pressed", x === b)); applySlot(); };
+  document.getElementById("slots").appendChild(b);
+});
+document.getElementById("v-spin").onclick = (ev) => { spin = !spin; ev.currentTarget.setAttribute("aria-pressed", spin); };
+document.getElementById("v-top").onclick = (ev) => {
+  topView = !topView; ev.currentTarget.setAttribute("aria-pressed", topView);
+  if (topView) { cam.beta = 0.25; cam.radius = 7; } else { cam.beta = 1.3; cam.radius = current && current === cache.dog ? 2.4 : 4.2; }
+};
+document.getElementById("v-bones").onclick = () => setBones(!bonesView);
+
+scene.onBeforeRenderObservable.add(() => { if (spin) cam.alpha += engine.getDeltaTime() * 0.0004; });
+engine.runRenderLoop(() => scene.render());
+addEventListener("resize", () => engine.resize());
+show("crew").catch((e) => { document.getElementById("loading").textContent = "Could not load model"; console.error(e); });
+</script>
