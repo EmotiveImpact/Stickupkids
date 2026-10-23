@@ -4,6 +4,9 @@ A top-down tactical heist game set on a British estate at night. You plan a raid
 
 This is the first playable slice, built in [Babylon.js](https://www.babylonjs.com/) with TypeScript and Vite. One job (a mid-terrace on the Harrow Road estate), four crew, four enemies, placeholder low-poly geometry.
 
+![Planning on the blueprint](docs/screenshots/2-planning.png)
+![The raid at night](docs/screenshots/3-raid.png)
+
 ## Play it
 
 ```sh
