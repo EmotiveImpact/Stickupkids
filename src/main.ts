@@ -153,6 +153,7 @@ function addPoint(p: Vec): boolean {
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 canvas.addEventListener('pointerdown', (e) => {
+  if (e.button === 1) return;
   const p = view.pick(e.clientX, e.clientY);
   if (!p) return;
   if (phase === 'planning') {
@@ -242,6 +243,39 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('resize', () => view.resize());
+
+// Camera: wheel or pinch to zoom, middle-drag or arrow keys to pan.
+canvas.addEventListener(
+  'wheel',
+  (e) => {
+    e.preventDefault();
+    view.zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+  },
+  { passive: false },
+);
+let panning: { x: number; y: number } | null = null;
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.button !== 1) return;
+  panning = { x: e.clientX, y: e.clientY };
+  e.preventDefault();
+});
+window.addEventListener('pointermove', (e) => {
+  if (!panning) return;
+  view.panBy(e.clientX - panning.x, e.clientY - panning.y);
+  panning = { x: e.clientX, y: e.clientY };
+});
+window.addEventListener('pointerup', (e) => {
+  if (e.button === 1) panning = null;
+});
+const PAN_KEYS: Record<string, [number, number]> = { arrowleft: [1, 0], arrowright: [-1, 0], arrowup: [0, 1], arrowdown: [0, -1] };
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (PAN_KEYS[k]) {
+    view.panBy(PAN_KEYS[k][0] * 60, PAN_KEYS[k][1] * 60);
+    e.preventDefault();
+  } else if (k === '=' || k === '+') view.zoomAt(innerWidth / 2, innerHeight / 2, 1.2);
+  else if (k === '-') view.zoomAt(innerWidth / 2, innerHeight / 2, 1 / 1.2);
+});
 
 // -------------------------------------------------------------- main loop
 
@@ -356,4 +390,12 @@ if (q.get('auto')) {
     if (q.get('pause')) togglePause();
   }
 }
-(window as unknown as { __ready: boolean }).__ready = true;
+view.ready.then(() => {
+  // ?zoom=2.5&at=0.3,0.6 zooms on a point given as a share of the screen (for close-up screenshots).
+  if (q.get('zoom')) {
+    const [fx, fy] = (q.get('at') ?? '0.5,0.5').split(',').map(Number);
+    view.zoomAt(innerWidth * fx, innerHeight * fy, Number(q.get('zoom')));
+  }
+  hud.loaded();
+  (window as unknown as { __ready: boolean }).__ready = true;
+});

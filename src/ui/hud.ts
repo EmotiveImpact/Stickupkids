@@ -90,6 +90,7 @@ export class Hud {
     this.overlay.innerHTML = `<div class="title-card">
       <div class="logo">STICKUPKIDS</div>
       <div class="tagline">Job one: a mid-terrace on the Harrow Road estate. The dealer keeps cash in the front room and a bag in the back bedroom nobody has seen inside. Plan it on the blueprint, call the go codes, get to the van.</div>
+      <div class="loading">Loading the estate…</div>
       <div class="menu">
         <button data-a="plan">Plan the job</button>
         <button data-a="sample">Load a sample plan</button>
@@ -103,11 +104,17 @@ export class Hud {
         <b>Enter</b><span>Go</span>
         <b>Space</b><span>Pause the raid. While paused, click to redraw the selected crew member's route</span>
         <b>F</b><span>Toggle speed</span>
+        <b>Wheel, arrows</b><span>Zoom and pan the camera (middle-drag pans too)</span>
       </div>
     </div>`;
     this.overlay.querySelectorAll('button').forEach((b) =>
       b.addEventListener('click', () => this.h.start((b as HTMLElement).dataset.a === 'sample')),
     );
+  }
+
+  /** The level has loaded: drop the loading note. */
+  loaded() {
+    document.body.classList.add('loaded');
   }
 
   hideOverlay() {

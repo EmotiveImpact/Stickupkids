@@ -144,3 +144,7 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
   .results { flex-direction: column; }
   .res-left, .res-right { width: 90vw; }
 }
+
+.loading { font: 600 14px Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #8fb4ff; animation: pulse 1.2s ease-in-out infinite alternate; }
+body.loaded .loading { display: none; }
+@keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
