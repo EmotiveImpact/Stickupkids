@@ -56,7 +56,7 @@ button:disabled { opacity: .4; cursor: default; }
 <section class="panel">
   <div>
     <h1 id="title">Crew</h1>
-    <p class="sub">AI stand-ins: Qwen-Image reference, TripoSR mesh, auto-rigged in Blender. Higher quality meshes (TRELLIS or Tripo) replace these through the same rig.</p>
+    <p class="sub">Crew to dog: TripoSR stand-ins. Leader and lookout: Meshy models. All auto-rigged in Blender with the same skeleton and clips.</p>
   </div>
   <div>
     <div class="label">Character</div>
@@ -90,6 +90,8 @@ const CHARS = [
   { id: "soldier", name: "Soldier", role: "Enemy" },
   { id: "runner", name: "Runner", role: "Lookout" },
   { id: "dog", name: "Dog", role: "Guard dog" },
+  { id: "leader", name: "Leader", role: "Gang, Meshy" },
+  { id: "lookout", name: "Lookout", role: "Gang, Meshy" },
 ];
 const SLOTS = [
   { name: "Slot 1", hex: "#22E3FF" }, { name: "Slot 2", hex: "#FF2D9B" },

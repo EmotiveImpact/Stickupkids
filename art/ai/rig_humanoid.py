@@ -179,7 +179,9 @@ def arm_end(side):
     cand = [v for v in V if side * v.x > sh_x + 0.04 and 0.3 * H < v.z < 0.86 * H]
     if not cand:
         return sh + Vector((side * 0.05, 0, -0.55))
-    far = max(cand, key=lambda v: (v - sh).length)
+    # in an A- or T-pose the hand is the outermost point; scoring by distance
+    # from the shoulder alone can pick a baggy trouser leg instead
+    far = max(cand, key=lambda v: side * v.x + 0.25 * (v - sh).length)
     # average the tip so one stray vertex does not decide it
     tip = [v for v in cand if (v - far).length < 0.06]
     return sum(tip, Vector()) / len(tip)
@@ -601,6 +603,11 @@ make_action("Down", 40, down, loop=False)
 make_action("Sit", 90, sit)
 reset()
 bpy.ops.object.mode_set(mode="OBJECT")
+
+for im in bpy.data.images:  # game budget: textures at most 1024 px
+    if im.size[0] > 1024 or im.size[1] > 1024:
+        k = 1024 / max(im.size)
+        im.scale(max(1, int(im.size[0] * k)), max(1, int(im.size[1] * k)))
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.gltf(
