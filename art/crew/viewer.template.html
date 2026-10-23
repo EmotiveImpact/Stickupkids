@@ -1,0 +1,227 @@
+<title>Crew Rig Viewer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D stage with a glass control panel docked bottom-left (stacks below on phones). Single dark look by choice, matching the game UI. */
+:root {
+  --night: #0B1220; --glass: rgba(18, 26, 43, 0.85); --edge: #2A3A5C; --fg: #E6ECF7; --muted: #8C9AB5;
+  --slot: #22E3FF;
+  --display: "Rajdhani", "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--night); color: var(--fg); font-family: var(--body); overflow: hidden; }
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+.panel {
+  position: fixed; z-index: 2;
+  left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: min(360px, calc(100% - 32px));
+  background: var(--glass); border: 1px solid var(--edge); border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.3), 0 0 18px -6px var(--slot);
+  padding: 14px 16px 16px; display: grid; gap: 12px; backdrop-filter: blur(6px);
+}
+h1 { margin: 0; font: 700 26px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
+h1 span { color: var(--slot); }
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.label { font: 600 12px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+button {
+  font: 600 14px/1 var(--display); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--fg); background: transparent; border: 1px solid var(--edge); border-radius: 8px;
+  padding: 8px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--slot); outline-offset: 2px; }
+button[aria-pressed="true"] { border-color: var(--slot); color: var(--slot); box-shadow: inset 0 0 10px -4px var(--slot); }
+.swatch { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; font-size: 15px; }
+.swatch::before { content: ""; position: absolute; }
+.swatch[data-c] { color: var(--night); }
+.stats { display: flex; gap: 14px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--fg); font-weight: 500; }
+.hint {
+  position: fixed; z-index: 2; top: calc(14px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
+  font: 600 12px/1.4 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); text-align: right;
+}
+@media (max-width: 520px) {
+  .panel { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding: 12px; gap: 10px; }
+  h1 { font-size: 22px; }
+  .hint { display: none; }
+}
+</style>
+
+<canvas id="stage" aria-label="3D crew character"></canvas>
+<div class="hint">Drag to orbit, scroll to zoom</div>
+<section class="panel">
+  <div>
+    <h1>Crew <span id="slotname">Slot 1</span></h1>
+    <p class="sub">Rigged low-poly crew member, Blender to glTF, playing in Babylon.js.</p>
+  </div>
+  <div>
+    <div class="label">Animation</div>
+    <div class="row" id="anims"></div>
+  </div>
+  <div>
+    <div class="label">Slot colour</div>
+    <div class="row" id="slots"></div>
+  </div>
+  <div>
+    <div class="label">View</div>
+    <div class="row">
+      <button id="v-orbit" aria-pressed="true">Line-up</button>
+      <button id="v-top" aria-pressed="false">Raid top-down</button>
+      <button id="v-gun" aria-pressed="true">Rifle</button>
+      <button id="v-bones" aria-pressed="false">Bones</button>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/babylonjs@7.54.0/babylon.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@7.54.0/babylon.glTF2FileLoader.min.js"></script>
+<script>
+const GLB = "data:model/gltf-binary;base64,__GLB__";
+const SLOTS = [
+  { name: "Slot 1", hex: "#22E3FF" }, { name: "Slot 2", hex: "#FF2D9B" },
+  { name: "Slot 3", hex: "#A6FF2E" }, { name: "Slot 4", hex: "#FFB020" },
+  { name: "Enemy", hex: "#FF3B4E" },
+];
+const ANIMS = [["Idle", "Idle"], ["Walk", "Walk"], ["Run", "Run"], ["CrouchIdle", "Crouch"], ["CrouchWalk", "Crouch walk"]];
+const SPEED = { Walk: 1.45, Run: 4.2, CrouchWalk: 0.85 }; // metres per second, for the scrolling floor
+const hex = (h) => BABYLON.Color3.FromHexString(h);
+
+const canvas = document.getElementById("stage");
+const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+const scene = new BABYLON.Scene(engine);
+scene.clearColor = BABYLON.Color4.FromHexString("#0B1220FF");
+scene.ambientColor = new BABYLON.Color3(0.25, 0.3, 0.42);
+
+const cam = new BABYLON.ArcRotateCamera("cam", Math.PI / 2 - 0.55, 1.32, 4.2, new BABYLON.Vector3(0, 0.9, 0), scene);
+cam.lowerRadiusLimit = 1.6; cam.upperRadiusLimit = 12; cam.upperBetaLimit = 1.55; cam.minZ = 0.05;
+cam.wheelDeltaPercentage = 0.01; cam.pinchDeltaPercentage = 0.004; cam.panningSensibility = 0;
+cam.attachControl(canvas, true);
+
+const hemi = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
+hemi.diffuse = hex("#6f86c0"); hemi.groundColor = hex("#141a2a"); hemi.intensity = 0.9;
+const moon = new BABYLON.DirectionalLight("moon", new BABYLON.Vector3(-0.5, -1, 0.6), scene);
+moon.position = new BABYLON.Vector3(4, 8, -5); moon.diffuse = hex("#3A6FD8"); moon.intensity = 1.6;
+const street = new BABYLON.PointLight("street", new BABYLON.Vector3(2.4, 2.6, 1.8), scene);
+street.diffuse = hex("#FF9A2E"); street.intensity = 9; street.range = 9;
+const key = new BABYLON.DirectionalLight("key", new BABYLON.Vector3(0.3, -0.6, 1), scene);
+key.diffuse = hex("#c9d6f2"); key.intensity = 1.3;
+const shadows = new BABYLON.ShadowGenerator(1024, moon);
+shadows.usePercentageCloserFiltering = true; shadows.bias = 0.004; shadows.darkness = 0.4;
+const glow = new BABYLON.GlowLayer("glow", scene); glow.intensity = 0.6;
+
+// Wet tarmac floor with a painted grid that scrolls under the walk cycles.
+const floorTex = new BABYLON.DynamicTexture("floorTex", 512, scene, true);
+(() => {
+  const c = floorTex.getContext();
+  c.fillStyle = "#141c2c"; c.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 1400; i++) { c.fillStyle = `rgba(120,140,190,${Math.random() * 0.07})`; c.fillRect(Math.random() * 512, Math.random() * 512, 3, 3); }
+  c.strokeStyle = "rgba(90,120,190,0.35)"; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(0, 1); c.lineTo(512, 1); c.moveTo(1, 0); c.lineTo(1, 512); c.stroke();
+  floorTex.update();
+})();
+floorTex.wrapU = floorTex.wrapV = BABYLON.Texture.WRAP_ADDRESSMODE;
+floorTex.uScale = floorTex.vScale = 14;
+const floor = BABYLON.MeshBuilder.CreateGround("floor", { width: 14, height: 14 }, scene);
+const floorMat = new BABYLON.StandardMaterial("floorMat", scene);
+floorMat.diffuseTexture = floorTex; floorMat.specularColor = new BABYLON.Color3(0.06, 0.07, 0.1); floorMat.specularPower = 24;
+floorMat.ambientColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+floor.material = floorMat; floor.receiveShadows = true;
+// Fade the floor edge into the night with a radial alpha mask.
+const fade = new BABYLON.DynamicTexture("fade", 256, scene, false);
+(() => { const c = fade.getContext(); const g = c.createRadialGradient(128, 128, 20, 128, 128, 128);
+  g.addColorStop(0, "#fff"); g.addColorStop(1, "#000"); c.fillStyle = g; c.fillRect(0, 0, 256, 256); fade.update(); })();
+floorMat.opacityTexture = fade; fade.getAlphaFromRGB = true;
+
+const ring = BABYLON.MeshBuilder.CreateTorus("ring", { diameter: 0.95, thickness: 0.035, tessellation: 64 }, scene);
+ring.position.y = 0.01; ring.scaling.y = 0.15;
+const ringMat = new BABYLON.StandardMaterial("ringMat", scene);
+ringMat.disableLighting = true; ring.material = ringMat;
+
+let groups = {}, current = null, slotMat = null, weaponMeshes = [], skeleton = null, viewer = null, slotIndex = 0;
+
+function setSlot(i) {
+  slotIndex = i;
+  const s = SLOTS[i], c = hex(s.hex);
+  if (slotMat) { slotMat.albedoColor = c; slotMat.emissiveColor = c.scale(0.4); }
+  ringMat.emissiveColor = c;
+  document.documentElement.style.setProperty("--slot", s.hex);
+  document.getElementById("slotname").textContent = s.name;
+  document.querySelectorAll("#slots button").forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+}
+
+function play(name) {
+  const g = groups[name]; if (!g) return;
+  if (current && current !== g) current.stop();
+  g.start(true, 1.0); current = g;
+  document.querySelectorAll("#anims button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.anim === name)));
+}
+
+function setView(top) {
+  document.getElementById("v-orbit").setAttribute("aria-pressed", String(!top));
+  document.getElementById("v-top").setAttribute("aria-pressed", String(top));
+  const to = top ? { a: Math.PI / 2, b: 0.12, r: 6.5 } : { a: Math.PI / 2 - 0.55, b: 1.32, r: 4.2 };
+  BABYLON.Animation.CreateAndStartAnimation("ca", cam, "alpha", 60, 40, cam.alpha, to.a, 0, new BABYLON.CubicEase());
+  BABYLON.Animation.CreateAndStartAnimation("cb", cam, "beta", 60, 40, cam.beta, to.b, 0, new BABYLON.CubicEase());
+  BABYLON.Animation.CreateAndStartAnimation("cr", cam, "radius", 60, 40, cam.radius, to.r, 0, new BABYLON.CubicEase());
+}
+
+BABYLON.SceneLoader.ImportMeshAsync("", "", GLB, scene, null, ".glb").then((res) => {
+  res.animationGroups.forEach((g) => { g.stop(); groups[g.name] = g; });
+  skeleton = res.skeletons[0];
+  let tris = 0;
+  res.meshes.forEach((m) => {
+    if (!m.getTotalVertices || !m.getTotalVertices()) return;
+    shadows.addShadowCaster(m); tris += m.getTotalIndices() / 3;
+    if (m.material && m.material.name === "Slot") slotMat = m.material;
+    if (m.name.startsWith("Weapon")) weaponMeshes.push(m);
+  });
+  scene.materials.forEach((m) => { if (m.name === "Slot") slotMat = m; });
+
+  const anims = document.getElementById("anims");
+  ANIMS.forEach(([id, label]) => {
+    const b = document.createElement("button"); b.textContent = label; b.dataset.anim = id;
+    b.setAttribute("aria-pressed", "false"); b.onclick = () => play(id); anims.appendChild(b);
+  });
+  document.getElementById("stats").innerHTML =
+    `<span><b>${Math.round(tris).toLocaleString("en-GB")}</b> tris</span><span><b>${skeleton ? skeleton.bones.length : 0}</b> bones</span><span><b>${res.animationGroups.length}</b> clips</span><span><b>6</b> materials</span>`;
+  setSlot(slotIndex);
+  play("Walk");
+});
+
+const slots = document.getElementById("slots");
+SLOTS.forEach((s, i) => {
+  const b = document.createElement("button"); b.className = "swatch"; b.title = s.name;
+  b.setAttribute("aria-label", s.name); b.style.background = s.hex; b.style.borderColor = s.hex;
+  b.style.color = "#0B1220"; b.textContent = i < 4 ? String(i + 1) : "!";
+  b.setAttribute("aria-pressed", "false"); b.onclick = () => setSlot(i); slots.appendChild(b);
+});
+document.getElementById("v-orbit").onclick = () => setView(false);
+document.getElementById("v-top").onclick = () => setView(true);
+document.getElementById("v-gun").onclick = (e) => {
+  const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+  e.currentTarget.setAttribute("aria-pressed", String(on)); weaponMeshes.forEach((m) => m.setEnabled(on));
+};
+document.getElementById("v-bones").onclick = (e) => {
+  const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+  e.currentTarget.setAttribute("aria-pressed", String(on));
+  if (on && skeleton && !viewer) {
+    const mesh = scene.meshes.find((m) => m.skeleton);
+    viewer = new BABYLON.Debug.SkeletonViewer(skeleton, mesh, scene, false, 3, { displayMode: BABYLON.Debug.SkeletonViewer.DISPLAY_SPHERE_AND_SPURS });
+  }
+  if (viewer) viewer.isEnabled = on;
+};
+
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+scene.onBeforeRenderObservable.add(() => {
+  const dt = engine.getDeltaTime() / 1000;
+  const v = current ? (SPEED[current.name] || 0) : 0;
+  // The character faces +Z in Babylon after the glTF import, so the floor slides towards -Z.
+  if (!reduce) floorTex.vOffset = (floorTex.vOffset - v * dt + 1000) % 1;
+});
+engine.runRenderLoop(() => scene.render());
+addEventListener("resize", () => engine.resize());
+</script>
