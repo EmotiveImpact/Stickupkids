@@ -46,8 +46,8 @@ ASSETS = {
 def image(cli, prompt, path):
     tall = not any(k in prompt for k in ("Single game prop", "Side view of a"))
     res = cli.predict(prompt=prompt, seed=7, randomize_seed=False,
-                      width=768 if tall else 1024, height=1024 if tall else 768,
-                      api_name="/infer")
+                      aspect_ratio="3:4" if tall else "4:3",
+                      api_name="/generate_image")
     src = res[0] if isinstance(res, (list, tuple)) else res
     src = src.get("path", src) if isinstance(src, dict) else src
     shutil.copy(src, path)
@@ -71,8 +71,8 @@ def main():
     names = sys.argv[2:] or list(ASSETS)
     os.makedirs(out, exist_ok=True)
     tok = os.environ.get("HF_TOKEN")
-    icli = Client(IMAGE_SPACE, hf_token=tok)
-    mcli = Client(MESH_SPACE, hf_token=tok)
+    icli = Client(IMAGE_SPACE, token=tok)
+    mcli = Client(MESH_SPACE, token=tok)
     for n in names:
         png, glb = os.path.join(out, n + ".png"), os.path.join(out, n + ".glb")
         if os.path.exists(glb):
