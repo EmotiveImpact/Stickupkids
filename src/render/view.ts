@@ -163,6 +163,8 @@ export class View {
   private zoom = 1;
   private pan = { x: 0, z: 0 };
   private scale = 1;
+  /** CSS pixels per metre with the whole level in view. */
+  private fitScale = 1;
   private shake = 0;
   private shaking = false;
   private flashMat: StandardMaterial | null = null;
@@ -373,7 +375,9 @@ export class View {
     const uh = Math.max(100, sh - T - B);
     const viewW = this.level.w + 1;
     const viewH = this.level.h * Math.sin(TILT) + WALL_H * Math.cos(TILT) + 0.5;
-    const scale = (this.scale = Math.min(uw / viewW, uh / viewH) * this.zoom);
+    const fit = Math.min(uw / viewW, uh / viewH);
+    this.fitScale = fit / dpr;
+    const scale = (this.scale = fit * this.zoom);
     const dx = L + uw / 2 - sw / 2;
     const dy = T + uh / 2 - sh / 2;
     for (const c of [this.cam, this.ocam]) {
@@ -392,12 +396,46 @@ export class View {
       c.position.set(target.x, Math.sin(TILT) * d, target.z - Math.cos(TILT) * d);
       c.setTarget(target);
     }
+    if (this.big) {
+      // Character shadows only where the camera is looking, at full sharpness.
+      const sl = this.shadowLight;
+      sl.position.copyFrom(target.subtract(sl.direction.normalizeToNew().scale(30)));
+      sl.shadowFrustumSize = Math.min(120, Math.max(30, (this.engine.getRenderWidth() / this.scale) * 1.3));
+    }
+  }
+
+  /** A level too big to play with all of it in view. */
+  get big(): boolean {
+    return this.level.w > 60 || this.level.h > 60;
+  }
+
+  /** Closest zoom: near enough to read a person, however big the level. */
+  private get maxZoom(): number {
+    return Math.max(3.2, 52 / this.fitScale);
+  }
+
+  /** Centre the view on a map point, optionally at a zoom given in CSS pixels per metre. */
+  focus(x: number, y: number, pxPerMetre?: number) {
+    if (pxPerMetre) this.zoom = Math.min(this.maxZoom, Math.max(1, pxPerMetre / this.fitScale));
+    this.resize();
+    this.pan = { x: this.co.X(x), z: this.co.Z(y) };
+    this.clampPan();
+    this.resize();
+  }
+
+  /** The stretch of map in view, in map coordinates. */
+  visibleRect(): { x0: number; y0: number; x1: number; y1: number } | null {
+    const i = this.insets;
+    const a = this.groundAt(i.left, i.top);
+    const b = this.groundAt(innerWidth - i.right, innerHeight - i.bottom);
+    if (!a || !b) return null;
+    return { x0: a.x + this.level.w / 2, y0: this.level.h / 2 - a.z, x1: b.x + this.level.w / 2, y1: this.level.h / 2 - b.z };
   }
 
   /** Zoom by a factor, keeping the map point under the cursor still. */
   zoomAt(clientX: number, clientY: number, factor: number) {
     const before = this.groundAt(clientX, clientY);
-    this.zoom = Math.min(3.2, Math.max(1, this.zoom * factor));
+    this.zoom = Math.min(this.maxZoom, Math.max(1, this.zoom * factor));
     this.resize();
     const after = this.groundAt(clientX, clientY);
     if (before && after) {
@@ -964,6 +1002,10 @@ export class View {
       f.light.intensity = f.t < 0.07 ? f.power * (1 - f.t / 0.07) : 0;
     }
     this.atmosphere?.update(dt, this.time);
+    if (this.big && this.atmosphere) {
+      const r = this.visibleRect();
+      if (r) this.atmosphere.setArea(r);
+    }
     if (this.shake > 0.002) {
       this.shake *= Math.exp(-dt * 14);
       this.placeCamera((Math.random() * 2 - 1) * this.shake, (Math.random() * 2 - 1) * this.shake);

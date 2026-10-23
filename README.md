@@ -2,7 +2,7 @@
 
 A top-down tactical heist game set on a British estate at night. You plan a raid on a blueprint of the house, draw each crew member's route, sync them with go codes, then watch it play out in real time with pause.
 
-This is the first playable slice, built in [Babylon.js](https://www.babylonjs.com/) with TypeScript and Vite. One job (a mid-terrace on the Harrow Road estate), four crew, four enemies, placeholder low-poly geometry.
+This is the first playable slice, built in [Babylon.js](https://www.babylonjs.com/) with TypeScript and Vite. Two jobs on a job board over a map of London: a mid-terrace on the Harrow Road estate, and the gang's weekly count in Burgess Park, a 250 by 155 m slice of the real park from Albany Road to Wells Way (map data © OpenStreetMap contributors).
 
 ![Planning on the blueprint](docs/screenshots/2-planning.png)
 ![The raid at night](docs/screenshots/3-raid.png)
@@ -32,6 +32,10 @@ To build a static copy for any web host: `npm run build`, then serve the `dist` 
 | `Space` | | Pause and resume |
 | `F` | | Speed 1x, 2x, 4x |
 | `V` or the car button | | Drive off with whoever is at the van |
+| Two fingers on a trackpad, arrow keys | Look round a big map | Look round a big map |
+| Pinch, mouse wheel | Zoom | Zoom |
+| Click or drag the minimap | Jump the camera there | Jump the camera there |
+| Click a crew card again | Find that crew member | Find that crew member |
 
 Locked doors are picked by default (quiet, slow; Kemi the Creeper is fastest). Kicking is fast but loud: it starts the police clock and brings guards running. Anyone who walks up on an unaware enemy holds them up (Taz the Talker is quickest); an enemy who clocks you first goes hostile, shouts for the others and starts the backup clock. Loot is bagged by walking next to it. Get everyone to the getaway zone by the van before the police arrive. **Load a sample plan** on the title screen shows a quiet run.
 

@@ -1,8 +1,8 @@
 """Builds the Burgess Park job in Blender from art/level/burgess.json (the
-level) and art/osm/burgess.json (paths and trees from OpenStreetMap), bakes
-its lighting and exports it for the game.
+level) and art/osm/burgess.json (paths, trees, buildings and fences from
+OpenStreetMap), bakes its lighting and exports it for the game.
 
-Run:  python3 art/level/build_park.py [--bake] [--samples 128] [--size 2048] [--preview] [--out DIR]
+Run:  python3 art/level/build_park.py [--bake] [--samples 96] [--size 4096] [--preview] [--out DIR]
 
 Outputs (public/models/burgess/): level.glb, level-lightmap.png,
 level-probe.png, level-materials.json, as for the estate (build_level.py).
@@ -19,7 +19,9 @@ import sys
 import time
 
 import bpy  # noqa: I001  (bpy must load before bmesh)
-from mathutils import Vector
+import bmesh
+import numpy as np
+from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -34,11 +36,12 @@ args = sys.argv
 OUT = args[args.index("--out") + 1] if "--out" in args else os.path.join(ROOT, "public", "models", "burgess")
 BAKE = "--bake" in args
 PREVIEW = "--preview" in args
-SAMPLES = int(args[args.index("--samples") + 1]) if "--samples" in args else 128
-LM_SIZE = int(args[args.index("--size") + 1]) if "--size" in args else 2048
+SAMPLES = int(args[args.index("--samples") + 1]) if "--samples" in args else 96
+LM_SIZE = int(args[args.index("--size") + 1]) if "--size" in args else 4096
 
 kit.MATS.update({
     "path": ("tarmac", "#ffffff", 3.0, 0.45, None),
+    "road": ("tarmac", "#8c90a2", 3.0, 0.3, None),
     "path_edge": ("concrete", "#9a9eae", 1.0, 0.7, None),
     "track": ("soil", "#6a6878", 2.0, 1.0, None),
     "brick_kiln": ("brick_dark", "#d0c0d0", 0.9, 0.92, None),
@@ -47,6 +50,7 @@ kit.MATS.update({
     "canopy_dark": ("grass", "#46685e", 0.9, 1.0, None),
     "shrub": ("grass", "#4c6c5c", 0.7, 1.0, None),
     "mulch": ("soil", "#7a7080", 2.0, 1.0, None),
+    "roof_flat": ("concrete", "#5a5e6c", 2.0, 0.8, None),
     "emit_lamp_led": (None, "#e8eeff", 1.0, 0.3, ("#dfe8ff", 22.0)),
 })
 kit.load_means(os.path.join(ROOT, "art", "textures", "out", "means.txt"))
@@ -58,6 +62,11 @@ T = L["tiles"]
 CUT = 1.5      # wall height in the game
 LAMP = "#d8e2ff"
 KILN_H = 4.4   # the kiln's real height, for the bake
+# The kiln was first drawn with its corner at (18, 4); everything about it
+# is given that way and moved to where the level has it.
+ROOM = next(r for r in L["rooms"] if r["id"] == "kiln")
+OX, OY = ROOM["x0"] - 19, ROOM["y0"] - 5
+ROADS = ("tertiary", "secondary", "primary", "residential", "service", "unclassified")
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 COLL = bake.collections()
@@ -77,62 +86,90 @@ def P(x, y, z=0.0):
     return Vector((BX(x), BY(y), z))
 
 
+def K(x, y, z=0.0):
+    """A point of the kiln, in its first map's coordinates."""
+    return P(x + OX, y + OY, z)
+
+
 def tile(x, y):
     if 0 <= x < W and 0 <= y < H:
         return T[y][x]
     return "g"
 
 
-def seg_dist(px, py, a, b):
-    ax, ay = a
-    bx, by = b
-    dx, dy = bx - ax, by - ay
-    q = dx * dx + dy * dy
-    t = 0.0 if q == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / q))
-    return math.hypot(px - ax - t * dx, py - ay - t * dy)
+def inside_map(x, y, pad=0.0):
+    return -pad <= x < W + pad and -pad <= y < H + pad
 
 
-def path_dist(x, y):
-    """Distance from a point to the nearest path edge (negative inside a path)."""
-    best = 1e9
-    for p in OSM["paths"]:
-        pts = p["pts"]
-        for i in range(len(pts) - 1):
-            best = min(best, seg_dist(x, y, pts[i], pts[i + 1]) - p["width"] / 2)
-    return best
+GX0, GX1, GY0, GY1 = -24, W + 24, -20, H + 14
+STEP = 1.0
 
-
-GX0, GX1, GY0, GY1 = -28, W + 28, -24, H + 16
-
-# Path surfaces, in the order they win where they cross.
+# Ground surfaces, in the order they win where they cross: (material, which OSM paths).
 SURFACES = [
-    ("path", ("asphalt", "paved", "concrete")),
-    ("path_edge", ("fine_gravel", "gravel", "compacted")),
-    ("track", ("dirt", "ground", "earth", "grass")),
+    ("road", lambda p: p["kind"] in ROADS),
+    ("path", lambda p: p["surface"] in ("asphalt", "paved", "concrete", "paving_stones")),
+    ("path_edge", lambda p: p["surface"] in ("fine_gravel", "gravel", "compacted")),
+    ("track", lambda p: p["surface"] in ("dirt", "ground", "earth", "grass")),
 ]
 
 
+def seg_field(X, Y, pts, half):
+    f = np.full(X.shape, 1e9)
+    for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+        dx, dy = bx - ax, by - ay
+        q = dx * dx + dy * dy or 1e-9
+        t = np.clip(((X - ax) * dx + (Y - ay) * dy) / q, 0, 1)
+        f = np.minimum(f, np.hypot(X - ax - t * dx, Y - ay - t * dy) - half)
+    return f
+
+
+def poly_field(X, Y, pts):
+    """Signed distance to a polygon's edge, negative inside."""
+    ring = pts + pts[:1]
+    d = seg_field(X, Y, ring, 0.0)
+    inside = np.zeros(X.shape, bool)
+    for (ax, ay), (bx, by) in zip(ring, ring[1:]):
+        if ay == by:
+            continue
+        crosses = (ay > Y) != (by > Y)
+        inside ^= crosses & (X < ax + (Y - ay) * (bx - ax) / (by - ay))
+    return np.where(inside, -d, d)
+
+
 def path_fields(step):
-    """For each surface, the signed distance to its path edges at every
-    vertex of the ground grid (negative on the path)."""
-    import numpy as np
+    """For each surface, the signed distance to its edges at every vertex of
+    the ground grid (negative on it)."""
     xs = GX0 + np.arange(int((GX1 - GX0) / step) + 1) * step
     ys = GY0 + np.arange(int((GY1 - GY0) / step) + 1) * step
     X, Y = np.meshgrid(xs, ys)
     out = []
-    for _, kinds in SURFACES:
+    for mat, which in SURFACES:
         f = np.full(X.shape, 1e9)
-        for p in OSM["paths"]:
-            if p["surface"] not in kinds:
-                continue
-            pts = p["pts"]
-            for (ax, ay), (bx, by) in zip(pts, pts[1:]):
-                dx, dy = bx - ax, by - ay
-                q = dx * dx + dy * dy or 1e-9
-                t = np.clip(((X - ax) * dx + (Y - ay) * dy) / q, 0, 1)
-                f = np.minimum(f, np.hypot(X - ax - t * dx, Y - ay - t * dy) - p["width"] / 2)
+        # A path takes the first surface that claims it.
+        claimed = [p for p in OSM["paths"] if which(p) and next(m for m, w in SURFACES if w(p)) == mat]
+        for p in claimed:
+            f = np.minimum(f, seg_field(X, Y, p["pts"], p["width"] / 2))
+        for a in OSM["areas"]:
+            if mat == "road" and a["kind"] == "parking":
+                f = np.minimum(f, poly_field(X, Y, a["pts"]))
+            if mat == "track" and a["kind"] == "track":
+                # The BMX track: a loop of packed dirt.
+                f = np.minimum(f, seg_field(X, Y, a["pts"], 2.2))
         out.append(f)
     return out
+
+
+FIELDS = path_fields(STEP)
+ANY_PATH = np.minimum.reduce(FIELDS)
+
+
+def path_dist(x, y):
+    """Distance from a point to the nearest path or road edge (negative on one), from the ground grid."""
+    i = int(round((y - GY0) / STEP))
+    j = int(round((x - GX0) / STEP))
+    if 0 <= i < ANY_PATH.shape[0] and 0 <= j < ANY_PATH.shape[1]:
+        return ANY_PATH[i, j]
+    return 1e9
 
 
 def area2(poly):
@@ -157,21 +194,30 @@ def clip(poly, vals, inside):
     return out, fs
 
 
+def interp(cell, vals, p):
+    """Bilinear value of the corner field at a point in the cell."""
+    (x0, y0), (x1, _), _, (_, y1) = cell
+    u, v = (p[0] - x0) / (x1 - x0), (p[1] - y0) / (y1 - y0)
+    return (vals[0] * (1 - u) * (1 - v) + vals[1] * u * (1 - v) + vals[2] * u * v + vals[3] * (1 - u) * v)
+
+
 # =================================================================== ground
 def build_ground():
-    """Grass everywhere at half-metre quads (the lightmap needs the vertices),
-    mulch under the planting, the kiln's floor, and the paths cut into the
-    same sheet along their real edges, so nothing overlaps."""
+    """Grass everywhere in metre quads (the lightmap needs the vertices),
+    mulch under the planting, the kiln's floor, and the roads, paths and
+    the BMX track cut into the same sheet along their real edges, so
+    nothing overlaps."""
     near = Geo("ground_near")
     far = Geo("ground_far")
-    step = 0.5
-    fields = path_fields(step)
+    step = STEP
     for gy in range(int((GY1 - GY0) / step)):
         for gx in range(int((GX1 - GX0) / step)):
             px = GX0 + gx * step
             py = GY0 + gy * step
             x, y = math.floor(px + step / 2), math.floor(py + step / 2)
             t = tile(x, y)
+            if t == "X":
+                continue  # under a building
             g = near if -3 <= x < W + 3 and -3 <= y < H + 3 else far
             cell = [(px, py), (px + step, py), (px + step, py + step), (px, py + step)]
             if t in ".#DO" or t == "b":
@@ -179,7 +225,7 @@ def build_ground():
             else:
                 pieces, rest = [], cell
                 idx = [(gy, gx), (gy, gx + 1), (gy + 1, gx + 1), (gy + 1, gx)]
-                vals_all = [[f[j] for j in idx] for f in fields]
+                vals_all = [[f[j] for j in idx] for f in FIELDS]
                 for (mat, _), vals in zip(SURFACES, vals_all):
                     if not rest:
                         break
@@ -204,11 +250,21 @@ def build_ground():
     return near, far
 
 
-def interp(cell, vals, p):
-    """Bilinear value of the corner field at a point in the cell."""
-    (x0, y0), (x1, _), _, (_, y1) = cell
-    u, v = (p[0] - x0) / (x1 - x0), (p[1] - y0) / (y1 - y0)
-    return (vals[0] * (1 - u) * (1 - v) + vals[1] * u * (1 - v) + vals[2] * u * v + vals[3] * (1 - u) * v)
+def dashes(g, pts, mat="paint_road", length=1.6, gap=2.6, width=0.12):
+    """Road centre-line dashes along a polyline (map coordinates)."""
+    carry = 0.0
+    for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+        seg = math.hypot(bx - ax, by - ay)
+        if seg < 1e-6:
+            continue
+        ux, uy = (bx - ax) / seg, (by - ay) / seg
+        s = carry
+        while s + length <= seg:
+            cx, cy = ax + ux * (s + length / 2), ay + uy * (s + length / 2)
+            if GX0 + 1 < cx < GX1 - 1 and GY0 + 1 < cy < GY1 - 1:
+                g.box(P(cx, cy, 0.006), (length, width, 0.012), mat, rot=math.atan2(-uy, ux))
+            s += length + gap
+        carry = s - seg
 
 
 # =================================================================== kiln
@@ -219,11 +275,14 @@ def build_kiln():
     low = Geo("walls")
     high = Geo("kiln_block")
     caps = Geo("caps")
-    # Centre line of the outer wall, map coordinates, one metre thick.
+    # Centre line of the outer wall, one metre thick, in the kiln's first
+    # map's coordinates (moved by OX, OY below).
     x0, x1, y0, y1, c = 18.5, 26.5, 4.5, 12.5, 1.25
     ring = [(x0 + c, y0), (x1 - c, y0), (x1, y0 + c), (x1, y1 - c), (x1 - c, y1), (x0 + c, y1), (x0, y1 - c), (x0, y0 + c)]
+    ring = [(x + OX, y + OY) for x, y in ring]
     # Openings: (edge index, from, to) measured along the edge from its start.
     gaps = {0: (22.0 - (x0 + c), 23.0 - (x0 + c)), 4: ((x1 - c) - 23.0, (x1 - c) - 22.0), 6: ((y1 - c) - 9.0, (y1 - c) - 8.0)}
+
     def offset(pts, d):
         """The octagon moved d outwards along its corner bisectors (a true mitre)."""
         out = []
@@ -238,7 +297,8 @@ def build_kiln():
     # Map y runs south, so the ring above is clockwise on screen: its left normal points out.
     outer = offset(ring, -0.5)
     inner = offset(ring, 0.5)
-    if (outer[0] - Vector((22.5, 8.5, 0))).length < (inner[0] - Vector((22.5, 8.5, 0))).length:
+    centre = Vector((22.5 + OX, 8.5 + OY, 0))
+    if (outer[0] - centre).length < (inner[0] - centre).length:
         outer, inner = inner, outer
 
     def prism(geo, quad, z0, z1, mat):
@@ -251,10 +311,10 @@ def build_kiln():
         f = geo.poly(bot, mat)
         if f.normal.z > 0:
             f.normal_flip()
-        c = sum(bot, Vector()) / 4
+        cc = sum(bot, Vector()) / 4
         for k in range(4):
             f = geo.poly([bot[k], bot[(k + 1) % 4], top[(k + 1) % 4], top[k]], mat)
-            if f.normal.dot(((bot[k] + bot[(k + 1) % 4]) / 2) - c) < 0:
+            if f.normal.dot(((bot[k] + bot[(k + 1) % 4]) / 2) - cc) < 0:
                 f.normal_flip()
 
     for i in range(8):
@@ -277,16 +337,16 @@ def build_kiln():
             prism(high, q, 2.3, KILN_H, "brick_kiln")
             prism(low, q, 0.0, 0.05, "sill")
     # The core: the old kiln pot, solid.
-    low.aabb(BX(21.0), BY(10.0), 0, BX(24.0), BY(7.0), CUT, "brick_kiln", bevel=0.02)
-    caps.aabb(BX(21.0), BY(10.0), CUT, BX(24.0), BY(7.0), CUT + 0.01, "cap")
-    high.aabb(BX(21.0), BY(10.0), CUT, BX(24.0), BY(7.0), KILN_H, "brick_kiln")
+    low.aabb(BX(21.0 + OX), BY(10.0 + OY), 0, BX(24.0 + OX), BY(7.0 + OY), CUT, "brick_kiln", bevel=0.02)
+    caps.aabb(BX(21.0 + OX), BY(10.0 + OY), CUT, BX(24.0 + OX), BY(7.0 + OY), CUT + 0.01, "cap")
+    high.aabb(BX(21.0 + OX), BY(10.0 + OY), CUT, BX(24.0 + OX), BY(7.0 + OY), KILN_H, "brick_kiln")
     # Vaulted cover over the passage, blocker only.
-    high.aabb(BX(18.0), BY(13.0), KILN_H, BX(27.0), BY(4.0), KILN_H + 0.3, "brick_kiln")
+    high.aabb(BX(18.0 + OX), BY(13.0 + OY), KILN_H, BX(27.0 + OX), BY(4.0 + OY), KILN_H + 0.3, "brick_kiln")
     # Inside: rubble, a pallet, a camping lamp.
     for k, (x, y) in enumerate(((19.6, 6.0), (25.3, 10.6), (19.5, 11.3))):
-        low.ico(P(x, y, 0.08), 0.28, "concrete", subdiv=1, scale=(1.3, 1, 0.5), noise=0.25, seed=90 + k)
-    low.aabb(BX(19.2), BY(10.9), 0, BX(20.4), BY(9.7), 0.14, "wood_dark", bevel=0.01)
-    low.cyl(P(20.0, 10.3, 0.14), 0.08, 0.04, "metal_dark", segs=10)
+        low.ico(K(x, y, 0.08), 0.28, "concrete", subdiv=1, scale=(1.3, 1, 0.5), noise=0.25, seed=90 + k)
+    low.aabb(BX(19.2 + OX), BY(10.9 + OY), 0, BX(20.4 + OX), BY(9.7 + OY), 0.14, "wood_dark", bevel=0.01)
+    low.cyl(K(20.0, 10.3, 0.14), 0.08, 0.04, "metal_dark", segs=10)
     return low, high, caps
 
 
@@ -316,23 +376,149 @@ def build_gates():
     return out
 
 
+# =================================================================== buildings and fences
+def build_buildings():
+    """Buildings from the map as plain blocks: the adventure playground's hut
+    in the park, the houses and flats round its edges beyond. Lit windows on
+    the ones outside."""
+    near, far, emit = Geo("buildings"), Geo("far_buildings"), Geo("windows_emit")
+    wr = random.Random(5)
+    for b in OSM["buildings"]:
+        if b["historic"]:
+            continue
+        pts = b["pts"][:-1] if b["pts"][0] == b["pts"][-1] else b["pts"]
+        cx = sum(p[0] for p in pts) / len(pts)
+        cy = sum(p[1] for p in pts) / len(pts)
+        if not (GX0 <= cx <= GX1 and GY0 <= cy <= GY1) or cy > H:
+            continue
+        inside = inside_map(cx, cy)
+        levels = int(b["levels"]) if (b["levels"] or "").isdigit() else (1 if inside else 3)
+        z = min(14.0, 0.4 + levels * 3.0)
+        g = near if inside else far
+        wall = "brick_n1" if inside else ("brick_n2", "brick_n3", "render_n")[len(pts) % 3]
+        if area2(pts) > 0:
+            pts = pts[::-1]
+        base = [P(x, y, 0) for x, y in pts]
+        top = [P(x, y, z) for x, y in pts]
+        f = g.poly(top, "roof_flat")
+        if f.normal.z < 0:
+            f.normal_flip()
+        n = len(pts)
+        cc = sum(base, Vector()) / n
+        for k in range(n):
+            a, b2 = base[k], base[(k + 1) % n]
+            f = g.poly([a, b2, top[(k + 1) % n], top[k]], wall)
+            mid = (a + b2) / 2
+            if f.normal.dot(mid - cc) < 0:
+                f.normal_flip()
+            if inside:
+                # A parapet round the flat roof.
+                d = top[(k + 1) % n] - top[k]
+                inward = Vector((-d.y, d.x, 0)).normalized()
+                if inward.dot(cc - mid) < 0:
+                    inward = -inward
+                g.box((top[k] + top[(k + 1) % n]) / 2 + inward * 0.15 + Vector((0, 0, 0.2)), (d.length + 0.3, 0.3, 0.4),
+                      "concrete", rot=math.atan2(d.y, d.x))
+                continue
+            # Windows, a row per storey, on the walls that face us.
+            if f.normal.y > -0.2:
+                continue
+            seg = (b2 - a).length
+            u = (b2 - a).normalized()
+            out = f.normal.normalized() * 0.03
+            for lv in range(levels):
+                for s in np.arange(1.2, seg - 0.8, 2.6):
+                    lit = wr.random() < 0.35
+                    c = a + u * s + out + Vector((0, 0, 1.5 + lv * 3.0))
+                    (emit if lit else g).box(c, (1.0, 0.04, 1.2), wr.choice(("emit_window_warm", "emit_window_cool")) if lit else "glass",
+                                             rot=math.atan2(u.y, u.x))
+        if inside:
+            # Plant on the roof, lined up with its longest wall: air handlers and vent stacks.
+            e = max(range(n), key=lambda k: (base[(k + 1) % n] - base[k]).length)
+            d = base[(e + 1) % n] - base[e]
+            rot = math.atan2(d.y, d.x)
+            xs, ys = [x for x, _ in pts], [y for _, y in pts]
+            pr = random.Random(len(pts))
+            units = []
+            for _ in range(200):
+                if len(units) >= 7:
+                    break
+                x, y = pr.uniform(min(xs) + 2.5, max(xs) - 2.5), pr.uniform(min(ys) + 2.5, max(ys) - 2.5)
+                if inside_poly(pts, x, y) and all(math.hypot(x - ux, y - uy) > 3.5 for ux, uy in units):
+                    units.append((x, y))
+            for k, (x, y) in enumerate(units):
+                if k % 3 == 2:
+                    g.cyl(P(x, y, z), 0.32, 1.1, "metal_dark", segs=12)
+                    g.cyl(P(x, y, z + 1.1), 0.42, 0.12, "metal_dark", segs=12)
+                else:
+                    g.box(P(x, y, z + 0.5), (2.2, 1.3, 1.0), "metal", bevel=0.04, rot=rot)
+                    g.cyl(P(x, y, z + 1.0) + Vector((math.cos(rot), math.sin(rot), 0)) * 0.5, 0.42, 0.04, "plastic_black", segs=16)
+    return near, far, emit
+
+
+def inside_poly(pts, x, y):
+    """Even-odd test against a polygon in level metres."""
+    c = False
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]):
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            c = not c
+    return c
+
+
+def build_fences():
+    """The BMX track's railings, where the level has them (gaps for gates)."""
+    g = Geo("fences")
+    for f in OSM["barriers"]:
+        if f["kind"] not in ("fence", "wall"):
+            continue
+        # Walk the line and keep the stretches over fence cells.
+        pts = []
+        for (ax, ay), (bx, by) in zip(f["pts"], f["pts"][1:]):
+            n = max(1, int(math.hypot(bx - ax, by - ay) / 0.5))
+            for i in range(n):
+                pts.append((ax + (bx - ax) * i / n, ay + (by - ay) * i / n))
+        pts.append(tuple(f["pts"][-1]))
+        runs, run = [], []
+        for x, y in pts:
+            keep = (GX0 < x < GX1 and GY0 < y < GY1) and (not inside_map(x, y) or tile(math.floor(x), math.floor(y)) == "=")
+            if keep:
+                run.append((x, y))
+            elif run:
+                runs.append(run)
+                run = []
+        if run:
+            runs.append(run)
+        for run in runs:
+            if len(run) < 2:
+                continue
+            for k, (x, y) in enumerate(run):
+                if k % 5 == 0 or k == len(run) - 1:
+                    g.box(P(x, y, 0.7), (0.06, 0.06, 1.4), "metal_dark")
+                else:
+                    g.cyl(P(x, y, 0.06), 0.014, 1.28, "metal_dark", segs=3, cap=False)
+            for (ax, ay), (bx, by) in zip(run, run[1:]):
+                d = math.hypot(bx - ax, by - ay)
+                for zz in (0.08, 1.32):
+                    g.box(P((ax + bx) / 2, (ay + by) / 2, zz), (d + 0.01, 0.035, 0.035), "metal_dark", rot=math.atan2(-(by - ay), bx - ax))
+    return g
+
+
 # =================================================================== planting
-def tree(trunk, crown, x, y, scale=1.0, seed=0):
+def tree(trunk, crown, x, y, scale=1.0, seed=0, blobs=6):
     """A London plane: grey trunk, a few limbs, a broad crown."""
     r = random.Random(seed)
     h = 2.8 * scale
-    trunk.cyl(P(x, y, 0), 0.24 * scale, h, "bark", segs=10, r2=0.15 * scale)
-    for k in range(3):
+    trunk.cyl(P(x, y, 0), 0.24 * scale, h, "bark", segs=7, r2=0.15 * scale, cap=False)
+    for k in range(2):
         a = r.uniform(0, 2 * math.pi)
-        trunk.cyl(P(x, y, h * 0.8), 0.07 * scale, 1.4 * scale, "bark", segs=6, r2=0.03, axis="X", rot=a)
-    n = 7
-    for k in range(n):
-        a = 2 * math.pi * k / n + r.uniform(-0.3, 0.3)
-        rr = r.uniform(0.6, 1.6) * scale
-        cz = (h + r.uniform(0.6, 1.8)) * 1.0
-        crown.ico(P(x + math.cos(a) * rr, y + math.sin(a) * rr, cz), r.uniform(1.0, 1.45) * scale,
+        trunk.cyl(P(x, y, h * 0.8), 0.07 * scale, 1.4 * scale, "bark", segs=4, r2=0.03, axis="X", rot=a, cap=False)
+    for k in range(blobs - 1):
+        a = 2 * math.pi * k / (blobs - 1) + r.uniform(-0.3, 0.3)
+        rr = r.uniform(0.7, 1.6) * scale
+        cz = h + r.uniform(0.6, 1.8)
+        crown.ico(P(x + math.cos(a) * rr, y + math.sin(a) * rr, cz), r.uniform(1.1, 1.55) * scale,
                   "canopy" if k % 3 else "canopy_dark", subdiv=1, scale=(1, 1, 0.75), noise=0.2, seed=seed * 13 + k)
-    crown.ico(P(x, y, h + 2.0 * scale), 1.3 * scale, "canopy", subdiv=1, scale=(1, 1, 0.7), noise=0.2, seed=seed * 13 + 99)
+    crown.ico(P(x, y, h + 2.0 * scale), 1.35 * scale, "canopy", subdiv=1, scale=(1, 1, 0.7), noise=0.2, seed=seed * 13 + 99)
 
 
 def build_trees():
@@ -341,39 +527,38 @@ def build_trees():
     spots = []
     for p in L["props"]:
         if p["kind"] == "tree":
-            spots.append((p["x"] + 0.5, p["y"] + 0.5, 1.0))
+            spots.append((p["x"] + 0.5, p["y"] + 0.5, rnd.uniform(0.95, 1.2)))
     for x, y in OSM["trees"]:
-        if not (0 <= x < W and 0 <= y < H):
+        if not inside_map(x, y) and GX0 < x < GX1 and GY0 < y < GY1 and path_dist(x, y) > 1.0:
             spots.append((x, y, 1.1))
-    # The park is thicker with trees than the map data has: scatter more
-    # off the paths in the margin, so the edges of the job sit in the dark.
+    # The park carries on past the map: scatter more off the paths in the
+    # margin, so the edges of the job sit among trees.
     tries = 0
-    while tries < 2600:
+    while tries < 2400:
         tries += 1
         x = rnd.uniform(GX0 + 2, GX1 - 2)
         y = rnd.uniform(GY0 + 2, GY1 - 2)
-        if -2 <= x < W + 2 and -2 <= y < H + 2:
+        if inside_map(x, y, 2):
             continue
-        if path_dist(x, y) < 2.0 or any(math.hypot(x - a, y - b) < 4.2 for a, b, _ in spots):
+        if path_dist(x, y) < 2.0 or any(math.hypot(x - a, y - b) < 5.5 for a, b, _ in spots):
             continue
         spots.append((x, y, rnd.uniform(0.9, 1.25)))
     for k, (x, y, s) in enumerate(spots):
-        inside = -3 <= x < W + 3 and -3 <= y < H + 3
-        tree(near_t if inside else far_t, crowns if inside else far_crowns, x, y, s, seed=k)
+        inside = inside_map(x, y, 3)
+        tree(near_t if inside else far_t, crowns if inside else far_crowns, x, y, s, seed=k, blobs=6 if inside else 4)
+    print(f"trees {len(spots)}")
     return near_t, far_t, crowns, far_crowns
 
 
 def build_shrubs():
     g = Geo("shrubs")
-    seen = set()
     for y in range(H):
         for x in range(W):
             if T[y][x] != "b":
                 continue
-            seen.add((x, y))
-            for k in range(3):
-                g.ico(P(x + rnd.uniform(0.25, 0.75), y + rnd.uniform(0.25, 0.75), rnd.uniform(0.45, 0.65)),
-                      rnd.uniform(0.5, 0.68), "shrub", subdiv=2, scale=(1, 1, 0.85), noise=0.18, seed=x * 31 + y * 7 + k)
+            for k in range(2):
+                g.ico(P(x + rnd.uniform(0.3, 0.7), y + rnd.uniform(0.3, 0.7), rnd.uniform(0.45, 0.65)),
+                      rnd.uniform(0.6, 0.78), "shrub", subdiv=1, scale=(1, 1, 0.85), noise=0.22, seed=x * 31 + y * 7 + k)
     return g
 
 
@@ -423,6 +608,27 @@ def litter_bin(g, p):
     g.ico(c + Vector((0, 0, 0.92)), 0.12, "plastic_black", subdiv=1, noise=0.2, seed=5)
 
 
+def turned(g, pivot, angle, build):
+    """Build something into g, then turn what was added about a point (Blender coordinates)."""
+    g.bm.verts.ensure_lookup_table()
+    n0 = len(g.bm.verts)
+    out = build()
+    g.bm.verts.ensure_lookup_table()
+    verts = g.bm.verts[n0:]
+    R = Matrix.Rotation(angle, 3, "Z")
+    bmesh.ops.rotate(g.bm, verts=verts, cent=pivot, matrix=R)
+    return pivot + R @ (out - pivot) if out is not None else None
+
+
+def bike(g, x, y, rot):
+    """A BMX on its side."""
+    c = P(x, y, 0.03)
+    for s in (-0.45, 0.45):
+        g.cyl(c + Vector((math.cos(rot) * s, math.sin(rot) * s, 0)), 0.25, 0.03, "tyre", segs=16)
+    g.box(c + Vector((0, 0, 0.03)), (0.85, 0.04, 0.04), "car_paint", rot=rot)
+    g.box(c + Vector((math.cos(rot) * 0.4, math.sin(rot) * 0.4, 0.04)), (0.05, 0.5, 0.03), "chrome", rot=rot)
+
+
 def build_furniture():
     g = Geo("props_ext")
     gf = Geo("far_props")
@@ -438,67 +644,99 @@ def build_furniture():
             picnic_table(g, p)
         elif k == "bin":
             litter_bin(g, p)
-    # Lamps along the canal path and the cycleway beyond the map.
-    for x in (-18.5, -6.5, 41.5, 53.5):
-        lamps.append(park_lamp(gf, emit, x, 28.5))
-    for y in (-14.5, -2.5):
-        lamps.append(park_lamp(gf, emit, -4.8, y))
-    # The gang's car on the verge, lights on; the crew's van on the canal path.
+    # Lamps carry on along the canal path, Wells Way and Albany Road past the map.
+    for x, y in ((-20.5, 131.5), (-8.5, 131.0), (W + 6.5, 146.5), (W + 18.5, 147.5), (236.5, -14.5), (236.5, H + 8.5)):
+        lamps.append(park_lamp(gf, emit, x, y))
+    # The roads' centre lines.
+    for p in OSM["paths"]:
+        if p["kind"] in ("tertiary", "secondary", "primary"):
+            dashes(g, p["pts"])
+    # The gang's car in the car park, lights on.
     car = next(p for p in L["props"] if p["kind"] == "car")
     car_front = props.car(P, g, emit, car["x"] + 0.0, car["y"] + 0.1, 4.0, 1.8, "car_paint2", facing=1, lights=True, zb=0.0)
+    # The crew's van on Wells Way, pointing north.
+    mark_emit(emit)
     v = L["van"]
-    van_front = props.car(P, g, emit, v["x0"] + 0.1, v["y0"] + 0.05, 4.9, 1.9, "van_paint", facing=1, lights=True, van=True, zb=0.0)
-    # A bag of rubbish by the bin, a bike on its side by the table.
-    g.ico(P(16.1, 28.7, 0.2), 0.24, "plastic_black", subdiv=2, scale=(1, 1, 0.8), noise=0.15, seed=3)
-    g.cyl(P(31.2, 18.3, 0.03), 0.32, 0.03, "tyre", segs=18)
-    g.cyl(P(32.2, 18.5, 0.03), 0.32, 0.03, "tyre", segs=18)
-    g.box(P(31.7, 18.4, 0.06), (0.95, 0.04, 0.04), "car_paint", rot=0.2)
+    vc = P((v["x0"] + v["x1"] + 1) / 2, (v["y0"] + v["y1"] + 1) / 2)
+    van_front = turned(g, vc, math.pi / 2, lambda: props.car(
+        P, g, emit, (v["x0"] + v["x1"] + 1) / 2 - 2.45, (v["y0"] + v["y1"] + 1) / 2 - 0.95, 4.9, 1.9, "van_paint",
+        facing=1, lights=True, van=True, zb=0.0))
+    # turned() moves g's new vertices; the van's lights went into emit.
+    turned_emit(emit, vc, math.pi / 2)
+    # A bag of rubbish by a bin, a bike on its side by the table, another at the BMX track.
+    g.ico(P(85.1 + 0.0, 134.7, 0.2), 0.24, "plastic_black", subdiv=2, scale=(1, 1, 0.8), noise=0.15, seed=3)
+    bike(g, 101.2, 126.3, 0.2)
+    bike(g, 209.6, 23.8, -0.9)
     return g, gf, emit, lamps, car_front, van_front
+
+
+_EMIT_MARK = {}
+
+
+def mark_emit(emit):
+    emit.bm.verts.ensure_lookup_table()
+    _EMIT_MARK[id(emit)] = len(emit.bm.verts)
+
+
+def turned_emit(emit, pivot, angle):
+    """Turn whatever was added to emit since mark_emit()."""
+    emit.bm.verts.ensure_lookup_table()
+    n0 = _EMIT_MARK.get(id(emit), len(emit.bm.verts))
+    bmesh.ops.rotate(emit.bm, verts=emit.bm.verts[n0:], cent=pivot, matrix=Matrix.Rotation(angle, 3, "Z"))
 
 
 # =================================================================== lights
 def build_lights(lamps, car_front, van_front):
     d = Vector((0.45, 0.55, -1.0)).normalized()
-    sun = add_light("moon", "SUN", (0, 0, 30), "#6f8fff", 0.8)
+    # A strong moon: most of this map is far from a lamp, and the open grass
+    # still has to read (with the trees' moon shadows) at a glance.
+    sun = add_light("moon", "SUN", (0, 0, 30), "#8aa2f0", 2.4)
     sun.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
     world = bpy.data.worlds.new("night")
     world.use_nodes = True
     bg = world.node_tree.nodes["Background"]
     bg.inputs[0].default_value = (*kit.hex_lin("#1a2a55"), 1)
-    bg.inputs[1].default_value = 0.3
+    bg.inputs[1].default_value = 0.6
     bpy.context.scene.world = world
     for k, p in enumerate(lamps):
         # Burgess Park's lamps are white LED, not sodium.
         # Bright enough that a pool reads at a glance: the gang see you in it.
         add_light(f"lamp{k}", "POINT", p, LAMP, 900, radius=0.12)
         LIGHT_LOG.append(("street", tuple(p + Vector((0, 0, 0.3)))))
-    for front, name in ((car_front, "car"), (van_front, "van")):
+    # Headlights: a spot points down its -Z; turn that to the bonnet's heading.
+    for front, name, heading in ((car_front, "car", 0.0), (van_front, "van", math.pi / 2)):
+        side = Vector((-math.sin(heading), math.cos(heading), 0))
         for s in (-0.6, 0.6):
-            add_light(f"{name}{s}", "SPOT", front + Vector((0.05, s, 0)), "#fff0d8", 600, radius=0.05,
-                      rot=(0, math.radians(90), 0), spot=math.radians(55))
+            add_light(f"{name}{s}", "SPOT", front + side * s + Vector((math.cos(heading), math.sin(heading), 0)) * 0.05,
+                      "#fff0d8", 600, radius=0.05, rot=(0, -math.pi / 2, heading), spot=math.radians(55))
         LIGHT_LOG.append((name, tuple(front)))
     # The minder's camping lantern in the kiln passage.
-    add_light("lantern", "POINT", P(20.0, 10.3, 0.35), "#ffd9a0", 60, radius=0.08)
-    LIGHT_LOG.append(("lantern", tuple(P(20.0, 10.3, 0.35))))
+    add_light("lantern", "POINT", K(20.0, 10.3, 0.35), "#ffd9a0", 60, radius=0.08)
+    LIGHT_LOG.append(("lantern", tuple(K(20.0, 10.3, 0.35))))
     # Somebody's phone at the picnic table.
-    add_light("phone", "POINT", P(29.3, 16.6, 0.9), "#9ab8ff", 4, radius=0.05)
+    t = next(p for p in L["props"] if p["kind"] == "picnicTable")
+    add_light("phone", "POINT", P(t["x"] + 1.3, t["y"] + 0.6, 0.9), "#9ab8ff", 4, radius=0.05)
 
 
 # =================================================================== main
 def main():
     t0 = time.time()
     near, far = build_ground()
+    print(f"ground {time.time() - t0:.1f}s")
     low, high, caps = build_kiln()
     doors = build_gates()
     trunks, trunks_far, crowns, crowns_far = build_trees()
     shrubs = build_shrubs()
+    houses, houses_far, windows = build_buildings()
+    fences = build_fences()
+    print(f"scenery {time.time() - t0:.1f}s")
     fur, fur_far, emit, lamps, car_front, van_front = build_furniture()
     print(f"geometry built {time.time() - t0:.1f}s")
 
     def obj(g, coll):
         return g.to_object(coll) if len(g.bm.faces) else None
 
-    statics = [obj(g, C_STATIC) for g in (near, far, low, trunks, trunks_far, fur, fur_far)]
+    statics = [obj(g, C_STATIC) for g in (near, far, low, trunks, trunks_far, fur, fur_far, houses, houses_far, fences)]
     statics.append(shrubs.to_object(C_STATIC, smooth_angle=89))
     statics = [o for o in statics if o]
     door_objs = []
@@ -508,16 +746,19 @@ def main():
     # Tree crowns are baked like the rest but kept apart, so the game can see through them.
     canopies = [g.to_object(C_STATIC, smooth_angle=89) for g in (crowns, crowns_far)]
     lantern = Geo("lantern_emit")
-    lantern.cyl(P(20.0, 10.3, 0.18), 0.06, 0.16, "emit_bulb", segs=10)
-    emitters = [obj(emit, C_EXPORT), obj(lantern, C_EXPORT)]
+    lantern.cyl(K(20.0, 10.3, 0.18), 0.06, 0.16, "emit_bulb", segs=10)
+    emitters = [obj(emit, C_EXPORT), obj(lantern, C_EXPORT), obj(windows, C_EXPORT)]
     hidden = [obj(caps, C_DYN)]
     obj(high, C_BLOCK)
-    loot = props.build_loot(L["loot"], P, C_DYN)
+    t = next(p for p in L["props"] if p["kind"] == "picnicTable")
+    on_table = {l["id"]: 0.35 for l in L["loot"] if t["x"] <= l["x"] <= t["x"] + t["w"] and t["y"] <= l["y"] <= t["y"] + t["h"]}
+    loot = props.build_loot(L["loot"], P, C_DYN, lift=on_table)
     build_lights(lamps, car_front, van_front)
 
     bake.finish(OUT, W, H, P, statics, door_objs + canopies, emitters, hidden, loot, doors, COLL, CUT,
                 bake=BAKE, samples=SAMPLES, lm_size=LM_SIZE,
-                preview=os.path.join(HERE, "preview-park.png") if PREVIEW else None, ortho=40, t0=t0, meta={"lamp": LAMP})
+                preview=os.path.join(HERE, "preview-park.png") if PREVIEW else None, ortho=max(W, H) * 0.6, t0=t0,
+                meta={"lamp": LAMP}, export_hidden=False, probe_per_unit=4)
 
 
 main()

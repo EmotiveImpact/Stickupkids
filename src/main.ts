@@ -7,6 +7,7 @@ import { JOBS, jobById, type Job } from './sim/jobs.ts';
 import { CREW, Sim, emptyPlans, planDoors, type SimEvent, type Waypoint } from './sim/sim.ts';
 import { View, createEngine, type PlanOverlay } from './render/view.ts';
 import { Hud } from './ui/hud.ts';
+import { Minimap } from './ui/minimap.ts';
 
 type Phase = 'title' | 'planning' | 'raid' | 'results';
 
@@ -48,6 +49,17 @@ const hud = new Hud(document.getElementById('hud')!, {
   jobs: () => showJobs(),
 });
 
+const minimap = new Minimap(document.getElementById('hud')!, (x, y) => view.focus(x, y));
+
+/** A big level opens close in on the crew, with the overview map beside it. */
+function frameLevel() {
+  minimap.setLevel(view.big ? level : null);
+  hud.big = view.big;
+  if (!view.big) return;
+  const s = level.crewStarts;
+  view.focus(s.reduce((a, c) => a + c.x, 0) / s.length - 12, s.reduce((a, c) => a + c.y, 0) / s.length, 28);
+}
+
 /** Swap the level under the game for another job's. */
 function pickJob(id: string) {
   const next = jobById(id);
@@ -58,6 +70,7 @@ function pickJob(id: string) {
   level = job.build();
   names = namesOf(level);
   view = new View(engine, level, `models/${job.id}/`);
+  frameLevel();
   plans = emptyPlans(level);
   selected = 1;
   selectedWp = null;
@@ -90,6 +103,11 @@ function watchLoading() {
         if (q.get('zoom')) {
           const [fx, fy] = (q.get('at') ?? '0.5,0.5').split(',').map(Number);
           view.zoomAt(innerWidth * fx, innerHeight * fy, Number(q.get('zoom')));
+        }
+        // ?focus=90,115,30 centres on a map point at 30 pixels a metre (big levels).
+        if (q.get('focus')) {
+          const [fx, fy, ppm] = q.get('focus')!.split(',').map(Number);
+          view.focus(fx, fy, ppm || undefined);
         }
       }
       hud.loaded();
@@ -135,6 +153,11 @@ function go() {
 }
 
 function selectCrew(slot: number) {
+  // Picking the one already picked brings the camera to them.
+  if (slot === selected && view.big) {
+    const c = phase === 'raid' || phase === 'results' ? sim.crew[slot - 1] : (currentWp() ?? plans[slot - 1][0]);
+    view.focus(c.x, c.y);
+  }
   selected = slot;
   selectedWp = null;
   version++;
@@ -303,15 +326,28 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('resize', () => view.resize());
 
-// Camera: wheel or pinch to zoom, middle-drag or arrow keys to pan.
+// Camera: a mouse wheel or a pinch zooms, two fingers on a trackpad pan,
+// as do middle-drag and the arrow keys.
 canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault();
-    view.zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+    if (!e.ctrlKey && isTrackpad(e)) view.panBy(-e.deltaX, -e.deltaY);
+    else view.zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
   },
   { passive: false },
 );
+
+/** Trackpad scrolls come in pixels and, in Chrome and Safari, with no
+ *  mouse-wheel notch behind them (wheelDeltaY is a multiple of 120 for a
+ *  mouse). Sideways movement only ever comes from a trackpad. */
+function isTrackpad(e: WheelEvent): boolean {
+  if (e.deltaMode !== 0) return false;
+  if (e.deltaX !== 0) return true;
+  const wd = (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
+  if (wd === undefined) return Math.abs(e.deltaY) < 50 && !Number.isInteger(e.deltaY);
+  return wd !== 0 && wd % 120 !== 0;
+}
 let panning: { x: number; y: number } | null = null;
 canvas.addEventListener('pointerdown', (e) => {
   if (e.button !== 1) return;
@@ -382,6 +418,8 @@ function tick(dt: number) {
   hudT -= dt;
   if (hudT <= 0) {
     hudT = 0.1;
+    minimap.show(phase === 'planning' || phase === 'raid');
+    minimap.draw(sim, view.visibleRect(), CREW.map((c) => c.color));
     if (phase === 'planning' || phase === 'title') {
       const d = planDoors(level, preview.grid, plans);
       hud.updatePlanning({ plans, selected, selectedWp, kicks: d.kicks, picks: d.picks });
@@ -402,6 +440,7 @@ engine.runRenderLoop(() => {
 hud.setJob(job);
 hud.showTitle(JOBS, job.id);
 view.setMode('planning');
+frameLevel();
 watchLoading();
 
 // Hooks for headless tests and screenshots.

@@ -26,19 +26,24 @@ export function samplePlans(): Waypoint[][] {
 }
 
 /**
- * A plan for the count in Burgess Park. Kemi picks the kiln's west gate for
- * the float and Jojo follows her in to hold the minder. On A, Taz takes the
- * re-up from the car boot and comes up behind the elder; Dex takes the count.
+ * A plan for the count in Burgess Park. From the van on Wells Way the crew
+ * cross the dark grass north of the canal path, away from the lamps, and wait
+ * east of the kiln. On A, Taz talks down the younger from behind, Dex the two
+ * at the table, and Kemi picks the kiln's south gate with Jojo behind her to
+ * hold the minder. Dex takes the count, Kemi the float; on B Jojo lets the
+ * minder go and everyone goes back the way they came.
  */
 export function burgessPlans(): Waypoint[][] {
+  const out = [wp(130, 110), wp(175, 116), wp(218, 121)];
+  const back = [...out].reverse();
   return [
-    // 1 Dex, Muscle: the count on the picnic table.
-    [wp(6, 29), wp(10, 22), wp(16, 19, 'A'), wp(24, 13), wp(29, 12), wp(29, 15), wp(28, 16), wp(23, 15), wp(15, 20), wp(6, 27), wp(2, 28)],
-    // 2 Kemi, Creeper: west gate, the float.
-    [wp(7, 30), wp(3, 21), wp(6, 13), wp(15, 9), wp(17, 8), wp(20, 7), wp(24, 6), wp(20, 7), wp(16, 8), wp(6, 13), wp(3, 20), wp(3, 28)],
+    // 1 Dex, Muscle: the two at the table, then the count.
+    [wp(237, 128), ...back, wp(108, 119, 'A'), wp(101, 121), wp(97, 123), wp(106, 118), ...out, wp(237, 128)],
+    // 2 Kemi, Creeper: the south gate and the float.
+    [wp(238, 129), ...back, wp(103, 115, 'A'), wp(96, 120), wp(90, 120), wp(92, 113), wp(90, 120), wp(96, 120), wp(103, 115), ...out, wp(238, 129)],
     // 3 Jojo, Lookout: in behind Kemi, holds the minder until B.
-    [wp(8, 29), wp(2, 20), wp(6, 12), wp(15, 9), wp(17, 8), wp(19, 8, 'B'), wp(16, 8), wp(6, 13), wp(2, 20), wp(1, 28)],
-    // 4 Taz, Talker: the car boot, then talks the elder down.
-    [wp(9, 30), wp(10, 21), wp(17, 18, 'A'), wp(24, 13), wp(29, 12), wp(30, 14), wp(29, 12), wp(23, 15), wp(15, 20), wp(8, 27), wp(4, 29)],
+    [wp(237, 130), ...back, wp(105, 114, 'A'), wp(96, 121), wp(91, 120), wp(89, 118, 'B'), wp(91, 120), wp(96, 121), wp(105, 114), ...out, wp(237, 130)],
+    // 4 Taz, Talker: the younger from behind, then over to the table.
+    [wp(238, 131), ...back, wp(110, 127, 'A'), wp(107, 128), wp(102, 126), wp(106, 118), ...out, wp(238, 131)],
   ];
 }

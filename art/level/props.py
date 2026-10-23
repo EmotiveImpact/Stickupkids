@@ -72,8 +72,9 @@ def car(P, g, emit, x0, y0, length, width, mat, facing=1, lights=False, van=Fals
     return P(fx, cy, zb + 0.75)
 
 
-def build_loot(defs, P, coll):
-    """The loot models, one object each, named loot_<id>, standing at their map spot."""
+def build_loot(defs, P, coll, lift=None):
+    """The loot models, one object each, named loot_<id>, standing at their map
+    spot. `lift`: height to raise some by, by id (cash on a table, say)."""
     out = []
     for l in defs:
         g = Geo(f"loot_{l['id']}")
@@ -94,12 +95,18 @@ def build_loot(defs, P, coll):
                       rot=0.2 * k)
             for s in (-1, 1):
                 g.cyl(o + Vector((s * 0.12, 0, 0.3)), 0.012, 0.25, "loot_bag", segs=6, axis="X")
+        elif l["id"] == "phones":
+            # A drawstring sports bag, mouth open, phones spilling out.
+            g.box(o + Vector((0, 0, 0.13)), (0.36, 0.26, 0.26), "loot_bag", bevel=0.09, seg=3, smooth=True)
+            for k in range(5):
+                g.box(o + Vector(((k - 2) * 0.075, 0.03 * (k % 2), 0.27 + 0.012 * k)), (0.075, 0.15, 0.012), "plastic_black",
+                      bevel=0.004, rot=0.35 * k - 0.6)
         else:
             # The stash bag: a big black duffel.
             g.box(o + Vector((0, 0, 0.22)), (0.85, 0.42, 0.4), "loot_bag", bevel=0.15, seg=4, smooth=True)
             for s in (-1, 1):
                 g.box(o + Vector((s * 0.15, 0, 0.45)), (0.05, 0.42, 0.03), "loot_note", bevel=0.01)
         obj = g.to_object(coll)
-        obj.location = P(l["x"], l["y"])
+        obj.location = P(l["x"], l["y"], (lift or {}).get(l["id"], 0.0))
         out.append(obj)
     return out

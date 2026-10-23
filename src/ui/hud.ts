@@ -61,6 +61,8 @@ export class Hud {
   private mode = '';
   private lastHp: number[] = CREW.map(() => -1);
   private jobTitle = '';
+  /** A level too big for one screen: the hints say how to get about. */
+  big = false;
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
     this.root = root;
@@ -273,9 +275,10 @@ export class Hud {
     const name = CREW[info.selected - 1].name;
     setText(
       this.hint,
-      info.selectedWp !== null
+      (info.selectedWp !== null
         ? `Point ${info.selectedWp} of ${name}'s route selected. A, B or C to hold here for a go code, K to kick doors after it.`
-        : `Click the map to add waypoints for ${name}. Drag to draw. Click a point to select it. Right click removes a point.`,
+        : `Click the map to add waypoints for ${name}. Drag to draw. Click a point to select it. Right click removes a point.`) +
+        (this.big ? '\nTwo fingers or the arrow keys to look round, pinch to zoom, or click the map bottom left. Click a crew card twice to find them.' : ''),
     );
   }
 

@@ -22,6 +22,7 @@ export class Atmosphere {
   private readonly rain: ParticleSystem;
   private readonly splash: ParticleSystem;
   private readonly haze: { mesh: Mesh; phase: number }[] = [];
+  private area: { x0: number; y0: number; x1: number; y1: number };
 
   /** `slope`: how far up the map (in metres) a point one metre off the ground shows on screen. */
   constructor(scene: Scene, co: Coords, level: Level, estate: Estate, layerMask: number, slope: number) {
@@ -30,11 +31,11 @@ export class Atmosphere {
     // screen, so keep its whole fall, as seen, off the house.
     const house = (x: number, y: number) => level.covered.some((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1);
     const indoors = (x: number, y: number, h = 0) => house(x, y) || house(x, y - slope * h * 0.5) || house(x, y - slope * h);
-    const x0 = -6;
-    const x1 = level.w + 6;
-    const y0 = -4;
-    const y1 = level.h + 6;
+    // Rain falls over the whole of a small level; on a big one only round
+    // the part in view (see setArea).
+    this.area = { x0: -6, y0: -4, x1: level.w + 6, y1: level.h + 6 };
     const spot = (out: Vector3, height: number) => {
+      const { x0, y0, x1, y1 } = this.area;
       let x = 0;
       let y = 0;
       for (let i = 0; i < 12; i++) {
@@ -45,8 +46,9 @@ export class Atmosphere {
       out.set(co.X(x), height, co.Z(y));
     };
 
-    // Same density of rain over a bigger map.
-    const k = Math.max(1, ((x1 - x0) * (y1 - y0)) / (42 * 36));
+    // Same density of rain over a bigger stretch, up to a point.
+    const { x0, y0, x1, y1 } = this.area;
+    const k = Math.min(3, Math.max(1, ((x1 - x0) * (y1 - y0)) / (42 * 36)));
     const rain = (this.rain = new ParticleSystem('rain', Math.round(5000 * k), scene));
     rain.particleTexture = streakTexture(scene);
     rain.emitter = Vector3.Zero();
@@ -154,6 +156,15 @@ export class Atmosphere {
 
   update(_dt: number, time: number) {
     for (const h of this.haze) h.mesh.visibility = 0.9 + Math.sin(time * 0.7 + h.phase) * 0.06;
+  }
+
+  /** Keep the rain to a stretch of the map (map coordinates): the view, on a big level. */
+  setArea(r: { x0: number; y0: number; x1: number; y1: number }) {
+    // Drops high in the air show further up the screen than where they land.
+    this.area = { x0: r.x0 - 3, y0: r.y0 - 2, x1: r.x1 + 3, y1: r.y1 + 9 };
+    const k = Math.min(3, Math.max(1, ((this.area.x1 - this.area.x0) * (this.area.y1 - this.area.y0)) / (42 * 36)));
+    this.rain.emitRate = 6000 * k;
+    this.splash.emitRate = 900 * k;
   }
 
   setRain(on: boolean) {

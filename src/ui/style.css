@@ -91,7 +91,7 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .go svg { width: 34px; height: 34px; color: var(--c1); }
 .go:hover { background: rgba(34, 227, 255, 0.15); }
 
-.hint { position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); font: 600 13px/1.3 var(--body); color: #cfe0ff; text-shadow: 0 1px 3px #000; text-align: center; white-space: nowrap; }
+.hint { position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); font: 600 13px/1.3 var(--body); color: #cfe0ff; text-shadow: 0 1px 3px #000; text-align: center; white-space: pre; }
 .banner { position: absolute; top: 112px; left: 50%; transform: translateX(-50%); padding: 8px 22px; font: 700 26px/1 var(--head); letter-spacing: 0.2em; text-transform: uppercase; }
 .toasts { position: absolute; top: 112px; right: 14px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .toast { padding: 7px 12px; font: 600 13px/1.2 var(--body); border-left: 3px solid var(--tc, #fff); animation: toast 3.2s forwards; }
@@ -194,3 +194,8 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .loading { font: 600 14px Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #8fb4ff; animation: pulse 1.2s ease-in-out infinite alternate; }
 body.loaded .loading { display: none; }
 @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+
+/* Overview map for the big levels */
+.minimap { position: absolute; left: 12px; bottom: 14px; padding: 6px; }
+.minimap canvas { display: block; border-radius: 4px; cursor: crosshair; }
+.minimap.hidden, .minimap.off { display: none; }

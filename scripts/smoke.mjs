@@ -66,7 +66,7 @@ const park = await page.evaluate(() => {
   const g = window.__game;
   g.start(true);
   g.go();
-  g.advance(120, [[24, 'A'], [34, 'B']]);
+  g.advance(240, [[62, 'A'], [86, 'B']]);
   return g.sim.outcome;
 });
 assert.equal(park?.reason, 'escaped', 'the park sample plan escapes');

@@ -44,14 +44,19 @@ export const JOBS: Job[] = [
     title: 'The count, Burgess Park',
     place: 'Burgess Park, Camberwell SE5',
     brief:
-      "Marlowe's lot count the week's money by the old lime kiln after dark. The float sits inside the kiln arches, the count is on a picnic table under a lamp, and the re-up is in the car. Stay out of the lamplight and they will not see you coming.",
-    intel: ['Elder at the table, shotter on the kiln path', 'Lookout and a younger on the canal path', 'Kiln arches unscouted'],
-    heat: 3,
+      "Marlowe's lot count the week's money by the old lime kiln after dark, and they have the park covered from Albany Road to Wells Way. The float sits inside the kiln arches and the count is on a picnic table under a lamp. Their car is up in the adventure playground car park with the re-up in the boot, and a younger is minding a bag of phones on the BMX track. The van waits on Wells Way. The canal path is lit end to end; the grass in between is not.",
+    intel: [
+      'Elder and Tally at the table, a younger close by',
+      'Lookouts on the canal path, a shotter behind the kiln',
+      'Driver and a dog at the car, two more at the BMX track',
+      'Kiln arches unscouted',
+    ],
+    heat: 4,
     build: buildBurgessPark,
     samplePlans: burgessPlans,
     sampleCodes: [
-      [24, 'A'],
-      [34, 'B'],
+      [62, 'A'],
+      [86, 'B'],
     ],
   },
 ];

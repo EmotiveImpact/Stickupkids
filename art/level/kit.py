@@ -100,7 +100,7 @@ MATS = {
     "emit_strip": (None, "#e8f0ff", 1.0, 0.3, ("#e0ecff", 10.0)),
     "emit_led": (None, "#ff2d9b", 1.0, 0.3, ("#ff2d9b", 5.0)),
     "emit_headlight": (None, "#fff4e0", 1.0, 0.3, ("#fff0d8", 20.0)),
-    "emit_tail": (None, "#ff2030", 1.0, 0.3, ("#ff1828", 4.0)),
+    "emit_tail": (None, "#ff2030", 1.0, 0.3, ("#ff1828", 0.9)),
     "emit_screen": (None, "#9ab8ff", 1.0, 0.2, ("#9ab8ff", 3.0)),
     "emit_hob": (None, "#ff4020", 1.0, 0.3, ("#ff3818", 2.0)),
 }

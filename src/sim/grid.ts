@@ -106,7 +106,8 @@ export class Grid {
     const f = new Float64Array(n).fill(Infinity);
     const came = new Int32Array(n).fill(-1);
     const closed = new Uint8Array(n);
-    const open: number[] = [];
+    // Open set as a binary heap on f; stale entries are skipped when popped.
+    const open = new MinHeap(f);
     const hfn = (x: number, y: number) => {
       const ddx = Math.abs(x - goalX);
       const ddy = Math.abs(y - goalY);
@@ -117,12 +118,8 @@ export class Grid {
     f[s] = hfn(startX, startY);
     open.push(s);
     const goal = this.key(goalX, goalY);
-    while (open.length) {
-      let bi = 0;
-      for (let i = 1; i < open.length; i++) if (f[open[i]] < f[open[bi]]) bi = i;
-      const cur = open[bi];
-      open[bi] = open[open.length - 1];
-      open.pop();
+    while (open.size) {
+      const cur = open.pop();
       if (cur === goal) break;
       if (closed[cur]) continue;
       closed[cur] = 1;
@@ -172,5 +169,58 @@ export class Grid {
       pts.push({ x: x + dx * d, y: y + dy * d });
     }
     return pts;
+  }
+}
+
+/** A min-heap of cell keys ordered by a score array that is read at push time. */
+class MinHeap {
+  private keys: number[] = [];
+  private vals: number[] = [];
+  private score: Float64Array;
+
+  constructor(score: Float64Array) {
+    this.score = score;
+  }
+
+  get size(): number {
+    return this.keys.length;
+  }
+
+  push(k: number): void {
+    const v = this.score[k];
+    let i = this.keys.length;
+    this.keys.push(k);
+    this.vals.push(v);
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (this.vals[p] <= v) break;
+      this.keys[i] = this.keys[p];
+      this.vals[i] = this.vals[p];
+      i = p;
+    }
+    this.keys[i] = k;
+    this.vals[i] = v;
+  }
+
+  pop(): number {
+    const top = this.keys[0];
+    const k = this.keys.pop()!;
+    const v = this.vals.pop()!;
+    const n = this.keys.length;
+    if (n) {
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1;
+        if (l >= n) break;
+        const c = l + 1 < n && this.vals[l + 1] < this.vals[l] ? l + 1 : l;
+        if (this.vals[c] >= v) break;
+        this.keys[i] = this.keys[c];
+        this.vals[i] = this.vals[c];
+        i = c;
+      }
+      this.keys[i] = k;
+      this.vals[i] = v;
+    }
+    return top;
   }
 }

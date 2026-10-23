@@ -10,9 +10,9 @@ job board under the map; keep it there if the map is used anywhere else.
 
 | File | What it is |
 | --- | --- |
-| `extract.py` | Cuts a raw extract into level space: `burgess.json` here and `src/sim/burgessGround.ts` |
+| `extract.py` | Cuts a raw extract into level space: `burgess.json` here and `src/sim/burgessGround.ts` (buildings `X`, fences `=`, roads and the car park `r`, paths `p` over grass `g`) |
 | `citymap.py` | Simplifies the London extract into `src/ui/cityMap.ts`, the job board's map |
-| `burgess.json` | Paths, trees and the kiln's outline around the Burgess Park job, in level metres |
+| `burgess.json` | Paths, trees, buildings, fences and areas round the Burgess Park job (250 by 155 m, Albany Road to Wells Way), in level metres |
 | `*-raw.json` | Raw Overpass answers. Not committed (large, and easy to fetch again) |
 
 ## Fetching the raw extracts

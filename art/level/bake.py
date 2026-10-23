@@ -305,10 +305,13 @@ def denoise(img_lin, mask, passes=2):
 
 
 def finish(out, W, H, P, statics, door_objs, emitters, hidden_in_bake, loot, doors, coll, cut,
-           bake=False, samples=128, lm_size=2048, preview=None, ortho=34, t0=None, meta=None):
+           bake=False, samples=128, lm_size=2048, preview=None, ortho=34, t0=None, meta=None, export_hidden=True,
+           probe_per_unit=8):
     """UV, bake and export. `out`: folder for level.glb and friends. `P`: map
     (x, y, z) to Blender. `coll`: the four collections. `preview`: path for a
-    Cycles preview render, or None."""
+    Cycles preview render, or None. `export_hidden`: False leaves the faces
+    the camera never sees out of the lightmap and the export (they still
+    block and bounce light in the bake), for a big level."""
     t0 = t0 or time.time()
     scene = bpy.context.scene
     C_STATIC, C_EXPORT, C_BLOCK, C_DYN = coll
@@ -319,13 +322,16 @@ def finish(out, W, H, P, statics, door_objs, emitters, hidden_in_bake, loot, doo
     for o in statics + door_objs + emitters + hidden_in_bake + loot:
         box_uvs(o)
     t = time.time()
+    unseen = []
     for o in list(statics):
         h = split_hidden(o)
         if h:
-            statics.append(h)
+            (statics if export_hidden else unseen).append(h)
     print(f"split hidden faces {time.time() - t:.1f}s")
     tris = sum(len(p.vertices) - 2 for o in statics + door_objs for p in o.data.polygons)
-    print(f"static objects {len(statics)}, triangles {tris}")
+    for o in statics + door_objs:
+        print(f"  {o.name}: {sum(len(p.vertices) - 2 for p in o.data.polygons)} triangles")
+    print(f"static objects {len(statics)}, triangles {tris}" + (f", {len(unseen)} unseen left out" if unseen else ""))
     lightmap_uvs(statics + door_objs, lm_size)
     print(f"uvs done {time.time() - t0:.1f}s")
 
@@ -358,13 +364,13 @@ def finish(out, W, H, P, statics, door_objs, emitters, hidden_in_bake, loot, doo
         for lp in me.loops:
             co = me.vertices[lp.vertex_index].co
             uvl.data[lp.index].uv = ((co.x + W / 2) / W, (co.y + H / 2) / H)
-        pimg = bpy.data.images.new("probe", W * 8, H * 8, float_buffer=True, alpha=False)
+        pimg = bpy.data.images.new("probe", W * probe_per_unit, H * probe_per_unit, float_buffer=True, alpha=False)
         scene.cycles.samples = max(64, SAMPLES // 2)
         pr = oidn(bake_into([pobj], pimg, "UVMap", margin=0))
         pmax = float(np.percentile(pr, 99.5)) * 1.2 + 1e-6
         enc = (np.clip(pr / pmax, 0, 1) ** (1 / 2.2) * 255 + 0.5).astype(np.uint8)
         Image.fromarray(enc, "RGB").save(os.path.join(out, "level-probe.png"))
-        meta["probe"] = {"max": pmax, "perUnit": 8}
+        meta["probe"] = {"max": pmax, "perUnit": probe_per_unit}
         bpy.data.objects.remove(pobj)
         C_DYN.hide_render = False
 
