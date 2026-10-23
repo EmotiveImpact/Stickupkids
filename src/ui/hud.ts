@@ -58,7 +58,7 @@ export class Hud {
     for (const def of CREW) {
       const card = el(`<div class="card panel" style="--col:${def.color}">
         <span class="num" style="color:${def.color}">${def.slot}</span>
-        <div class="ring">${portrait(def.color)}</div>
+        <div class="ring">${portrait(def.name)}</div>
         <div class="info">
           <span class="name">${def.name}</span>
           <span class="role">${def.role}</span>
@@ -286,7 +286,7 @@ export class Hud {
       .map((c, i) => {
         const pct = Math.round((shares[i] / sum) * 100);
         const tag = o.down.includes(c.def.slot) ? 'Down' : o.left.includes(c.def.slot) ? 'Left behind' : '';
-        return `<div class="cut" style="--col:${c.def.color}"><div class="ring">${portrait(c.def.color)}</div>
+        return `<div class="cut" style="--col:${c.def.color}"><div class="ring">${portrait(c.def.name)}</div>
           <div><div class="bar"><i style="width:${pct}%"></i></div>${tag ? `<span class="tag">${tag}</span>` : ''}</div>
           <span class="pct">${o.take ? pct : 0}%</span></div>`;
       })

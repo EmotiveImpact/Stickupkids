@@ -104,7 +104,8 @@ export class CharacterKit {
     body.parent = root;
     for (const n of inst.rootNodes) n.parent = body;
     const meshes = inst.rootNodes.flatMap((n) => n.getChildMeshes(false));
-    const rim = Color3.FromHexString(look.slot).toLinearSpace().scale(RIM);
+    const slots: PBRMaterial[] = [];
+    const rims: RimPlugin[] = [];
     const seen = new Set<PBRMaterial>();
     for (const m of meshes) {
       m.isPickable = false;
@@ -113,12 +114,13 @@ export class CharacterKit {
       seen.add(mat);
       mat.environmentIntensity = 0;
       mat.maxSimultaneousLights = MAX_LIGHTS;
-      if (!mat.name.endsWith('Slot')) new RimPlugin(mat).colour.copyFrom(rim);
       if (mat.name.endsWith('Slot')) {
-        mat.albedoColor = Color3.FromHexString(look.slot).toLinearSpace();
-        mat.emissiveColor = mat.albedoColor.clone();
         mat.emissiveIntensity = 1.6;
-      } else if (mat.name.endsWith('Cloth')) {
+        slots.push(mat);
+      } else {
+        rims.push(new RimPlugin(mat));
+      }
+      if (mat.name.endsWith('Cloth')) {
         // Lifted off black so the silhouette holds at night.
         mat.albedoColor = Color3.FromHexString(look.cloth ?? '#3a4052').toLinearSpace();
       } else if (mat.name.endsWith('Dark')) {
@@ -133,7 +135,9 @@ export class CharacterKit {
     const light = new HemisphericLight(`${id}:light`, Vector3.Up(), scene);
     light.specular = Color3.Black();
     light.includedOnlyMeshes = meshes;
-    return new Character(root, body, meshes, groups, light);
+    const c = new Character(root, body, meshes, groups, light, slots, rims);
+    c.setTint(look.slot);
+    return c;
   }
 }
 
@@ -144,16 +148,38 @@ export class Character {
   readonly meshes: AbstractMesh[];
   readonly light: HemisphericLight;
   private readonly groups: Map<string, AnimationGroup>;
+  private readonly slots: PBRMaterial[];
+  private readonly rims: RimPlugin[];
   private cur: AnimationGroup | null = null;
   private fading: AnimationGroup[] = [];
   private frozen = false;
 
-  constructor(root: TransformNode, body: TransformNode, meshes: AbstractMesh[], groups: Map<string, AnimationGroup>, light: HemisphericLight) {
+  constructor(
+    root: TransformNode,
+    body: TransformNode,
+    meshes: AbstractMesh[],
+    groups: Map<string, AnimationGroup>,
+    light: HemisphericLight,
+    slots: PBRMaterial[],
+    rims: RimPlugin[],
+  ) {
     this.root = root;
     this.body = body;
     this.meshes = meshes;
     this.groups = groups;
     this.light = light;
+    this.slots = slots;
+    this.rims = rims;
+  }
+
+  /** Recolour the trim and rim: the slot colour, or grey once an enemy is out of it. */
+  setTint(hex: string) {
+    const c = Color3.FromHexString(hex).toLinearSpace();
+    for (const m of this.slots) {
+      m.albedoColor = c.clone();
+      m.emissiveColor = c.clone();
+    }
+    for (const r of this.rims) r.colour.copyFrom(c).scaleInPlace(RIM);
   }
 
   has(clip: string) {

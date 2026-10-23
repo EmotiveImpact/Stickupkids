@@ -94,6 +94,8 @@ interface Actor {
   bag?: Mesh;
   torch?: SpotLight;
   icon?: { plane: Mesh; tex: DynamicTexture; key: string };
+  /** Current trim colour, so it is only changed when the state does. */
+  tint?: string;
   last: Vec | null;
   speed: number;
 }
@@ -102,9 +104,12 @@ interface Fx {
   mesh: Mesh;
   t: number;
   life: number;
-  kind: 'ring' | 'tracer' | 'flash';
+  kind: 'ring' | 'tracer' | 'flash' | 'popup';
   r?: number;
 }
+
+/** Enemies who are held up or down drop their red: grey reads as out of the fight. */
+const NEUTRAL = '#aab4c8';
 
 interface Flash {
   light: PointLight;
@@ -592,6 +597,37 @@ export class View {
     } else c.play('Idle');
   }
 
+  /** Words that rise and fade over a spot on the map: HANDS UP, DOWN. */
+  private popup(x: number, y: number, text: string, colour: string) {
+    const tex = new DynamicTexture('popup', { width: 512, height: 128 }, this.scene, true);
+    tex.hasAlpha = true;
+    const g = tex.getContext() as unknown as CanvasRenderingContext2D;
+    g.clearRect(0, 0, 512, 128);
+    g.font = '700 92px Rajdhani, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.lineJoin = 'round';
+    g.lineWidth = 16;
+    g.strokeStyle = 'rgba(8,12,24,0.9)';
+    g.strokeText(text, 256, 68);
+    g.fillStyle = colour;
+    g.fillText(text, 256, 68);
+    tex.update();
+    const m = new StandardMaterial('popupMat', this.scene);
+    m.diffuseTexture = tex;
+    m.emissiveTexture = tex;
+    m.useAlphaFromDiffuseTexture = true;
+    m.disableLighting = true;
+    m.backFaceCulling = false;
+    const plane = MeshBuilder.CreatePlane('popup', { width: 3.6, height: 0.9 }, this.scene);
+    plane.material = m;
+    plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
+    plane.position.set(this.co.X(x), 2.5, this.co.Z(y));
+    plane.isPickable = false;
+    this.toOverlay(plane);
+    this.fx.push({ mesh: plane, t: 0, life: 1.8, kind: 'popup' });
+  }
+
   private makeCone(color: string, alpha: number): Mesh {
     const rays = 36;
     const m = new Mesh('cone', this.scene);
@@ -872,6 +908,19 @@ export class View {
           this.dust.manualEmitCount = 45;
         }
       }
+      if (ev.type === 'surrender') {
+        const e = this.lastSim?.enemies.find((q) => q.id === ev.id);
+        if (e) this.popup(e.x, e.y, 'HANDS UP', '#ffffff');
+      } else if (ev.type === 'down') {
+        const sim = this.lastSim;
+        if (ev.crew) {
+          const c = sim?.crew.find((q) => String(q.def.slot) === ev.id);
+          if (c) this.popup(c.x, c.y, `${c.def.name.toUpperCase()} DOWN`, this.crewColours()[c.def.slot - 1]);
+        } else {
+          const e = sim?.enemies.find((q) => q.id === ev.id);
+          if (e) this.popup(e.x, e.y, 'DOWN', '#ffffff');
+        }
+      }
       if (ev.type === 'noise' && ev.r >= 2.5) {
         const ring = MeshBuilder.CreateTorus('noise', { diameter: 2, thickness: 0.04, tessellation: 48 }, this.scene);
         const enemyNoise = ev.label === 'Barking' || ev.label === 'Shouting';
@@ -1007,7 +1056,7 @@ export class View {
       f.t += dt;
       const k = f.t / f.life;
       if (k >= 1) {
-        f.mesh.dispose();
+        f.mesh.dispose(false, f.kind === 'popup');
         return false;
       }
       if (f.kind === 'ring') {
@@ -1015,6 +1064,10 @@ export class View {
         f.mesh.scaling.set(s, 1, s);
         f.mesh.visibility = 1 - k;
       } else if (f.kind === 'flash') f.mesh.visibility = 1 - k * 0.6;
+      else if (f.kind === 'popup') {
+        f.mesh.position.y += dt * 0.5;
+        f.mesh.visibility = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+      }
       return true;
     });
     this.scene.render();
@@ -1072,6 +1125,12 @@ export class View {
     a.body.rotation.x = 0;
     a.body.position.y = 0;
     a.char?.update(dt);
+    const tint = e.state === 'down' || e.state === 'subdued' ? NEUTRAL : PALETTE.enemy;
+    if (a.tint !== tint) {
+      a.tint = tint;
+      a.char?.setTint(tint);
+      a.ring.material = mat(this.scene, tint, { emissive: tint, unlit: true });
+    }
     if (e.state === 'down') {
       a.body.rotation.x = -Math.PI / 2;
       a.body.position.y = e.kind === 'dog' ? 0.1 : 0.14;
@@ -1177,19 +1236,19 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
     return;
   }
   if (key === 'hands') {
+    // A "held" tag: they have given up and stay put.
+    g.fillStyle = 'rgba(10,18,36,0.9)';
     g.strokeStyle = '#ffffff';
-    g.lineWidth = s * 0.07;
+    g.lineWidth = s * 0.05;
     g.beginPath();
-    g.moveTo(s * 0.3, s * 0.85);
-    g.lineTo(s * 0.3, s * 0.3);
-    g.moveTo(s * 0.7, s * 0.85);
-    g.lineTo(s * 0.7, s * 0.3);
+    g.roundRect(s * 0.06, s * 0.28, s * 0.88, s * 0.44, s * 0.22);
+    g.fill();
     g.stroke();
     g.fillStyle = '#ffffff';
-    g.beginPath();
-    g.arc(s * 0.3, s * 0.22, s * 0.09, 0, Math.PI * 2);
-    g.arc(s * 0.7, s * 0.22, s * 0.09, 0, Math.PI * 2);
-    g.fill();
+    g.font = `700 ${s * 0.3}px Rajdhani, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('HELD', s / 2, s / 2 + s * 0.02);
     return;
   }
   // Progress arc: red for their alertness, white for our intimidation.

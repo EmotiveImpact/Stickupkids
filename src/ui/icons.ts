@@ -26,13 +26,7 @@ export const ICONS = {
   crew: svg('<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 20a4.5 4.5 0 0 1 8 0"/>'),
 };
 
-export function portrait(color: string): string {
-  return `<svg viewBox="0 0 64 64" class="portrait">
-    <path d="M10 64c2-14 10-20 22-20s20 6 22 20z" fill="#1d1f28"/>
-    <path d="M18 64c1-8 6-13 14-13s13 5 14 13z" fill="#262833"/>
-    <ellipse cx="32" cy="29" rx="14" ry="16" fill="#14151b"/>
-    <rect x="20" y="24" width="24" height="8" rx="4" fill="${color}" opacity="0.85"/>
-    <ellipse cx="27" cy="28" rx="2.6" ry="2" fill="#0b0b0f"/>
-    <ellipse cx="37" cy="28" rx="2.6" ry="2" fill="#0b0b0f"/>
-  </svg>`;
+/** A crew member's portrait (made with ChatGPT; masters in art/portraits/). */
+export function portrait(name: string): string {
+  return `<img class="portrait" src="portraits/${name.toLowerCase()}.jpg" alt="${name}" draggable="false" />`;
 }
