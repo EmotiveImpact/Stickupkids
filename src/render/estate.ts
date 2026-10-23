@@ -1,6 +1,7 @@
-// The estate level built in Blender by art/level/build_level.py: geometry with
-// a baked Cycles lightmap, the material table, and a light probe map that
-// lights characters with the same light as the walls around them.
+// A level built in Blender (art/level/build_level.py for the estate,
+// build_park.py for Burgess Park): geometry with a baked Cycles lightmap, the
+// material table, and a light probe map that lights characters with the same
+// light as the walls around them.
 
 import {
   Color3,
@@ -31,6 +32,8 @@ interface Meta {
   doors: Record<string, { hinge: [number, number, number]; axis: 'h' | 'v' }>;
   cut: number;
   probe: { max: number; perUnit: number };
+  /** The street lamps' colour, when the level says. */
+  lamp?: string;
 }
 
 export interface EstateDoor {
@@ -52,6 +55,8 @@ export interface Estate {
   /** The TV screen, for flicker. */
   tv: PBRMaterial | null;
   materials: Map<string, PBRMaterial>;
+  /** The street lamps' colour: sodium on the estate, white LED in the park. */
+  lamp: string;
 }
 
 /** Lights each lit material can take at once: the shadow light, torches, muzzle flashes. */
@@ -67,11 +72,11 @@ export function loadModel(path: string, scene: Scene) {
   return LoadAssetContainerAsync(path + MODEL_EXT, scene, MODEL_EXT.endsWith('.json') ? { pluginExtension: '.gltf' } : undefined);
 }
 
-export async function loadEstate(scene: Scene, base = 'models/'): Promise<Estate> {
-  const meta = (await (await fetch(base + 'estate-materials.json')).json()) as Meta;
+export async function loadEstate(scene: Scene, base: string): Promise<Estate> {
+  const meta = (await (await fetch(base + 'level-materials.json')).json()) as Meta;
   const [container, probe] = await Promise.all([
-    loadModel(base + 'estate', scene),
-    Probe.load(base + 'estate-probe.png', meta.probe.max, meta.probe.perUnit),
+    loadModel(base + 'level', scene),
+    Probe.load(base + 'level-probe.png', meta.probe.max, meta.probe.perUnit),
   ]);
   container.addAllToScene();
 
@@ -82,7 +87,7 @@ export async function loadEstate(scene: Scene, base = 'models/'): Promise<Estate
   root.rotationQuaternion = Quaternion.Identity();
   root.computeWorldMatrix(true);
 
-  const lightmap = new Texture(base + 'estate-lightmap.png', scene, {
+  const lightmap = new Texture(base + 'level-lightmap.png', scene, {
     noMipmap: true,
     invertY: false,
     samplingMode: Texture.BILINEAR_SAMPLINGMODE,
@@ -130,6 +135,12 @@ export async function loadEstate(scene: Scene, base = 'models/'): Promise<Estate
       m.emissiveColor = new Color3(0.01, 0.02, 0.05);
     }
     if (name === 'cap') m.unlit = true;
+    // Tree crowns are see-through enough to follow someone under them; the
+    // depth pre-pass keeps it to one layer of leaves, not a stack of blobs.
+    if (name.startsWith('canopy')) {
+      m.alpha = 0.55;
+      m.needDepthPrePass = true;
+    }
     if (name.startsWith('loot_')) {
       // Loot is not in the bake; a green glow makes it read as something to take.
       const glow: Record<string, [string, number]> = {
@@ -198,7 +209,7 @@ export async function loadEstate(scene: Scene, base = 'models/'): Promise<Estate
   }
 
   const lights = meta.lights.map(([kind, p]) => ({ kind, pos: new Vector3(p[0], p[2], p[1]) }));
-  return { doors, loot, probe, lights, receivers, tv: materials.get('emit_tv') ?? null, materials };
+  return { doors, loot, probe, lights, receivers, tv: materials.get('emit_tv') ?? null, materials, lamp: meta.lamp ?? '#ff9a3e' };
 }
 
 let curtainTex: DynamicTexture | null = null;

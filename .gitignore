@@ -7,3 +7,5 @@ __pycache__
 art/level/lightmap.npy
 art/level/preview.png
 art/textures/out/*.png
+art/level/preview-park.png
+art/osm/*-raw.json

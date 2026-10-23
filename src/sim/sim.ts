@@ -175,7 +175,8 @@ const CREW_RANGE = 9;
 const INTIMIDATE_RANGE = 6;
 const POLICE_RATE = 1 / 150;
 const BACKUP_TIME = 45;
-const GATE: Vec = { x: 14.5, y: 0.5 };
+/** How far a street lamp's pool reaches, in metres. */
+const LAMP_REACH = 5.5;
 
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -202,6 +203,23 @@ function turnTowards(cur: number, target: number, maxStep: number): number {
 }
 
 const dist = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/** Light from the level's street lamps and car lights at each cell centre. */
+export function lampLight(level: Level): Float32Array {
+  const out = new Float32Array(level.w * level.h);
+  const lamps = level.lights.filter((l) => l.kind === 'street' || l.kind === 'car' || l.kind === 'van');
+  for (let y = 0; y < level.h; y++) {
+    for (let x = 0; x < level.w; x++) {
+      let best = 0;
+      for (const l of lamps) {
+        const d = Math.hypot(x + 0.5 - l.x, y + 0.5 - l.y) / LAMP_REACH;
+        if (d < 1) best = Math.max(best, 1 - d * d);
+      }
+      out[y * level.w + x] = best;
+    }
+  }
+  return out;
+}
 
 /** Default plan: every crew member starts on their spawn with nothing else. */
 export function emptyPlans(level: Level): Waypoint[][] {
@@ -258,6 +276,8 @@ export class Sim {
   outcome: Outcome | null = null;
   private rng: () => number;
   private everAlerted = false;
+  /** Lamp light per cell, 0 to 1, when the level is dark enough to matter. */
+  private light: Float32Array | null = null;
 
   constructor(level: Level, plans: Waypoint[][], seed = 7) {
     this.level = level;
@@ -287,6 +307,16 @@ export class Sim {
     });
     this.enemies = level.enemies.map((d) => this.makeEnemy(d, level.unscouted));
     this.loot = level.loot.map((def) => ({ def, x: def.x, y: def.y, state: 'placed', carrier: null }));
+    if (level.darkness > 0) this.light = lampLight(level);
+  }
+
+  /** Share of an enemy's sight range at which they can see this spot (1 in full light). */
+  visibility(p: Vec): number {
+    if (!this.light) return 1;
+    const x = Math.floor(p.x);
+    const y = Math.floor(p.y);
+    const l = x >= 0 && y >= 0 && x < this.level.w && y < this.level.h ? this.light[y * this.level.w + x] : 0;
+    return 1 - this.level.darkness * (1 - l);
   }
 
   private makeEnemy(d: EnemyDef, unscouted: string[]): Enemy {
@@ -430,6 +460,13 @@ export class Sim {
     // Timed actions: doors, locks, bagging.
     if (c.action) {
       const act = c.action;
+      // Someone else got the door open first.
+      const shared = this.grid.door(Math.floor(act.x), Math.floor(act.y));
+      if ((act.kind === 'pick' || act.kind === 'door') && (shared === 'open' || shared === 'broken')) {
+        c.action = null;
+        c.state = 'moving';
+        return;
+      }
       act.t += dt;
       c.facing = turnTowards(c.facing, Math.atan2(act.y - c.y, act.x - c.x), 8 * dt);
       if (act.t >= act.total) this.completeAction(c, act);
@@ -594,7 +631,7 @@ export class Sim {
     for (const c of this.crew) {
       if (c.state === 'down' || c.state === 'escaped') continue;
       const d = dist(c, e);
-      if (d > e.range) continue;
+      if (d > e.range * this.visibility(c)) continue;
       const a = Math.atan2(c.y - e.y, c.x - e.x);
       if (Math.abs(angleDiff(e.facing, a)) > e.fov / 2 && d > 1.3) continue;
       if (!this.grid.lineOfSight(e.x, e.y, c.x, c.y)) continue;
@@ -665,8 +702,9 @@ export class Sim {
     e.repathT -= dt;
 
     if (e.state === 'fleeing') {
-      this.walkTo(e, GATE, s.speed, dt);
-      if (dist(e, GATE) < 0.3) {
+      const gate = this.level.gate;
+      this.walkTo(e, gate, s.speed, dt);
+      if (dist(e, gate) < 0.3) {
         e.state = 'gone';
         this.police += 0.12;
         if (this.backupT > 15) this.backupT = 15;
@@ -835,16 +873,14 @@ export class Sim {
       if (this.backupT <= 0) {
         this.backupT = -2;
         this.events.push({ type: 'backup' });
-        for (let i = 0; i < 2; i++) {
-          const e = this.makeEnemy(
-            { id: `backup${i}`, kind: 'soldier', name: 'Backup', x: 14.5 + i, y: 0.5, facing: Math.PI / 2, patrol: [] },
-            [],
-          );
+        const { spawn, target } = this.level.backup;
+        spawn.forEach((p, i) => {
+          const e = this.makeEnemy({ id: `backup${i}`, kind: 'soldier', name: 'Backup', x: p.x, y: p.y, facing: Math.PI / 2, patrol: [] }, []);
           e.known = false;
           e.state = 'hostile';
-          e.lastKnown = { x: 12.5, y: 14.5 };
+          e.lastKnown = { ...target };
           this.enemies.push(e);
-        }
+        });
       }
     }
     if (this.police >= 1) {

@@ -3,7 +3,9 @@
 // centre, Go bottom right.
 
 import type { GoCode } from '../sim/level.ts';
+import type { Job } from '../sim/jobs.ts';
 import { CREW, type Crew, type Outcome, type Sim, type Waypoint } from '../sim/sim.ts';
+import { BURGESS, MAP_H, MAP_W, PARKS, RIVER, ROADS, mapXY } from './cityMap.ts';
 import { ICONS, portrait } from './icons.ts';
 
 export interface HudHandlers {
@@ -16,7 +18,15 @@ export interface HudHandlers {
   driveOff(): void;
   start(sample: boolean): void;
   replan(fresh: boolean): void;
+  pickJob(id: string): void;
+  jobs(): void;
 }
+
+/** Where each job sits on the London map. */
+const PINS: Record<string, [number, number]> = {
+  estate: [51.5245, -0.2005],
+  burgess: [51.4822, -0.088],
+};
 
 export interface PlanningInfo {
   plans: Waypoint[][];
@@ -50,6 +60,7 @@ export class Hud {
   private overlay: HTMLElement;
   private mode = '';
   private lastHp: number[] = CREW.map(() => -1);
+  private jobTitle = '';
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
     this.root = root;
@@ -85,36 +96,91 @@ export class Hud {
 
   // ------------------------------------------------------------- modes
 
-  showTitle() {
-    this.overlay.className = 'overlay';
-    this.overlay.innerHTML = `<div class="title-card">
-      <div class="logo">STICKUPKIDS</div>
-      <div class="tagline">Job one: a mid-terrace on the Harrow Road estate. The dealer keeps cash in the front room and a bag in the back bedroom nobody has seen inside. Plan it on the blueprint, call the go codes, get to the van.</div>
-      <div class="loading">Loading the estate…</div>
-      <div class="menu">
-        <button data-a="plan">Plan the job</button>
-        <button data-a="sample">Load a sample plan</button>
+  /** The job board: London, the jobs on it, and the one picked. */
+  showTitle(jobs: Job[], current: string) {
+    this.overlay.className = 'overlay board-screen';
+    const pins = jobs
+      .map((j) => {
+        const [x, y] = mapXY(...PINS[j.id]);
+        return `<g class="pin" data-job="${j.id}" transform="translate(${x.toFixed(0)} ${y.toFixed(0)})">
+          <circle class="pulse" r="16"/><circle class="halo" r="9"/>
+          <path class="drop" d="M0 0 C-7 -10 -10 -14 -10 -20 A10 10 0 1 1 10 -20 C10 -14 7 -10 0 0Z"/>
+          <path class="house" d="M-5 -19 L0 -24 L5 -19 V-14 H-5Z"/>
+          <text y="-34">${j.title.split(',')[0]}</text>
+        </g>`;
+      })
+      .join('');
+    const cards = jobs
+      .map(
+        (j) => `<button class="job panel" data-job="${j.id}">
+          <span class="jt">${j.title}</span>
+          <span class="jp">${j.place}</span>
+          <span class="jb">${j.brief}</span>
+          <span class="ji">${j.intel.map((t) => `<i>${t}</i>`).join('')}</span>
+          <span class="jh"><b>Heat</b><span class="segs">${Array.from({ length: 5 }, (_, i) => `<i class="${i < j.heat ? 'on' : ''}"></i>`).join('')}</span></span>
+        </button>`,
+      )
+      .join('');
+    this.overlay.innerHTML = `<div class="board">
+      <div class="board-left">
+        <div class="logo">STICKUPKIDS</div>
+        <div class="citymap panel">
+          <svg viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="xMidYMid slice">
+            <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+            <rect width="${MAP_W}" height="${MAP_H}" class="sea"/>
+            <path class="parks" d="${PARKS}"/>
+            <path class="roads" d="${ROADS}"/>
+            <path class="river" d="${RIVER}"/>
+            <path class="river-in" d="${RIVER}"/>
+            <path class="burgess" d="${BURGESS}"/>
+            ${pins}
+          </svg>
+          <span class="credit">Map data © OpenStreetMap contributors</span>
+        </div>
       </div>
-      <div class="controls panel">
-        <b>1 to 4</b><span>Pick a crew member (or click their card)</span>
-        <b>Click / drag</b><span>Add waypoints to their route. Click a point to select it</span>
-        <b>Right click</b><span>Remove the selected point (Backspace also works)</span>
-        <b>A, B, C</b><span>Planning: hold the selected point for that go code. Raid: call the code</span>
-        <b>K</b><span>Kick locked doors after the selected point (loud but fast). Otherwise they get picked</span>
-        <b>Enter</b><span>Go</span>
-        <b>Space</b><span>Pause the raid. While paused, click to redraw the selected crew member's route</span>
-        <b>F</b><span>Toggle speed</span>
-        <b>Wheel, arrows</b><span>Zoom and pan the camera (middle-drag pans too)</span>
+      <div class="board-right">
+        <div class="pick">Pick a job</div>
+        <div class="jobs">${cards}</div>
+        <div class="loading">Loading the job…</div>
+        <div class="menu">
+          <button data-a="plan">Plan the job</button>
+          <button data-a="sample">Load a sample plan</button>
+        </div>
+        <details class="controls-box"><summary>Controls</summary>
+        <div class="controls panel">
+          <b>1 to 4</b><span>Pick a crew member (or click their card)</span>
+          <b>Click / drag</b><span>Add waypoints to their route. Click a point to select it</span>
+          <b>Right click</b><span>Remove the selected point (Backspace also works)</span>
+          <b>A, B, C</b><span>Planning: hold the selected point for that go code. Raid: call the code</span>
+          <b>K</b><span>Kick locked doors after the selected point (loud but fast). Otherwise they get picked</span>
+          <b>Enter</b><span>Go</span>
+          <b>Space</b><span>Pause the raid. While paused, click to redraw the selected crew member's route</span>
+          <b>F</b><span>Toggle speed</span>
+          <b>Wheel, arrows</b><span>Zoom and pan the camera (middle-drag pans too)</span>
+        </div></details>
       </div>
     </div>`;
-    this.overlay.querySelectorAll('button').forEach((b) =>
-      b.addEventListener('click', () => this.h.start((b as HTMLElement).dataset.a === 'sample')),
+    this.overlay.querySelectorAll<HTMLElement>('.menu button').forEach((b) => b.addEventListener('click', () => this.h.start(b.dataset.a === 'sample')));
+    this.overlay.querySelectorAll<HTMLElement | SVGElement>('[data-job]').forEach((b) =>
+      b.addEventListener('click', () => this.h.pickJob((b as HTMLElement).dataset.job!)),
     );
+    this.selectJob(current);
+  }
+
+  /** Mark the picked job on the board. */
+  selectJob(id: string) {
+    this.overlay.querySelectorAll<HTMLElement | SVGElement>('[data-job]').forEach((b) => b.classList.toggle('sel', (b as HTMLElement).dataset.job === id));
+  }
+
+  /** The job being planned, for the top of the screen. */
+  setJob(job: Job) {
+    this.jobTitle = job.title;
+    this.mode = '';
   }
 
   /** The level has loaded: drop the loading note. */
-  loaded() {
-    document.body.classList.add('loaded');
+  loaded(on = true) {
+    document.body.classList.toggle('loaded', on);
   }
 
   hideOverlay() {
@@ -128,7 +194,7 @@ export class Hud {
     this.goBtn.classList.toggle('hidden', mode !== 'planning');
     this.banner.classList.add('hidden');
     if (mode === 'planning') {
-      this.topCentre.innerHTML = `<div class="job panel"><div class="t">Mid-terrace, Harrow Road</div><div class="s">Planning. Time is frozen.</div></div>`;
+      this.topCentre.innerHTML = `<div class="job-now panel"><div class="t">${this.jobTitle}</div><div class="s">Planning. Time is frozen.</div></div>`;
       this.topRight.innerHTML = `<span title="Noise estimate">${ICONS.noise}</span><div class="segs" style="--seg:var(--c1)">${'<i></i>'.repeat(8)}</div><span class="noise-lbl">Quiet</span><span class="sep"></span><span title="Getaway van parked">${ICONS.car}</span>`;
       this.bar.innerHTML = `
         <button class="tool" data-t="kick" title="Kick locked doors after this point (K)">${ICONS.boot}<span class="k">K</span></button>
@@ -313,10 +379,11 @@ export class Hud {
       </div>
       <div class="res-buttons">
         <button data-a="replan">${ICONS.redo}Replan this job</button>
-        <button data-a="fresh">${ICONS.home}Start over</button>
+        <button data-a="fresh">${ICONS.clear}Start over</button>
+        <button data-a="jobs">${ICONS.home}Pick another job</button>
       </div>`;
     this.overlay.querySelectorAll<HTMLElement>('[data-a]').forEach((b) =>
-      b.addEventListener('click', () => this.h.replan(b.dataset.a === 'fresh')),
+      b.addEventListener('click', () => (b.dataset.a === 'jobs' ? this.h.jobs() : this.h.replan(b.dataset.a === 'fresh'))),
     );
   }
 }

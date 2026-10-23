@@ -1,4 +1,5 @@
 {
+ "id": "estate",
  "name": "Mid-terrace, Harrow Road estate",
  "w": 30,
  "h": 26,
@@ -1315,5 +1316,35 @@
    false,
    false
   ]
- ]
+ ],
+ "gate": {
+  "x": 14.5,
+  "y": 0.5
+ },
+ "backup": {
+  "spawn": [
+   {
+    "x": 14.5,
+    "y": 0.5
+   },
+   {
+    "x": 15.5,
+    "y": 0.5
+   }
+  ],
+  "target": {
+   "x": 12.5,
+   "y": 14.5
+  },
+  "place": "the back gate"
+ },
+ "covered": [
+  {
+   "x0": 4,
+   "y0": 7,
+   "x1": 26,
+   "y1": 20
+  }
+ ],
+ "darkness": 0
 }

@@ -1,12 +1,13 @@
-// Level data for the first job: a mid-terrace on a British estate.
-// Pure data, no engine code, so any renderer can draw it.
+// Level data: the types every job shares, and the first job, a mid-terrace
+// on a British estate. Pure data, no engine code, so any renderer can draw it.
 //
-// Grid cells are one world unit. x runs west to east, y runs north (back
-// alley) to south (street). Tile codes:
-//   p pavement / alley    r road          g grass / garden
+// Grid cells are one world unit. x runs west to east, y runs north to south.
+// Tile codes:
+//   p pavement / path     r road          g grass / garden
 //   . indoor floor        # wall          X neighbouring house (solid)
 //   W window (blocks movement, not sight) = low wall or fence (same)
 //   D door                O open doorway
+//   w water (blocks movement, not sight)  b shrubs (block both)
 
 export type Vec = { x: number; y: number };
 export type DoorState = 'closed' | 'open' | 'locked' | 'broken';
@@ -44,6 +45,8 @@ export interface EnemyDef {
   /** Radians, 0 = east, PI/2 = south (y grows southwards). */
   facing: number;
   patrol: Vec[];
+  /** Character model, when this one has their own (defaults to the kind's). */
+  model?: string;
 }
 
 export interface PropDef {
@@ -58,7 +61,7 @@ export interface PropDef {
 }
 
 export interface LightDef {
-  kind: 'street' | 'tv' | 'fridge' | 'van' | 'ceiling';
+  kind: 'street' | 'tv' | 'fridge' | 'van' | 'ceiling' | 'car';
   x: number;
   y: number;
 }
@@ -81,6 +84,7 @@ export interface Rect {
 }
 
 export interface Level {
+  id: string;
   name: string;
   w: number;
   h: number;
@@ -97,6 +101,17 @@ export interface Level {
   lights: LightDef[];
   /** Cells blocked by solid props. */
   solid: boolean[][];
+  /** Where a fleeing runner gets out. */
+  gate: Vec;
+  /** Where their backup turns up, and the spot they head for. */
+  backup: { spawn: Vec[]; target: Vec; place: string };
+  /** Roofed ground (no rain). */
+  covered: Rect[];
+  /**
+   * 0: lamps make no difference. Towards 1, the further the crew are from a
+   * street lamp, the closer an enemy has to be to see them.
+   */
+  darkness: number;
 }
 
 export function inRect(r: Rect, x: number, y: number): boolean {
@@ -215,11 +230,7 @@ export function buildEstateHouse(): Level {
     { kind: 'lamp', x: 5, y: 0, w: 1, h: 1, solid: true },
     { kind: 'car', x: 17, y: 24, w: 4, h: 2, solid: true },
   ];
-  const solid = Array.from({ length: h }, () => Array<boolean>(w).fill(false));
-  for (const p of props) {
-    if (!p.solid) continue;
-    for (let y = p.y; y < p.y + p.h; y++) for (let x = p.x; x < p.x + p.w; x++) solid[y][x] = true;
-  }
+  const solid = solidMask(w, h, props);
 
   const loot: LootDef[] = [
     { id: 'cash', name: 'Cash on the coffee table', x: 6.5, y: 16.5, value: 4000, time: 2, heavy: false },
@@ -251,6 +262,7 @@ export function buildEstateHouse(): Level {
   ];
 
   return {
+    id: 'estate',
     name: 'Mid-terrace, Harrow Road estate',
     w,
     h,
@@ -280,5 +292,19 @@ export function buildEstateHouse(): Level {
       { kind: 'ceiling', x: 19.5, y: 16 },
     ],
     solid,
+    gate: { x: 14.5, y: 0.5 },
+    backup: { spawn: [{ x: 14.5, y: 0.5 }, { x: 15.5, y: 0.5 }], target: { x: 12.5, y: 14.5 }, place: 'the back gate' },
+    covered: [{ x0: 4, y0: 7, x1: 26, y1: 20 }],
+    darkness: 0,
   };
+}
+
+/** Solid-prop mask for a level's props. */
+export function solidMask(w: number, h: number, props: PropDef[]): boolean[][] {
+  const solid = Array.from({ length: h }, () => Array<boolean>(w).fill(false));
+  for (const p of props) {
+    if (!p.solid) continue;
+    for (let y = p.y; y < p.y + p.h; y++) for (let x = p.x; x < p.x + p.w; x++) if (solid[y]) solid[y][x] = true;
+  }
+  return solid;
 }

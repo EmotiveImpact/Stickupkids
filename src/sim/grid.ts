@@ -37,7 +37,7 @@ export class Grid {
 
   blocksSight(x: number, y: number): boolean {
     const t = this.tile(x, y);
-    if (t === '#' || t === 'X') return true;
+    if (t === '#' || t === 'X' || t === 'b') return true;
     if (t === 'D') {
       const s = this.door(x, y);
       return s === 'closed' || s === 'locked';
@@ -47,7 +47,7 @@ export class Grid {
 
   passable(x: number, y: number, m: Mover): boolean {
     const t = this.tile(x, y);
-    if (t === '#' || t === 'X' || t === 'W' || t === '=') return false;
+    if (t === '#' || t === 'X' || t === 'W' || t === '=' || t === 'w' || t === 'b') return false;
     if (this.solid[y][x]) return false;
     if (t === 'D' && m === 'dog') {
       const s = this.door(x, y);

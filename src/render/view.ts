@@ -108,6 +108,10 @@ interface Fx {
   r?: number;
 }
 
+/** Character models in public/models/ai/. A level can name others; until they arrive the kind's model stands in. */
+const MODELS = new Set(['crew', 'dealer', 'soldier', 'runner', 'dog']);
+const modelFor = (e: { kind: string; model?: string }) => (e.model && MODELS.has(e.model) ? e.model : e.kind);
+
 /** Enemies who are held up or down drop their red: grey reads as out of the fight. */
 const NEUTRAL = '#aab4c8';
 
@@ -117,11 +121,16 @@ interface Flash {
   power: number;
 }
 
+export function createEngine(canvas: HTMLCanvasElement): Engine {
+  return new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true }, true);
+}
+
 export class View {
   readonly engine: Engine;
   readonly scene: Scene;
   readonly level: Level;
   readonly co: Coords;
+  private readonly assets: string;
   /** Resolves once the level and characters have loaded. */
   readonly ready: Promise<void>;
   private cam: FreeCamera;
@@ -160,10 +169,12 @@ export class View {
   private probeColour = new Color3();
   mode: Mode = 'planning';
 
-  constructor(canvas: HTMLCanvasElement, level: Level) {
+  /** `assets`: the folder holding the level's bake, e.g. models/estate/. */
+  constructor(engine: Engine, level: Level, assets: string) {
+    this.assets = assets;
     this.level = level;
     this.co = new Coords(level.w, level.h);
-    this.engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true }, true);
+    this.engine = engine;
     const scene = (this.scene = new Scene(this.engine));
     scene.clearColor = Color4.FromHexString(PALETTE.night + 'ff');
     scene.ambientColor = Color3.Black();
@@ -245,8 +256,9 @@ export class View {
   private async load() {
     const scene = this.scene;
     // One rigged model per kind, from the AI character pipeline (art in /mnt/project-files/ai-models).
-    const kinds = ['crew', 'dealer', 'soldier', 'runner', 'dog'];
-    const [estate, ...kits] = await Promise.all([loadEstate(scene), ...kinds.map((k) => CharacterKit.load(scene, `models/ai/${k}`))]);
+    // Backup always comes as soldiers.
+    const kinds = [...new Set(['crew', 'soldier', ...this.level.enemies.map(modelFor)])];
+    const [estate, ...kits] = await Promise.all([loadEstate(scene, this.assets), ...kinds.map((k) => CharacterKit.load(scene, `models/ai/${k}`))]);
     this.estate = estate;
     kinds.forEach((k, i) => this.kits.set(k, kits[i]));
     this.shadowLight.includedOnlyMeshes = estate.receivers;
@@ -281,7 +293,8 @@ export class View {
     fm.disableLighting = true;
     fm.diffuseColor = Color3.Black();
     fm.emissiveColor = Color3.White();
-    fm.emissiveTexture = glowTexture(scene);
+    fm.diffuseTexture = glowTexture(scene);
+    fm.useAlphaFromDiffuseTexture = true;
     fm.alphaMode = Constants.ALPHA_ADD;
     fm.alpha = 0.99;
     fm.disableDepthWrite = true;
@@ -309,10 +322,16 @@ export class View {
     dust.start();
 
     for (const def of this.crewColours()) this.crew.push(this.makeCrewActor(def));
-    for (const e of this.level.enemies) this.enemies.set(e.id, this.makeEnemyActor(e.kind));
+    for (const e of this.level.enemies) this.enemies.set(e.id, this.makeEnemyActor(e.kind, modelFor(e)));
     this.refreshKey();
     this.atmosphere = new Atmosphere(scene, this.co, this.level, estate, WORLD, 1 / Math.tan(TILT));
     this.atmosphere.setRain(this.mode === 'raid');
+  }
+
+  /** Drop the scene so another level can take the engine. */
+  dispose() {
+    this.atmosphere = null;
+    this.scene.dispose();
   }
 
   private refreshKey() {
@@ -486,9 +505,9 @@ export class View {
     return { root, body, light: char.light, char, ring, cone, bag, torch, last: null, speed: 0 };
   }
 
-  private makeEnemyActor(kind: string): Actor {
+  private makeEnemyActor(kind: string, model = kind): Actor {
     const scene = this.scene;
-    const char = this.kits.get(kind)!.spawn(scene, kind, { slot: PALETTE.enemy });
+    const char = this.kits.get(model)!.spawn(scene, kind, { slot: PALETTE.enemy });
     const { root, body, light } = char;
     for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
     const s = CHAR_SCALE;

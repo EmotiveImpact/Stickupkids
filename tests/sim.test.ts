@@ -4,6 +4,8 @@ import { buildEstateHouse } from '../src/sim/level.ts';
 import { Grid } from '../src/sim/grid.ts';
 import { Sim, planSegments, type Waypoint } from '../src/sim/sim.ts';
 import { samplePlans } from '../src/sim/samplePlan.ts';
+import { buildBurgessPark } from '../src/sim/burgess.ts';
+import { JOBS } from '../src/sim/jobs.ts';
 
 test('walls block sight, windows do not', () => {
   const g = new Grid(buildEstateHouse());
@@ -82,4 +84,35 @@ test('a reckless plan through the front door turns into a firefight', () => {
   run(sim, [], 120);
   assert.ok(sim.shots > 0, 'shots should be fired');
   assert.ok(sim.police > 0.2, 'police clock should be well under way');
+});
+
+test('every job has a plan that gets out quietly with the money', () => {
+  for (const job of JOBS) {
+    const level = job.build();
+    const g = new Grid(level);
+    for (const plan of job.samplePlans()) for (const seg of planSegments(g, plan)) assert.ok(seg.length > 0, `${job.id} plan reachable`);
+    const sim = new Sim(level, job.samplePlans());
+    run(sim, job.sampleCodes);
+    assert.equal(sim.outcome?.reason, 'escaped', job.id);
+    assert.ok(sim.outcome!.take >= 15000, `${job.id} take was ${sim.outcome!.take}`);
+  }
+});
+
+test('in the park, lamplight decides how far off they see you', () => {
+  const sim = new Sim(buildBurgessPark(), []);
+  // Under the lamp by the picnic table, and out on the dark grass.
+  assert.ok(sim.visibility({ x: 27.5, y: 19.5 }) > 0.95);
+  assert.ok(sim.visibility({ x: 2.5, y: 4.5 }) < 0.6);
+  // The estate is lit all over.
+  assert.equal(new Sim(buildEstateHouse(), []).visibility({ x: 2.5, y: 4.5 }), 1);
+});
+
+test('shrubs block sight and movement, water blocks movement only', () => {
+  const level = buildBurgessPark();
+  const g = new Grid(level);
+  assert.equal(g.passable(4, 15, 'crew'), false);
+  assert.equal(g.lineOfSight(3.5, 15.5, 6.5, 15.5), false);
+  level.tiles[0][0] = 'w';
+  assert.equal(new Grid(level).passable(0, 0, 'crew'), false);
+  assert.equal(new Grid(level).blocksSight(0, 0), false);
 });

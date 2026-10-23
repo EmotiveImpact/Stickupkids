@@ -1,13 +1,13 @@
 """Builds the estate job in Blender from art/level/estate.json, bakes its
 lighting and exports it for the game.
 
-Run:  python3 art/level/build_level.py [--bake] [--samples 128] [--size 2048] [--preview]
+Run:  python3 art/level/build_level.py [--bake] [--samples 128] [--size 2048] [--preview] [--out DIR]
 
-Outputs (public/models/):
-  estate.glb                 static scene, door leaves and loot, two UV sets
-  estate-lightmap.webp       baked light (diffuse direct + indirect, no albedo)
-  estate-probe.png           light at chest height, for lighting characters
-  estate-materials.json      material table for the game
+Outputs (public/models/estate/):
+  level.glb                  static scene, door leaves and loot, two UV sets
+  level-lightmap.png         baked light (diffuse direct + indirect, no albedo)
+  level-probe.png            light at chest height, for lighting characters
+  level-materials.json       material table for the game
 
 The game cuts walls at 1.5 units and shows no ceilings. For the bake the walls
 carry on to 2.6 with a ceiling over the house, so rooms are lit the way real
@@ -26,13 +26,15 @@ from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import bake  # noqa: E402
 import kit  # noqa: E402
-from kit import MATS, Frame, Geo, material  # noqa: E402
+import props  # noqa: E402
+from bake import LIGHT_LOG, add_light  # noqa: E402
+from kit import Frame, Geo, material  # noqa: E402
 
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
-OUT = os.path.join(ROOT, "public", "models")
-os.makedirs(OUT, exist_ok=True)
 args = sys.argv
+OUT = args[args.index("--out") + 1] if "--out" in args else os.path.join(ROOT, "public", "models", "estate")
 BAKE = "--bake" in args
 PREVIEW = "--preview" in args
 SAMPLES = int(args[args.index("--samples") + 1]) if "--samples" in args else 128
@@ -704,86 +706,20 @@ def build_boundaries():
 
 
 # =================================================================== street
-def street_lamp(g, emit, x, y, arm=(0, 1)):
-    """Council lamp column with an arm reaching over the road (arm in map dx, dy)."""
-    base = P(x, y)
-    g.cyl(base, 0.11, 0.6, "metal_dark", segs=12)
-    g.cyl(base + Vector((0, 0, 0.6)), 0.075, 3.7, "metal_dark", segs=12, r2=0.055)
-    hx, hy = x + arm[0] * 0.6, y + arm[1] * 0.6
-    a = P(x, y, 4.25)
-    b = P(hx, hy, 4.25)
-    mid = (a + b) / 2
-    length = (b - a).length
-    g.box(mid, (length if arm[0] else 0.06, 0.06 if arm[0] else length, 0.06), "metal_dark", bevel=0.01)
-    head = P(hx, hy, 4.18)
-    g.box(head, (0.55 if arm[0] else 0.3, 0.3 if arm[0] else 0.55, 0.12), "metal_dark", bevel=0.03)
-    emit.box(head - Vector((0, 0, 0.065)), (0.45 if arm[0] else 0.22, 0.22 if arm[0] else 0.45, 0.012), "emit_lamp")
-    return P(hx, hy, 4.05)
-
-
-def wheelie_bin(g, x, y, mat, rot=0.0, lid_open=False):
-    c = P(x, y)
-    g.box(c + Vector((0, 0, 0.5)), (0.58, 0.7, 0.92), mat, bevel=0.04, seg=2, rot=rot)
-    g.box(c + Vector((0, 0, 0.98)), (0.62, 0.76, 0.06), mat, bevel=0.02, rot=rot, tilt=("X", -0.5) if lid_open else None)
-    fx, fy = math.cos(rot), math.sin(rot)
-    for s in (-1, 1):
-        w = c + Vector((fx * 0.2 * s - fy * 0.3, fy * 0.2 * s + fx * 0.3, 0.1))
-        g.cyl(w - Vector((fx * 0.04, fy * 0.04, 0)), 0.1, 0.08, "tyre", segs=12, axis="X", rot=rot)
-
-
-def car(g, emit, x0, y0, length, width, mat, facing=1, lights=False, van=False):
-    """A parked car or van along x. facing +1 means the bonnet points east."""
-    cx = x0 + length / 2
-    cy = y0 + width / 2
-    c = P(cx, cy, 0)
-    zb = -0.1
-    if van:
-        g.box(c + Vector((-0.25 * facing, 0, zb + 1.18)), (length - 0.6, width, 1.7), mat, bevel=0.12, seg=3)
-        g.box(c + Vector((facing * (length / 2 - 0.45), 0, zb + 0.82)), (0.9, width - 0.04, 0.95), mat, bevel=0.18, seg=3)
-        # Windscreen and side windows of the cab.
-        g.box(c + Vector((facing * (length / 2 - 0.82), 0, zb + 1.55)), (0.5, width - 0.12, 0.55), "car_glass", bevel=0.05,
-              tilt=("Y", -0.5 * facing))
-        for s in (-1, 1):
-            g.box(c + Vector((facing * (length / 2 - 1.15), s * (width / 2 + 0.005), zb + 1.5)), (0.6, 0.02, 0.45), "car_glass")
-            g.box(c + Vector((-facing * 0.6, s * (width / 2 + 0.005), zb + 1.1)), (1.6, 0.012, 0.02), "metal_dark")
-        g.box(c + Vector((0, 0, zb + 2.05)), (length - 1.4, width - 0.2, 0.06), "metal_dark", bevel=0.02)
-    else:
-        g.box(c + Vector((0, 0, zb + 0.55)), (length, width, 0.62), mat, bevel=0.16, seg=3)
-        g.box(c + Vector((-0.2 * facing, 0, zb + 1.02)), (length * 0.52, width - 0.14, 0.5), "car_glass", bevel=0.14, seg=2)
-        g.box(c + Vector((-0.2 * facing, 0, zb + 1.28)), (length * 0.42, width - 0.18, 0.04), mat, bevel=0.02)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            wx = cx + sx * (length / 2 - (0.75 if not van else 0.7))
-            wy = cy + sy * (width / 2 - 0.1)
-            g.cyl(P(wx, wy, zb + 0.34) + Vector((0, -sy * 0.11, 0)), 0.34, 0.22, "tyre", segs=16, axis="Y")
-            g.cyl(P(wx, wy, zb + 0.34) + Vector((0, -sy * 0.115, 0)), 0.2, 0.235, "metal", segs=12, axis="Y")
-    # Lights.
-    fx = cx + facing * (length / 2 + 0.005)
-    rx = cx - facing * (length / 2 + 0.005)
-    for s in (-1, 1):
-        (emit if lights else g).box(P(fx, cy + s * (width / 2 - 0.22), zb + (0.8 if van else 0.66)), (0.03, 0.26, 0.12),
-                                    "emit_headlight" if lights else "plastic_white", bevel=0.01)
-        (emit if lights else g).box(P(rx, cy + s * (width / 2 - 0.15), zb + (1.0 if van else 0.7)), (0.03, 0.14, 0.2 if van else 0.1),
-                                    "emit_tail" if lights else "can_red", bevel=0.01)
-    g.box(P(fx + facing * 0.02, cy, zb + 0.4), (0.06, width - 0.1, 0.16), "plastic_black", bevel=0.02)
-    g.box(P(rx - facing * 0.02, cy, zb + 0.4), (0.06, width - 0.1, 0.16), "plastic_black", bevel=0.02)
-    return P(fx, cy, zb + 0.75)
-
-
 def build_street():
     g = Geo("street")
     gf = Geo("street_far")
     emit = Geo("street_emit")
     lamps = []
-    lamps.append(street_lamp(g, emit, 8.5, 23.5, (0, 1)))
-    lamps.append(street_lamp(g, emit, 23.5, 23.5, (0, 1)))
-    lamps.append(street_lamp(g, emit, 5.5, 0.5, (1, 0)))
+    lamps.append(props.street_lamp(P, g, emit, 8.5, 23.5, (0, 1)))
+    lamps.append(props.street_lamp(P, g, emit, 23.5, 23.5, (0, 1)))
+    lamps.append(props.street_lamp(P, g, emit, 5.5, 0.5, (1, 0)))
     for x in (-8.5, 38.5, 52):
-        lamps.append(street_lamp(gf, emit, x, 23.5, (0, 1)))
+        lamps.append(props.street_lamp(P, gf, emit, x, 23.5, (0, 1)))
     for x in (-16, 16, 46):
-        lamps.append(street_lamp(gf, emit, x, 28.6, (0, -1)))
-    lamps.append(street_lamp(gf, emit, 30.5, 0.5, (1, 0)))
-    lamps.append(street_lamp(gf, emit, -16.5, 0.5, (1, 0)))
+        lamps.append(props.street_lamp(P, gf, emit, x, 28.6, (0, -1)))
+    lamps.append(props.street_lamp(P, gf, emit, 30.5, 0.5, (1, 0)))
+    lamps.append(props.street_lamp(P, gf, emit, -16.5, 0.5, (1, 0)))
     # Road markings: double yellow lines on our side, a dashed centre line.
     for yy in (24.18, 24.32):
         g.aabb(BX(-3), BY(yy + 0.05), -0.098, BX(33), BY(yy - 0.05), -0.094, "paint_yellow")
@@ -794,13 +730,13 @@ def build_street():
         g.aabb(BX(x), BY(24.5), -0.099, BX(x + 0.5), BY(24.15), -0.095, "metal_dark")
     g.cyl(P(15.0, 23.0, 0.0), 0.32, 0.012, "metal_dark", segs=16)
     # Parked cars.
-    van_front = car(g, emit, 0.6, 24.15, 4.9, 1.9, "van_paint", facing=1, lights=True, van=True)
-    car(g, emit, 16.6, 24.15, 4.0, 1.75, "car_paint", facing=-1)
-    car(gf, emit, -9.0, 24.15, 4.1, 1.75, "car_paint2", facing=1)
-    car(gf, emit, 36.0, 24.15, 4.2, 1.8, "bin_blue", facing=1)
-    car(gf, emit, 8.0, 26.1, 4.1, 1.75, "car_paint2", facing=-1)
-    car(gf, emit, 25.0, 26.1, 4.0, 1.75, "car_paint", facing=-1)
-    car(gf, emit, -16.0, 26.1, 4.0, 1.75, "metal", facing=-1)
+    van_front = props.car(P, g, emit, 0.6, 24.15, 4.9, 1.9, "van_paint", facing=1, lights=True, van=True)
+    props.car(P, g, emit, 16.6, 24.15, 4.0, 1.75, "car_paint", facing=-1)
+    props.car(P, gf, emit, -9.0, 24.15, 4.1, 1.75, "car_paint2", facing=1)
+    props.car(P, gf, emit, 36.0, 24.15, 4.2, 1.8, "bin_blue", facing=1)
+    props.car(P, gf, emit, 8.0, 26.1, 4.1, 1.75, "car_paint2", facing=-1)
+    props.car(P, gf, emit, 25.0, 26.1, 4.0, 1.75, "car_paint", facing=-1)
+    props.car(P, gf, emit, -16.0, 26.1, 4.0, 1.75, "metal", facing=-1)
     return g, gf, emit, lamps, van_front
 
 
@@ -1075,7 +1011,7 @@ def prop_garden_table(g, e, p):
 def prop_bins(g, e, p):
     mats = ["bin_black", "bin_green", "bin_blue"]
     for k in range(p["h"]):
-        wheelie_bin(g, p["x"] + 0.5, p["y"] + k + 0.5, mats[(k + p["x"]) % 3], rot=math.pi / 2 if p["x"] > 20 else 0)
+        props.wheelie_bin(P, g, p["x"] + 0.5, p["y"] + k + 0.5, mats[(k + p["x"]) % 3], rot=math.pi / 2 if p["x"] > 20 else 0)
 
 
 def prop_tree(g, e, p):
@@ -1167,62 +1103,7 @@ def build_props(lamp_list):
 
 
 # =================================================================== loot
-def build_loot():
-    out = []
-    for l in L["loot"]:
-        g = Geo(f"loot_{l['id']}")
-        o = Vector((0, 0, 0))
-        if l["id"] == "cash":
-            z = 0.42
-            for k in range(6):
-                u = (k % 3 - 1) * 0.17
-                v = (k // 3 - 0.5) * 0.11
-                for s in range(2 + k % 2):
-                    g.box(o + Vector((u, v, z + 0.025 + s * 0.05)), (0.15, 0.075, 0.045), "loot_note", bevel=0.004, rot=k * 0.3)
-                    g.box(o + Vector((u, v, z + 0.025 + s * 0.05)), (0.035, 0.078, 0.047), "loot_band", rot=k * 0.3)
-        elif l["id"] == "product":
-            # A sports holdall on the floor with wrapped blocks spilling out.
-            g.box(o + Vector((0, 0, 0.16)), (0.62, 0.32, 0.3), "loot_bag", bevel=0.1, seg=3, smooth=True)
-            for k in range(5):
-                g.box(o + Vector(((k - 2) * 0.11, 0.0, 0.33 + (k % 2) * 0.04)), (0.1, 0.2, 0.07), "loot_wrap", bevel=0.02, seg=2,
-                      rot=0.2 * k)
-            for s in (-1, 1):
-                g.cyl(o + Vector((s * 0.12, 0, 0.3)), 0.012, 0.25, "loot_bag", segs=6, axis="X")
-        else:
-            # The stash bag: a big black duffel.
-            g.box(o + Vector((0, 0, 0.22)), (0.85, 0.42, 0.4), "loot_bag", bevel=0.15, seg=4, smooth=True)
-            for s in (-1, 1):
-                g.box(o + Vector((s * 0.15, 0, 0.45)), (0.05, 0.42, 0.03), "loot_note", bevel=0.01)
-        obj = g.to_object(C_DYN)
-        obj.location = P(l["x"], l["y"])
-        out.append(obj)
-    return out
-
-
 # =================================================================== lights
-def add_light(name, kind, loc, colour, power, radius=0.1, rot=None, size=None, spot=None):
-    ld = bpy.data.lights.new(name, kind)
-    ld.color = kit.hex_lin(colour)
-    ld.energy = power
-    if kind in ("POINT", "SPOT"):
-        ld.shadow_soft_size = radius
-    if kind == "AREA":
-        ld.shape = "RECTANGLE"
-        ld.size, ld.size_y = size
-    if kind == "SPOT":
-        ld.spot_size = spot
-        ld.spot_blend = 0.6
-    if kind == "SUN":
-        ld.angle = math.radians(1.0)
-    o = bpy.data.objects.new(name, ld)
-    o.location = loc
-    if rot:
-        o.rotation_euler = rot
-    scene.collection.objects.link(o)
-    return o
-
-
-LIGHT_LOG = []
 
 
 def build_lights(lamps, extra, van_front):
@@ -1278,237 +1159,6 @@ def build_blockers():
     return b
 
 
-# =================================================================== UVs
-TO_CAM = Vector((0, -math.cos(math.radians(54)), math.sin(math.radians(54))))
-
-
-def box_uvs(obj):
-    me = obj.data
-    if not me.uv_layers:
-        me.uv_layers.new(name="UVMap")
-    bm = bmesh.new()
-    bm.from_mesh(me)
-    uv = bm.loops.layers.uv[0]
-    mw = obj.matrix_world
-    for f in bm.faces:
-        name = me.materials[f.material_index].name.split(".")[0]
-        s = kit.uv_size(name)
-        n = f.normal
-        ax = max(range(3), key=lambda i: abs(n[i]))
-        for lp in f.loops:
-            co = mw @ lp.vert.co
-            if ax == 2:
-                u, v = co.x, co.y
-            elif ax == 0:
-                u, v = co.y * (1 if n.x > 0 else -1), co.z
-            else:
-                u, v = co.x * (-1 if n.y > 0 else 1), co.z
-            lp[uv].uv = (u / s, v / s)
-    bm.to_mesh(me)
-    bm.free()
-
-
-def split_hidden(obj):
-    """Move faces the game camera can never see into their own object."""
-    me = obj.data
-    bm = bmesh.new()
-    bm.from_mesh(me)
-    hid = [f for f in bm.faces if f.normal.dot(TO_CAM) < 0.06]
-    if not hid or len(hid) == len(bm.faces):
-        bm.free()
-        return None
-    me2 = me.copy()
-    bmesh.ops.delete(bm, geom=hid, context="FACES")
-    bm.to_mesh(me)
-    bm.free()
-    bm2 = bmesh.new()
-    bm2.from_mesh(me2)
-    vis = [f for f in bm2.faces if f.normal.dot(TO_CAM) >= 0.06]
-    bmesh.ops.delete(bm2, geom=vis, context="FACES")
-    bm2.to_mesh(me2)
-    bm2.free()
-    o2 = bpy.data.objects.new(obj.name + "_hidden", me2)
-    obj.users_collection[0].objects.link(o2)
-    return o2
-
-
-def importance(name):
-    if name.endswith("_hidden"):
-        return 0.1
-    table = [("ground_int", 2.0), ("walls", 1.6), ("props_int", 1.6), ("door_", 1.4), ("frames", 1.3), ("sills", 1.2),
-             ("skirting", 1.0), ("ground_near", 1.0), ("road", 0.8), ("boundaries_far", 0.3), ("boundaries", 1.0),
-             ("street_far", 0.3), ("street", 1.0), ("props_ext", 1.0), ("neigh", 0.6), ("far_", 0.25), ("ground_far", 0.25)]
-    for k, v in table:
-        if name.startswith(k):
-            return v
-    return 1.0
-
-
-def lightmap_uvs(objs):
-    for o in objs:
-        me = o.data
-        lm = me.uv_layers.get("Lightmap") or me.uv_layers.new(name="Lightmap")
-        me.uv_layers.active = lm
-    bpy.ops.object.select_all(action="DESELECT")
-    for o in objs:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = objs[0]
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    t = time.time()
-    bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.0, area_weight=0.0, scale_to_bounds=False)
-    print(f"  smart project {time.time() - t:.1f}s")
-    bpy.ops.object.mode_set(mode="OBJECT")
-    # Texel density by importance, relative to true surface area.
-    for o in objs:
-        me = o.data
-        lm = me.uv_layers["Lightmap"]
-        area3 = sum(p.area for p in me.polygons)
-        uvs = np.zeros(len(me.loops) * 2)
-        lm.data.foreach_get("uv", uvs)
-        uvs = uvs.reshape(-1, 2)
-        a2 = 0.0
-        for p in me.polygons:
-            idx = list(p.loop_indices)
-            pts = uvs[idx]
-            x, y = pts[:, 0], pts[:, 1]
-            a2 += 0.5 * abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-        if a2 <= 0 or area3 <= 0:
-            continue
-        k = math.sqrt(area3 / a2) * importance(o.name)
-        lm.data.foreach_set("uv", (uvs * k).ravel())
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    t = time.time()
-    bpy.ops.uv.pack_islands(rotate=True, scale=True, margin=0.0012, shape_method="CONCAVE")
-    print(f"  pack {time.time() - t:.1f}s")
-    bpy.ops.object.mode_set(mode="OBJECT")
-    for o in objs:
-        me = o.data
-        if o.name.startswith(("ground_int", "walls", "ground_near")):
-            lm = me.uv_layers["Lightmap"]
-            uvs = np.zeros(len(me.loops) * 2)
-            lm.data.foreach_get("uv", uvs)
-            uvs = uvs.reshape(-1, 2)
-            a2 = sum(0.5 * abs(np.dot(uvs[list(p.loop_indices)][:, 0], np.roll(uvs[list(p.loop_indices)][:, 1], 1))
-                               - np.dot(uvs[list(p.loop_indices)][:, 1], np.roll(uvs[list(p.loop_indices)][:, 0], 1)))
-                     for p in me.polygons)
-            a3 = sum(p.area for p in me.polygons)
-            print(f"  {o.name}: {math.sqrt(a2 / a3) * LM_SIZE:.1f} texels per unit at {LM_SIZE}")
-        me.uv_layers.active = me.uv_layers["UVMap"]
-
-
-# =================================================================== bake
-def setup_cycles(samples):
-    scene.render.engine = "CYCLES"
-    cy = scene.cycles
-    cy.device = "CPU"
-    cy.samples = samples
-    cy.use_adaptive_sampling = False
-    cy.max_bounces = 5
-    cy.diffuse_bounces = 3
-    cy.glossy_bounces = 1
-    cy.transmission_bounces = 2
-    cy.transparent_max_bounces = 4
-    cy.sample_clamp_indirect = 8.0
-    scene.render.threads_mode = "AUTO"
-
-
-def bake_into(objs, img, uv_layer, margin=6):
-    mats = {m for o in objs for m in o.data.materials if m}
-    for m in mats:
-        nt = m.node_tree
-        n = nt.nodes.get("LM") or nt.nodes.new("ShaderNodeTexImage")
-        n.name = "LM"
-        n.image = img
-        for x in nt.nodes:
-            x.select = False
-        n.select = True
-        nt.nodes.active = n
-    bpy.ops.object.select_all(action="DESELECT")
-    for o in objs:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = objs[0]
-    t = time.time()
-    bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, margin=margin, uv_layer=uv_layer,
-                        use_clear=True, target="IMAGE_TEXTURES")
-    print(f"  bake {img.name} {img.size[0]}x{img.size[1]}: {time.time() - t:.0f}s")
-    a = np.empty(img.size[0] * img.size[1] * 4, np.float32)
-    img.pixels.foreach_get(a)
-    return a.reshape(img.size[1], img.size[0], 4)[::-1, :, :3].copy()
-
-
-def encode_rgbd(lin):
-    """Babylon's RGBD: gamma-encoded rgb scaled by D, with D in alpha."""
-    m = np.maximum(lin.max(axis=2), 1e-6)
-    D = np.maximum(255.0 / m, 1.0)
-    D = np.clip(np.floor(D) / 255.0, 0, 1)
-    rgb = lin * D[..., None]
-    rgb = np.clip(rgb, 0, 1) ** (1 / 2.2)
-    out = np.dstack([rgb, D])
-    return (out * 255 + 0.5).astype(np.uint8)
-
-
-_OIDN = None
-
-
-def oidn(img_lin):
-    """OpenImageDenoise (shipped inside the bpy wheel) over an HDR float image."""
-    global _OIDN
-    import ctypes
-    if _OIDN is None:
-        lib = os.path.join(os.path.dirname(os.path.dirname(bpy.app.binary_path or "")), "lib")
-        if not os.path.exists(os.path.join(lib, "libOpenImageDenoise.so.2")):
-            import importlib.util
-            lib = os.path.join(os.path.dirname(importlib.util.find_spec("bpy").origin), "lib")
-        ctypes.CDLL(os.path.join(lib, "libtbb.so.12"), mode=ctypes.RTLD_GLOBAL)
-        o = ctypes.CDLL(os.path.join(lib, "libOpenImageDenoise.so.2"), mode=ctypes.RTLD_GLOBAL)
-        o.oidnNewDevice.restype = ctypes.c_void_p
-        o.oidnNewDevice.argtypes = [ctypes.c_int]
-        o.oidnCommitDevice.argtypes = [ctypes.c_void_p]
-        o.oidnNewFilter.restype = ctypes.c_void_p
-        o.oidnNewFilter.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-        o.oidnSetSharedFilterImage.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int,
-                                               ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
-                                               ctypes.c_size_t]
-        o.oidnSetFilterBool.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_bool]
-        o.oidnCommitFilter.argtypes = [ctypes.c_void_p]
-        o.oidnExecuteFilter.argtypes = [ctypes.c_void_p]
-        dev = o.oidnNewDevice(1)  # CPU
-        o.oidnCommitDevice(dev)
-        _OIDN = (o, dev)
-    o, dev = _OIDN
-    src = np.ascontiguousarray(img_lin, dtype=np.float32)
-    out = np.zeros_like(src)
-    h, w, _ = src.shape
-    f = o.oidnNewFilter(dev, b"RT")
-    o.oidnSetSharedFilterImage(f, b"color", src.ctypes.data, 3, w, h, 0, 0, 0)  # 3 = FLOAT3
-    o.oidnSetSharedFilterImage(f, b"output", out.ctypes.data, 3, w, h, 0, 0, 0)
-    o.oidnSetFilterBool(f, b"hdr", True)
-    o.oidnCommitFilter(f)
-    o.oidnExecuteFilter(f)
-    return out
-
-
-def denoise(img_lin, mask, passes=2):
-    """A light edge-aware smooth inside covered texels, to take the edge off bake noise."""
-    out = img_lin.copy()
-    for _ in range(passes):
-        acc = out * 4.0
-        wsum = np.full(out.shape[:2], 4.0)
-        lum = out.mean(axis=2)
-        for dy, dx, w in ((0, 1, 2), (0, -1, 2), (1, 0, 2), (-1, 0, 2), (1, 1, 1), (1, -1, 1), (-1, 1, 1), (-1, -1, 1)):
-            sh = np.roll(np.roll(out, dy, 0), dx, 1)
-            shm = np.roll(np.roll(mask, dy, 0), dx, 1)
-            shl = sh.mean(axis=2)
-            sim = np.exp(-((shl - lum) ** 2) / (2 * (0.08 + 0.15 * lum) ** 2))
-            ww = w * sim * shm
-            acc += sh * ww[..., None]
-            wsum += ww
-        out = acc / wsum[..., None]
-    return out
-
-
 # =================================================================== main
 def main():
     t0 = time.time()
@@ -1537,102 +1187,11 @@ def main():
     hidden_in_bake = [obj(g, C_DYN) for g in (caps, glass)]
     for g in (high, frames_hi, blk):
         obj(g, C_BLOCK)
-    loot = build_loot()
+    loot = props.build_loot(L["loot"], P, C_DYN)
     build_lights(lamps, extra, van_front)
 
-    for o in statics + door_objs + emitters + hidden_in_bake + loot:
-        box_uvs(o)
-    t = time.time()
-    for o in list(statics):
-        h = split_hidden(o)
-        if h:
-            statics.append(h)
-    print(f"split hidden faces {time.time() - t:.1f}s")
-    tris = sum(len(p.vertices) - 2 for o in statics + door_objs for p in o.data.polygons)
-    print(f"static objects {len(statics)}, triangles {tris}")
-    lightmap_uvs(statics + door_objs)
-    print(f"uvs done {time.time() - t0:.1f}s")
-
-    meta = {"materials": {}, "lights": LIGHT_LOG, "doors": {}, "cut": CUT}
-    for k, (tex, tint, size, rough, em) in MATS.items():
-        meta["materials"][k] = {"tex": tex, "tint": tint, "size": size, "rough": rough,
-                                "emissive": list(em) if em else None}
-    for d in doors:
-        h = d["hinge"]
-        meta["doors"][f"door_{d['def']['x']}_{d['def']['y']}"] = {"hinge": [h.x, h.z, h.y], "axis": d["def"]["axis"]}
-
-    if BAKE:
-        setup_cycles(SAMPLES)
-        C_DYN.hide_render = True
-        img = bpy.data.images.new("lightmap", LM_SIZE, LM_SIZE, float_buffer=True, alpha=False)
-        lm = bake_into(statics + door_objs, img, "Lightmap")
-        cover = (lm.max(axis=2) > 0).astype(np.float64)
-        lm = oidn(lm) * cover[..., None]
-        lm = denoise(lm, cover, passes=1)
-        print("  lightmap percentiles (50/90/99/max):", [float(np.percentile(lm[cover > 0], q)) for q in (50, 90, 99)], float(lm.max()))
-        from PIL import Image
-        Image.fromarray(encode_rgbd(lm), "RGBA").save(os.path.join(OUT, "estate-lightmap.png"), optimize=True)
-        np.save(os.path.join(HERE, "lightmap.npy"), lm.astype(np.float16))
-        # Light at chest height across the map, for characters.
-        pg = Geo("probe")
-        pg.quad(P(0, H, 1.0), (W, 0, 0), (0, H, 0), "plastic_white", n=(0, 0, 1))
-        pobj = pg.to_object(C_STATIC)
-        me = pobj.data
-        uvl = me.uv_layers.new(name="UVMap")
-        for lp in me.loops:
-            co = me.vertices[lp.vertex_index].co
-            uvl.data[lp.index].uv = ((co.x + W / 2) / W, (co.y + H / 2) / H)
-        pimg = bpy.data.images.new("probe", W * 8, H * 8, float_buffer=True, alpha=False)
-        scene.cycles.samples = max(64, SAMPLES // 2)
-        pr = oidn(bake_into([pobj], pimg, "UVMap", margin=0))
-        pmax = float(np.percentile(pr, 99.5)) * 1.2 + 1e-6
-        enc = (np.clip(pr / pmax, 0, 1) ** (1 / 2.2) * 255 + 0.5).astype(np.uint8)
-        Image.fromarray(enc, "RGB").save(os.path.join(OUT, "estate-probe.png"))
-        meta["probe"] = {"max": pmax, "perUnit": 8}
-        bpy.data.objects.remove(pobj)
-        C_DYN.hide_render = False
-
-    json.dump(meta, open(os.path.join(OUT, "estate-materials.json"), "w"), indent=1)
-
-    # Join the static set into one object for export; doors, loot and emitters stay separate.
-    bpy.ops.object.select_all(action="DESELECT")
-    for o in statics:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = statics[0]
-    bpy.ops.object.join()
-    statics[0].name = "static"
-    exp = [statics[0]] + door_objs + emitters + hidden_in_bake + loot
-    bpy.ops.object.select_all(action="DESELECT")
-    for o in exp:
-        if o:
-            o.select_set(True)
-    path = os.path.join(OUT, "estate.glb")
-    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_texcoords=True,
-                              export_normals=True, export_materials="EXPORT", export_yup=True, export_apply=False,
-                              export_cameras=False, export_lights=False)
-    print(f"exported {path} {os.path.getsize(path) / 1e6:.1f} MB, total {time.time() - t0:.0f}s")
-
-    if PREVIEW:
-        setup_cycles(24)
-        scene.cycles.use_denoising = True
-        cam = bpy.data.cameras.new("cam")
-        cam.type = "ORTHO"
-        cam.ortho_scale = 34
-        co = bpy.data.objects.new("cam", cam)
-        tilt = math.radians(54)
-        co.location = (0, -math.cos(tilt) * 60, math.sin(tilt) * 60)
-        co.rotation_euler = (math.radians(90) - tilt, 0, 0)
-        scene.collection.objects.link(co)
-        scene.camera = co
-        C_BLOCK.hide_render = True
-        C_DYN.hide_render = False
-        scene.render.resolution_x, scene.render.resolution_y = 1280, 720
-        scene.render.filepath = os.path.join(HERE, "preview.png")
-        scene.view_settings.view_transform = "AgX"
-        scene.view_settings.exposure = 1.5
-        t = time.time()
-        bpy.ops.render.render(write_still=True)
-        print(f"preview {time.time() - t:.0f}s")
-
+    bake.finish(OUT, W, H, P, statics, door_objs, emitters, hidden_in_bake, loot, doors,
+                (C_STATIC, C_EXPORT, C_BLOCK, C_DYN), CUT, bake=BAKE, samples=SAMPLES, lm_size=LM_SIZE,
+                preview=os.path.join(HERE, "preview.png") if PREVIEW else None, ortho=34, t0=t0)
 
 main()

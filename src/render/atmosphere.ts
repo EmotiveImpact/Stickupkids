@@ -18,8 +18,6 @@ import type { Coords } from './world.ts';
 import type { Estate } from './estate.ts';
 import { Constants } from '@babylonjs/core/Engines/constants';
 
-const LAMP = '#ff9a3e';
-
 export class Atmosphere {
   private readonly rain: ParticleSystem;
   private readonly splash: ParticleSystem;
@@ -30,7 +28,7 @@ export class Atmosphere {
     // Rain falls on open ground only; the house has its roof off for us, not
     // for the weather. A drop high in the air shows over ground further up the
     // screen, so keep its whole fall, as seen, off the house.
-    const house = (x: number, y: number) => x >= 4 && x <= 26 && y >= 7 && y <= 20;
+    const house = (x: number, y: number) => level.covered.some((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1);
     const indoors = (x: number, y: number, h = 0) => house(x, y) || house(x, y - slope * h * 0.5) || house(x, y - slope * h);
     const x0 = -6;
     const x1 = level.w + 6;
@@ -47,7 +45,9 @@ export class Atmosphere {
       out.set(co.X(x), height, co.Z(y));
     };
 
-    const rain = (this.rain = new ParticleSystem('rain', 5000, scene));
+    // Same density of rain over a bigger map.
+    const k = Math.max(1, ((x1 - x0) * (y1 - y0)) / (42 * 36));
+    const rain = (this.rain = new ParticleSystem('rain', Math.round(5000 * k), scene));
     rain.particleTexture = streakTexture(scene);
     rain.emitter = Vector3.Zero();
     rain.startPositionFunction = (_m, pos) => spot(pos, 5 + Math.random() * 4);
@@ -56,7 +56,7 @@ export class Atmosphere {
     rain.maxEmitPower = 1;
     rain.minLifeTime = 0.38;
     rain.maxLifeTime = 0.58;
-    rain.emitRate = 6000;
+    rain.emitRate = 6000 * k;
     rain.minSize = 0.02;
     rain.maxSize = 0.028;
     rain.minScaleY = 14;
@@ -72,14 +72,14 @@ export class Atmosphere {
     rain.preWarmCycles = 30;
     rain.start();
 
-    const splash = (this.splash = new ParticleSystem('splash', 1500, scene));
+    const splash = (this.splash = new ParticleSystem('splash', Math.round(1500 * k), scene));
     splash.particleTexture = dotTexture(scene);
     splash.emitter = Vector3.Zero();
     splash.startPositionFunction = (_m, pos) => spot(pos, 0.05);
     splash.startDirectionFunction = (_m, dir) => dir.set(0, 0.4, 0);
     splash.minLifeTime = 0.08;
     splash.maxLifeTime = 0.14;
-    splash.emitRate = 900;
+    splash.emitRate = 900 * k;
     // A size gradient sets the size outright (min/max are ignored), in metres.
     splash.addSizeGradient(0, 0.02, 0.03);
     splash.addSizeGradient(1, 0.06, 0.09);
@@ -98,8 +98,11 @@ export class Atmosphere {
     hazeMat.disableLighting = true;
     hazeMat.diffuseColor = Color3.Black();
     hazeMat.specularColor = Color3.Black();
-    hazeMat.emissiveColor = Color3.FromHexString(LAMP).scale(0.11);
-    hazeMat.emissiveTexture = shaft;
+    // Unlit, a standard material shows emissive colour times the diffuse
+    // texture; an emissive texture would be added to the colour instead and
+    // light up the whole plane.
+    hazeMat.emissiveColor = Color3.FromHexString(estate.lamp).scale(0.5);
+    hazeMat.diffuseTexture = shaft;
     hazeMat.alphaMode = Constants.ALPHA_ADD;
     hazeMat.alpha = 0.99;
     hazeMat.disableDepthWrite = true;
@@ -116,18 +119,30 @@ export class Atmosphere {
       cone.layerMask = layerMask;
       this.haze.push({ mesh: cone, phase: Math.random() * 10 });
 
-      // A lamp over the street throws a long smear across the wet tarmac towards us.
+      // A lamp throws a long smear towards us across wet tarmac, paving or water.
       const y = level.h / 2 - top.z;
-      if (y < 20 || y > 26) continue;
-      const len = Math.min(5.5, 28.2 - y);
+      const x = top.x + level.w / 2;
+      let end = y;
+      while (end - y < 5.5) {
+        const ty = Math.floor(end);
+        if (ty >= level.h) {
+          end = Math.min(y + 5.5, level.h + 2.2);
+          break;
+        }
+        const t = level.tiles[ty]?.[Math.floor(x)];
+        if (t !== 'r' && t !== 'p' && t !== 'w') break;
+        end = ty + 1;
+      }
+      const len = Math.min(5.5, end - y);
+      if (len < 1.5) continue;
       const r = MeshBuilder.CreateGround('reflect', { width: 1.0, height: len }, scene);
       r.position.set(top.x, 0.015, co.Z(y + len / 2 + 0.2));
       const rm = new StandardMaterial('reflectMat', scene);
       rm.disableLighting = true;
       rm.diffuseColor = Color3.Black();
       rm.specularColor = Color3.Black();
-      rm.emissiveColor = Color3.FromHexString(LAMP).scale(0.22);
-      rm.emissiveTexture = streak;
+      rm.emissiveColor = Color3.FromHexString(estate.lamp).scale(0.7);
+      rm.diffuseTexture = streak;
       rm.alphaMode = Constants.ALPHA_ADD;
       rm.alpha = 0.99;
       rm.disableDepthWrite = true;

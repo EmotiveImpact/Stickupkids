@@ -1,0 +1,132 @@
+"""Cut a slice of OpenStreetMap data into level space.
+
+Reads a raw Overpass extract (art/osm/burgess-raw.json, not committed; fetch it
+with the query in art/osm/README.md), projects it to metres around an origin,
+turns it so the level's main path runs west to east, and writes the features
+the level and the Blender builder use.
+
+Map data © OpenStreetMap contributors, available under the Open Database
+Licence (https://www.openstreetmap.org/copyright).
+
+Run: python3 art/osm/extract.py burgess
+"""
+import json
+import math
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+R = 6378137.0
+
+SLICES = {
+    # The old lime kiln in Burgess Park, Camberwell. Turned so the line of the
+    # old Grand Surrey Canal (now a cycle path) runs straight across the map.
+    "burgess": {
+        "raw": "burgess-raw.json",
+        "origin": (51.48217, -0.08795),
+        "turn": math.degrees(math.atan2(6.7, 50.0)),
+        # Level cell (0, 0) sits at this point of the turned frame, metres.
+        "corner": (-22.0, -8.0),
+        "size": (36, 32),
+        # Keep features this far past the map edge for the scenery.
+        "margin": 60.0,
+    },
+}
+
+
+def main(name):
+    cfg = SLICES[name]
+    raw = json.load(open(os.path.join(HERE, cfg["raw"])))
+    lat0, lon0 = cfg["origin"]
+    th = math.radians(cfg["turn"])
+    c, s = math.cos(th), math.sin(th)
+    cx, cy = cfg["corner"]
+    w, h = cfg["size"]
+    mg = cfg["margin"]
+
+    def proj(lat, lon):
+        x = math.radians(lon - lon0) * R * math.cos(math.radians(lat0))
+        y = -math.radians(lat - lat0) * R
+        xr, yr = x * c - y * s, x * s + y * c
+        return (round(xr - cx, 2), round(yr - cy, 2))
+
+    def near(pts):
+        return any(-mg <= x <= w + mg and -mg <= y <= h + mg for x, y in pts)
+
+    out = {"name": name, "size": [w, h], "credit": "Map data © OpenStreetMap contributors (ODbL)",
+           "paths": [], "trees": [], "buildings": [], "barriers": [], "water": [], "areas": []}
+    for e in raw["elements"]:
+        t = e.get("tags", {})
+        if e["type"] == "node":
+            if t.get("natural") == "tree":
+                p = proj(e["lat"], e["lon"])
+                if near([p]):
+                    out["trees"].append(p)
+            continue
+        geoms = []
+        if e["type"] == "way":
+            geoms = [e.get("geometry", [])]
+        else:
+            geoms = [m["geometry"] for m in e.get("members", []) if m.get("role") == "outer" and m.get("geometry")]
+        for g in geoms:
+            pts = [proj(q["lat"], q["lon"]) for q in g]
+            if len(pts) < 2 or not near(pts):
+                continue
+            if "highway" in t:
+                hw = t["highway"]
+                width = {"cycleway": 3.2, "footway": 2.2, "path": 1.6, "service": 3.5, "residential": 7.0,
+                         "secondary": 9.0, "tertiary": 8.0, "primary": 10.0, "steps": 2.0}.get(hw, 2.5)
+                out["paths"].append({"kind": hw, "width": width, "surface": t.get("surface", "asphalt"), "pts": pts})
+            elif "building" in t:
+                out["buildings"].append({"name": t.get("name"), "levels": t.get("building:levels"),
+                                         "kind": t["building"], "historic": bool(t.get("historic")), "pts": pts})
+            elif "barrier" in t:
+                out["barriers"].append({"kind": t["barrier"], "pts": pts})
+            elif t.get("natural") == "water":
+                out["water"].append(pts)
+            elif "leisure" in t or "landuse" in t or "natural" in t:
+                out["areas"].append({"kind": t.get("leisure") or t.get("landuse") or t.get("natural"), "pts": pts})
+    path = os.path.join(HERE, f"{name}.json")
+    json.dump(out, open(path, "w"), separators=(",", ":"))
+    print(path, {k: len(v) for k, v in out.items() if isinstance(v, list)}, f"{os.path.getsize(path) / 1e3:.0f} kB")
+    write_ground(name, out)
+
+
+def seg_dist(px, py, a, b):
+    ax, ay = a
+    bx, by = b
+    dx, dy = bx - ax, by - ay
+    L = dx * dx + dy * dy
+    t = 0.0 if L == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L))
+    return math.hypot(px - ax - t * dx, py - ay - t * dy)
+
+
+def write_ground(name, d):
+    """Paths as 'p' cells over grass, plus the trees inside the map, as a TypeScript module for the level."""
+    w, h = d["size"]
+    rows = []
+    for y in range(h):
+        row = ""
+        for x in range(w):
+            c = "g"
+            for p in d["paths"]:
+                pts = p["pts"]
+                if any(seg_dist(x + 0.5, y + 0.5, pts[i], pts[i + 1]) < p["width"] / 2 for i in range(len(pts) - 1)):
+                    c = "p"
+                    break
+            row += c
+        rows.append(row)
+    trees = [(math.floor(x), math.floor(y)) for x, y in d["trees"] if 0 <= x < w and 0 <= y < h]
+    path = os.path.join(HERE, "..", "..", "src", "sim", f"{name}Ground.ts")
+    with open(path, "w") as f:
+        f.write(f"// Generated by art/osm/extract.py from OpenStreetMap data. Do not edit.\n")
+        f.write(f"// Map data © OpenStreetMap contributors, available under the Open Database Licence.\n\n")
+        f.write(f"/** Paths (p) over grass (g), {w} by {h}, one cell a metre. */\n")
+        f.write("export const GROUND = [\n" + "".join(f"  '{r}',\n" for r in rows) + "];\n\n")
+        f.write("/** Mapped trees inside the map, by cell. */\n")
+        f.write("export const TREES: [number, number][] = " + json.dumps(trees) + ";\n")
+    print(path)
+    print("\n".join(f"{i:2d} {r}" for i, r in enumerate(rows)))
+
+
+main(sys.argv[1] if len(sys.argv) > 1 else "burgess")

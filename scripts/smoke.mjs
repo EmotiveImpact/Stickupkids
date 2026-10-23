@@ -58,6 +58,20 @@ await page.waitForTimeout(700);
 const t2 = await page.evaluate(() => window.__game.sim.time);
 assert.equal(t1, t2, 'pause stops the clock');
 await page.screenshot({ path: process.env.OUT ? `${process.env.OUT}/smoke-raid.png` : '/tmp/smoke-raid.png' });
+
+// Over to Burgess Park without a reload: the level swaps and its sample plan gets away.
+await page.evaluate(() => window.__game.pickJob('burgess'));
+await page.waitForFunction(() => window.__game.job === 'burgess' && document.body.classList.contains('loaded'), null, { timeout: 90000 });
+const park = await page.evaluate(() => {
+  const g = window.__game;
+  g.start(true);
+  g.go();
+  g.advance(120, [[24, 'A'], [34, 'B']]);
+  return g.sim.outcome;
+});
+assert.equal(park?.reason, 'escaped', 'the park sample plan escapes');
+assert.ok(park.take >= 15000, 'and takes the float');
+await page.screenshot({ path: process.env.OUT ? `${process.env.OUT}/smoke-park.png` : '/tmp/smoke-park.png' });
 assert.deepEqual(errors, [], 'no page errors');
 console.log('smoke test passed');
 await browser.close();

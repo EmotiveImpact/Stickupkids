@@ -56,9 +56,9 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .clock .ico { width: 30px; height: 30px; color: #fff; }
 .clock .ico svg { width: 30px; height: 30px; }
 .clock .lbl { position: absolute; bottom: -18px; font: 700 12px/1 var(--head); letter-spacing: 0.1em; color: #9fb0d4; text-transform: uppercase; white-space: nowrap; }
-.job { padding: 8px 18px; text-align: center; }
-.job .t { font: 700 22px/1.1 var(--head); letter-spacing: 0.06em; text-transform: uppercase; }
-.job .s { font: 400 12px/1.4 var(--body); color: #9fb0d4; }
+.job-now { padding: 8px 18px; text-align: center; }
+.job-now .t { font: 700 22px/1.1 var(--head); letter-spacing: 0.06em; text-transform: uppercase; }
+.job-now .s { font: 400 12px/1.4 var(--body); color: #9fb0d4; }
 
 /* Top right */
 .top-right { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 14px; padding: 10px 16px; }
@@ -97,7 +97,7 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .toast { padding: 7px 12px; font: 600 13px/1.2 var(--body); border-left: 3px solid var(--tc, #fff); animation: toast 3.2s forwards; }
 @keyframes toast { 0% { opacity: 0; transform: translateX(20px); } 8%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 
-/* Overlays: title and results */
+/* Overlays: the job board and results */
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 30% 50%, rgba(11, 18, 32, 0.55), rgba(5, 8, 16, 0.92)); pointer-events: auto; }
 .title-card { display: flex; flex-direction: column; gap: 22px; align-items: flex-start; width: min(900px, 90vw); }
 .logo { font: 700 clamp(56px, 9vw, 120px)/0.9 var(--head); letter-spacing: 0.04em; color: #fff; position: relative; text-shadow: 0 0 2px #fff, 3px 3px 0 rgba(0, 0, 0, 0.5); }
@@ -106,6 +106,50 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .menu { display: flex; flex-direction: column; gap: 10px; }
 .menu button { text-align: left; font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; padding: 10px 22px; border-radius: 8px; border: 1px solid var(--edge); background: var(--glass); min-width: 320px; }
 .menu button:hover { border-color: var(--c1); box-shadow: 0 0 16px rgba(34, 227, 255, 0.35); }
+/* The job board: London on the left, the jobs on the right, over a blurred game. */
+.overlay.board-screen { background: radial-gradient(ellipse at 30% 50%, rgba(11, 18, 32, 0.78), rgba(5, 8, 16, 0.95)); backdrop-filter: blur(8px); }
+.board { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 28px; width: min(1360px, 94vw); align-items: start; }
+.board-left { display: flex; flex-direction: column; gap: 34px; min-width: 0; }
+.board-right { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }
+.citymap { position: relative; overflow: hidden; aspect-ratio: 720 / 439; padding: 0; border-color: rgba(34, 227, 255, 0.45); }
+.citymap svg { display: block; width: 100%; height: 100%; }
+.citymap .sea { fill: #070d1a; }
+.citymap .parks { fill: #0f2a26; stroke: #1b4a40; stroke-width: 0.6; }
+.citymap .roads { fill: none; stroke: #33456e; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.citymap .river { fill: none; stroke: #0f3d7a; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.citymap .river-in { fill: none; stroke: #1d63b8; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.8; }
+.citymap .burgess { fill: rgba(255, 45, 155, 0.18); stroke: var(--c2); stroke-width: 1.4; filter: url(#glow); }
+.citymap .credit { position: absolute; right: 8px; bottom: 6px; font: 400 10px/1 var(--body); color: #7f90b8; }
+.pin { cursor: pointer; }
+.pin .drop { fill: #0b1220; stroke: var(--c4); stroke-width: 2; }
+.pin .house { fill: var(--c4); }
+.pin .halo { fill: none; stroke: var(--c4); stroke-width: 1.5; opacity: 0.6; }
+.pin .pulse { fill: none; stroke: var(--c1); stroke-width: 2; opacity: 0; }
+.pin text { font: 700 15px var(--head); letter-spacing: 0.06em; text-transform: uppercase; fill: #fff; text-anchor: middle; paint-order: stroke; stroke: #070d1a; stroke-width: 4px; }
+.pin.sel .drop { stroke: var(--c1); filter: url(#glow); }
+.pin.sel .house { fill: var(--c1); }
+.pin.sel .halo { stroke: var(--c1); }
+.pin.sel .pulse { animation: pinpulse 1.6s ease-out infinite; }
+@keyframes pinpulse { from { r: 8px; opacity: 0.9; } to { r: 26px; opacity: 0; } }
+.pick { font: 700 18px/1 var(--head); letter-spacing: 0.2em; text-transform: uppercase; color: #8fb4ff; }
+.jobs { display: flex; flex-direction: column; gap: 10px; }
+.job { display: flex; flex-direction: column; gap: 5px; text-align: left; padding: 12px 16px; font-family: var(--body); border-left: 4px solid rgba(255, 255, 255, 0.15); transition: border-color 0.15s, box-shadow 0.15s; }
+.job:hover { border-color: rgba(34, 227, 255, 0.6); }
+.job.sel { border-color: var(--c1); border-left-color: var(--c1); box-shadow: 0 0 18px rgba(34, 227, 255, 0.3); }
+.job .jt { font: 700 22px/1.05 var(--head); letter-spacing: 0.05em; text-transform: uppercase; color: #fff; }
+.job .jp { font: 600 11px/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--c4); }
+.job .jb { font: 400 13px/1.45 var(--body); color: #b8c6e6; font-weight: 400; }
+.job:not(.sel) .jb { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.job .ji { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.job .ji i { font: 600 11px/1 var(--body); font-style: normal; color: #cfe0ff; padding: 4px 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); }
+.job:not(.sel) .ji { display: none; }
+.job .jh { display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: #9fb0d4; }
+.job .jh .segs i { width: 14px; height: 10px; }
+.job .jh .segs i.on { background: var(--enemy); box-shadow: 0 0 6px rgba(255, 59, 78, 0.6); }
+.board .menu { flex-direction: row; flex-wrap: wrap; }
+.board .menu button { min-width: 0; flex: 1; font-size: 22px; text-align: center; }
+.controls-box summary { cursor: pointer; font: 700 14px/1 var(--head); letter-spacing: 0.14em; text-transform: uppercase; color: #8fb4ff; padding: 6px 0; pointer-events: auto; }
+.controls-box .controls { margin-top: 6px; }
 .controls { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font: 400 13px/1.4 var(--body); color: #b8c6e6; padding: 14px 18px; }
 .controls b { font-family: var(--head); font-size: 15px; color: #fff; letter-spacing: 0.04em; }
 
@@ -137,6 +181,8 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .hidden { display: none !important; }
 
 @media (max-width: 900px) {
+  .board { grid-template-columns: 1fr; }
+  .overlay { overflow-y: auto; place-items: start center; padding: 16px 0; }
   .crew-col { width: 150px; }
   .card { grid-template-columns: 52px 1fr; }
   .card .ring { width: 50px; height: 50px; }

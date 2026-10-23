@@ -2,17 +2,20 @@
 // simulation, the Babylon view and the HTML HUD together.
 
 import './ui/style.css';
-import { buildEstateHouse, type GoCode, type Vec } from './sim/level.ts';
+import type { GoCode, Level, Vec } from './sim/level.ts';
+import { JOBS, jobById, type Job } from './sim/jobs.ts';
 import { CREW, Sim, emptyPlans, planDoors, type SimEvent, type Waypoint } from './sim/sim.ts';
-import { samplePlans } from './sim/samplePlan.ts';
-import { View, type PlanOverlay } from './render/view.ts';
+import { View, createEngine, type PlanOverlay } from './render/view.ts';
 import { Hud } from './ui/hud.ts';
 
 type Phase = 'title' | 'planning' | 'raid' | 'results';
 
-const level = buildEstateHouse();
+const q = new URLSearchParams(location.search);
 const canvas = document.getElementById('game') as HTMLCanvasElement;
-const view = new View(canvas, level);
+const engine = createEngine(canvas);
+let job: Job = jobById(q.get('job'));
+let level: Level = job.build();
+let view = new View(engine, level, `models/${job.id}/`);
 
 let phase: Phase = 'title';
 let plans: Waypoint[][] = emptyPlans(level);
@@ -41,7 +44,63 @@ const hud = new Hud(document.getElementById('hud')!, {
     if (fresh) plans = emptyPlans(level);
     enterPlanning();
   },
+  pickJob: (id) => pickJob(id),
+  jobs: () => showJobs(),
 });
+
+/** Swap the level under the game for another job's. */
+function pickJob(id: string) {
+  const next = jobById(id);
+  hud.selectJob(next.id);
+  if (next === job) return;
+  job = next;
+  view.dispose();
+  level = job.build();
+  names = namesOf(level);
+  view = new View(engine, level, `models/${job.id}/`);
+  plans = emptyPlans(level);
+  selected = 1;
+  selectedWp = null;
+  changed();
+  sim = preview;
+  view.setMode('planning');
+  hud.setJob(job);
+  watchLoading();
+}
+
+/** Back to the job board, keeping the current job picked. */
+function showJobs() {
+  phase = 'title';
+  paused = false;
+  sim = preview;
+  view.setMode('planning');
+  hud.showTitle(JOBS, job.id);
+}
+
+let firstLoad = true;
+function watchLoading() {
+  hud.loaded(false);
+  const v = view;
+  v.ready.then(
+    () => {
+      if (v !== view) return;
+      if (firstLoad) {
+        firstLoad = false;
+        // ?zoom=2.5&at=0.3,0.6 zooms on a point given as a share of the screen (for close-up screenshots).
+        if (q.get('zoom')) {
+          const [fx, fy] = (q.get('at') ?? '0.5,0.5').split(',').map(Number);
+          view.zoomAt(innerWidth * fx, innerHeight * fy, Number(q.get('zoom')));
+        }
+      }
+      hud.loaded();
+      (window as unknown as { __ready: boolean }).__ready = true;
+    },
+    (err) => {
+      // A level dropped half-way through loading does not matter.
+      if (v === view) throw err;
+    },
+  );
+}
 
 function changed() {
   version++;
@@ -51,7 +110,7 @@ function changed() {
 
 function startPlanning(sample: boolean) {
   hud.hideOverlay();
-  if (sample) plans = samplePlans();
+  if (sample) plans = job.samplePlans();
   enterPlanning();
 }
 
@@ -101,7 +160,7 @@ function tool(t: 'kick' | 'undo' | 'clear' | 'sample') {
     plan.splice(1);
     selectedWp = null;
   } else if (t === 'sample') {
-    plans = samplePlans();
+    plans = job.samplePlans();
     selectedWp = null;
   }
   changed();
@@ -279,20 +338,24 @@ window.addEventListener('keydown', (e) => {
 
 // -------------------------------------------------------------- main loop
 
-const NAMES: Record<string, string> = Object.fromEntries(level.enemies.map((e) => [e.id, e.name]));
+const namesOf = (lv: Level): Record<string, string> => Object.fromEntries(lv.enemies.map((e) => [e.id, e.name]));
+let names = namesOf(level);
 
 function narrate(events: SimEvent[]) {
   for (const ev of events) {
-    if (ev.type === 'alert') hud.toast(`${NAMES[ev.id] ?? 'Backup'} has clocked you`, '#FF3B4E');
-    else if (ev.type === 'surrender') hud.toast(`${NAMES[ev.id] ?? 'Backup'} gives up`, '#ffffff');
+    if (ev.type === 'alert') hud.toast(`${names[ev.id] ?? 'Backup'} has clocked you`, '#FF3B4E');
+    else if (ev.type === 'surrender') hud.toast(`${names[ev.id] ?? 'Backup'} gives up`, '#ffffff');
     else if (ev.type === 'loot') {
       const l = level.loot.find((x) => x.id === ev.id)!;
-      hud.toast(`${CREW[ev.slot - 1].name} bagged ${l.name.toLowerCase()}`, '#3DFFA2');
-    } else if (ev.type === 'backup') hud.toast('Their backup has turned up at the back gate', '#FF3B4E');
-    else if (ev.type === 'reveal') hud.toast('Back bedroom scouted', '#ffffff');
-    else if (ev.type === 'down') hud.toast(ev.crew ? `${CREW[Number(ev.id) - 1].name} is down` : `${NAMES[ev.id] ?? 'Backup'} is down`, ev.crew ? '#FF3B4E' : '#ffffff');
+      hud.toast(`${CREW[ev.slot - 1].name} bagged ${lower(l.name)}`, '#3DFFA2');
+    } else if (ev.type === 'backup') hud.toast(`Their backup has turned up at ${level.backup.place}`, '#FF3B4E');
+    else if (ev.type === 'reveal') hud.toast(`${level.rooms.find((r) => r.id === ev.room)?.name ?? 'Room'} scouted`, '#ffffff');
+    else if (ev.type === 'down') hud.toast(ev.crew ? `${CREW[Number(ev.id) - 1].name} is down` : `${names[ev.id] ?? 'Backup'} is down`, ev.crew ? '#FF3B4E' : '#ffffff');
   }
 }
+
+/** Lower-case the first letter only, so place names keep their capitals. */
+const lower = (s: string) => s[0].toLowerCase() + s.slice(1);
 
 let last = performance.now();
 let hudT = 0;
@@ -330,14 +393,16 @@ function tick(dt: number) {
   }
 }
 
-view.engine.runRenderLoop(() => {
+engine.runRenderLoop(() => {
   const now = performance.now();
   tick(Math.min(0.1, (now - last) / 1000));
   last = now;
 });
 
-hud.showTitle();
+hud.setJob(job);
+hud.showTitle(JOBS, job.id);
 view.setMode('planning');
+watchLoading();
 
 // Hooks for headless tests and screenshots.
 const api = {
@@ -358,6 +423,10 @@ const api = {
     return view.toScreen(x, y);
   },
   start: startPlanning,
+  pickJob,
+  get job() {
+    return job.id;
+  },
   go,
   code,
   pause: togglePause,
@@ -380,22 +449,12 @@ const api = {
 };
 (window as unknown as { __game: typeof api; __ready: boolean }).__game = api;
 
-const q = new URLSearchParams(location.search);
 if (q.get('auto')) {
   startPlanning(true);
   const auto = q.get('auto')!;
   if (auto !== 'planning') {
     go();
-    api.advance(Number(q.get('t') ?? 12), [[5, 'A'], [20, 'B']]);
+    api.advance(Number(q.get('t') ?? 12), job.sampleCodes);
     if (q.get('pause')) togglePause();
   }
 }
-view.ready.then(() => {
-  // ?zoom=2.5&at=0.3,0.6 zooms on a point given as a share of the screen (for close-up screenshots).
-  if (q.get('zoom')) {
-    const [fx, fy] = (q.get('at') ?? '0.5,0.5').split(',').map(Number);
-    view.zoomAt(innerWidth * fx, innerHeight * fy, Number(q.get('zoom')));
-  }
-  hud.loaded();
-  (window as unknown as { __ready: boolean }).__ready = true;
-});

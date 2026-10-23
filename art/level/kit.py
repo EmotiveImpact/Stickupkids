@@ -207,6 +207,8 @@ class Geo:
         vs = [self.bm.verts.new(Vector(p)) for p in pts]
         f = self.bm.faces.new(vs)
         f.material_index = self.mi(mat)
+        # A new face's normal is zero until asked for; callers check it to fix the winding.
+        f.normal_update()
         return f
 
     def _finish_new(self, verts, mat, bevel, seg, smooth, mats=None):
