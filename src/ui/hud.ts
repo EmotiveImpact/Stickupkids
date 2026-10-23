@@ -204,7 +204,9 @@ export class Hud {
         <button class="tool" data-t="undo" title="Remove point (Backspace)">${ICONS.undo}</button>
         <button class="tool" data-t="clear" title="Clear this route">${ICONS.clear}</button>
         <span class="sep"></span>
-        <button class="tool wide" data-t="sample" title="Load a sample plan">Sample plan</button>`;
+        <button class="tool wide" data-t="sample" title="Load a sample plan">Sample plan</button>
+        <span class="sep"></span>
+        <button class="tool" data-j="jobs" title="Back to the job board">${ICONS.home}<span class="cap">Jobs</span></button>`;
     } else if (mode === 'raid') {
       this.topCentre.innerHTML = `
         <div class="clock panel" data-k="police">${ringSvg('#FF3B4E')}<span class="ico">${ICONS.siren}</span><span class="lbl">Police</span></div>
@@ -230,6 +232,7 @@ export class Hud {
     this.bar.querySelectorAll<HTMLElement>('[data-c]').forEach((b) =>
       b.addEventListener('click', () => this.h.code(b.dataset.c as GoCode)),
     );
+    this.bar.querySelector('[data-j]')?.addEventListener('click', () => this.h.jobs());
     this.bar.querySelectorAll<HTMLElement>('[data-r]').forEach((b) =>
       b.addEventListener('click', () => {
         const r = b.dataset.r;
