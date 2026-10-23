@@ -123,6 +123,29 @@ if A.slot:
             if s_ > 0.45 and val > 0.35 and min(abs(h - th), 1 - abs(h - th)) < 0.06:
                 p.material_index = idx; hits += 1
         print("slot faces:", hits)
+    elif body.data.color_attributes:
+        # vertex-coloured meshes (TripoSR): same test on each face's corner colours,
+        # and the slot faces are painted white so the game's tint shows true
+        ca = body.data.color_attributes.active_color or body.data.color_attributes[0]
+        if ca.domain != "CORNER":
+            bpy.context.view_layer.objects.active = body
+            body.data.color_attributes.active_color = ca
+            bpy.ops.geometry.color_attribute_convert(domain="CORNER", data_type="BYTE_COLOR")
+            ca = body.data.color_attributes.active_color
+        th = colorsys.rgb_to_hsv(*[int(A.slot[i:i + 2], 16) / 255 for i in (0, 2, 4)])[0]
+        mat.name = "Cloth"
+        slot = mat.copy(); slot.name = "Slot"
+        body.data.materials.append(slot)
+        idx = len(body.data.materials) - 1
+        hits = 0
+        for p in body.data.polygons:
+            c = [sum(ca.data[l].color[k] for l in p.loop_indices) / p.loop_total for k in range(3)]
+            h, s_, val = colorsys.rgb_to_hsv(*c)
+            if s_ > 0.35 and val > 0.2 and min(abs(h - th), 1 - abs(h - th)) < 0.07:
+                p.material_index = idx; hits += 1
+                for l in p.loop_indices:
+                    ca.data[l].color = (0.9, 0.9, 0.9, 1)
+        print("slot faces (vertex colour):", hits)
 
 # ---------------------------------------------------------------- landmarks
 V = [v.co.copy() for v in body.data.vertices]
