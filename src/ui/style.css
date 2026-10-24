@@ -345,12 +345,14 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .overlay.splash { display: block; background: #050505; overflow: hidden; --sw: max(100vw, 177.78vh); --u: calc(var(--sw) / 1920); }
 .splash .stage { position: absolute; left: 50%; top: 50%; width: var(--sw); height: calc(var(--sw) * 0.5625); transform: translate(-50%, -50%); }
 .splash .stage > * { position: absolute; left: 0; width: 100%; margin: 0; }
-.splash .crew-bg, .splash .crew-cut { top: calc(190 * var(--u)); height: 100%; object-fit: cover; }
+.splash .crew-bg, .splash .crew-cut, .splash .crew-rain { top: calc(190 * var(--u)); height: 100%; object-fit: cover; }
 .splash .crew-bg { filter: brightness(0.42) saturate(0.7); animation: title-bg 2.4s ease-out both, title-push 40s 2.4s ease-in-out infinite alternate; transform-origin: 50% 0; }
 .splash .fade-top { top: calc(190 * var(--u)); height: calc(260 * var(--u)); background: linear-gradient(180deg, #050505, rgba(5, 5, 5, 0)); }
 .splash .fade-bottom { top: calc(620 * var(--u)); height: calc(460 * var(--u)); background: linear-gradient(180deg, rgba(5, 5, 5, 0), #050505 85%); }
 .splash .title-word { top: calc(130 * var(--u)); font: 400 calc(360 * var(--u))/1 'Anton', Impact, sans-serif; letter-spacing: calc(6 * var(--u)); text-align: center; color: #f2f1ee; animation: title-word 1.6s 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.splash .crew-cut { animation: title-crew 1.4s 1.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.splash .crew-cut, .splash .crew-rain { animation: title-crew 1.4s 1.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+/* Rain on black, screened over the crew so it falls in front of them too. */
+.splash .crew-rain { mix-blend-mode: screen; pointer-events: none; }
 .splash .frame { position: absolute; inset: 24px; border: 1px solid #262626; pointer-events: none; }
 .splash .corner { position: absolute; font: 400 12px/1 var(--body); letter-spacing: 0.32em; text-transform: uppercase; color: #8a8984; }
 .splash .corner.tl { top: 44px; left: 48px; }

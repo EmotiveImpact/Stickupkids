@@ -55,6 +55,11 @@ const TITLE_ART = 'menu/title-hero.jpg';
 /** The title screen's crew, from the pitch deck cover: the full frame, and the same frame with only the crew (for the layer in front of the name). */
 const TITLE_CREW = 'menu/title-crew.webp';
 const TITLE_CUT = 'menu/title-crew-cut.webp';
+/** The same frame as a 10 s seamless loop (rain, lamp flicker, puddle shimmer; art/title-loop/make_loop.py), and rain alone to lay over the crew cut-out. */
+const TITLE_LOOP = 'menu/title-loop';
+const TITLE_RAIN = 'menu/title-rain';
+/** MP4 for Safari, WebM for browsers built without H.264. */
+const sources = (stem: string) => `<source src="${stem}.mp4" type="video/mp4"><source src="${stem}.webm" type="video/webm">`;
 /** Specks that scuff the name like a film poster, as a mask (set inline so the path is relative to the page). */
 const GRIT = 'menu/grit.png';
 const JOB_ART: Record<string, string> = {
@@ -213,10 +218,11 @@ export class Hud {
   showSplash(jobs: Job[], current: string) {
     this.overlay.className = 'overlay splash';
     this.overlay.innerHTML = `<div class="stage">
-        <img class="crew-bg" src="${TITLE_CREW}" alt="">
+        <video class="crew-bg" poster="${TITLE_CREW}" autoplay muted loop playsinline>${sources(TITLE_LOOP)}</video>
         <div class="fade-top"></div><div class="fade-bottom"></div>
         <h1 class="title-word" style="-webkit-mask-image:url(${GRIT});mask-image:url(${GRIT})">STICKUPKIDS</h1>
         <img class="crew-cut" src="${TITLE_CUT}" alt="Four figures in balaclavas and puffer jackets walking towards you">
+        <video class="crew-rain" autoplay muted loop playsinline aria-hidden="true">${sources(TITLE_RAIN)}</video>
       </div>
       <div class="frame"></div>
       <span class="corner tl">Stickupkids</span><span class="corner tr">South London · Season One</span>
