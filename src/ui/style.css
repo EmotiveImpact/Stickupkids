@@ -106,9 +106,56 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .menu { display: flex; flex-direction: column; gap: 10px; }
 .menu button { text-align: left; font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; padding: 10px 22px; border-radius: 8px; border: 1px solid var(--edge); background: var(--glass); min-width: 320px; }
 .menu button:hover { border-color: var(--c1); box-shadow: 0 0 16px rgba(34, 227, 255, 0.35); }
-/* The job board: London on the left, the jobs on the right, over a blurred game. */
-.overlay.board-screen { background: radial-gradient(ellipse at 30% 50%, rgba(11, 18, 32, 0.78), rgba(5, 8, 16, 0.95)); backdrop-filter: blur(8px); }
-.board { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 28px; width: min(1360px, 94vw); align-items: start; }
+/* Full-bleed art behind the title screen and the job board. */
+.overlay .art { position: absolute; inset: 0; background: #05080f center / cover no-repeat; opacity: 0; transition: opacity 0.6s ease; }
+.overlay .art.on { opacity: 1; }
+.overlay .art::after { content: ''; position: absolute; inset: 0; }
+/* The title screen, in the pitch deck's look. The stage is the deck cover's 1920 by 1080 frame scaled to cover the
+   window, so the crew cut-out stays on top of its own backdrop and their heads break into the bottom of the name. */
+.overlay.splash { display: block; background: #050505; overflow: hidden; --sw: max(100vw, 177.78vh); --u: calc(var(--sw) / 1920); }
+.splash .stage { position: absolute; left: 50%; top: 50%; width: var(--sw); height: calc(var(--sw) * 0.5625); transform: translate(-50%, -50%); }
+.splash .stage > * { position: absolute; left: 0; width: 100%; margin: 0; }
+.splash .crew-bg, .splash .crew-cut { top: calc(190 * var(--u)); height: 100%; object-fit: cover; }
+.splash .crew-bg { filter: brightness(0.42) saturate(0.7); animation: title-bg 2.4s ease-out both, title-push 40s 2.4s ease-in-out infinite alternate; transform-origin: 50% 0; }
+.splash .fade-top { top: calc(190 * var(--u)); height: calc(260 * var(--u)); background: linear-gradient(180deg, #050505, rgba(5, 5, 5, 0)); }
+.splash .fade-bottom { top: calc(620 * var(--u)); height: calc(460 * var(--u)); background: linear-gradient(180deg, rgba(5, 5, 5, 0), #050505 85%); }
+.splash .title-word { top: calc(130 * var(--u)); font: 400 calc(360 * var(--u))/1 'Anton', Impact, sans-serif; letter-spacing: calc(6 * var(--u)); text-align: center; color: #f2f1ee; animation: title-word 1.6s 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.splash .crew-cut { animation: title-crew 1.4s 1.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.splash .frame { position: absolute; inset: 24px; border: 1px solid #262626; pointer-events: none; }
+.splash .corner { position: absolute; font: 400 12px/1 var(--body); letter-spacing: 0.32em; text-transform: uppercase; color: #8a8984; }
+.splash .corner.tl { top: 44px; left: 48px; }
+.splash .corner.tr { top: 44px; right: 48px; }
+.splash .corner.br { bottom: 44px; right: 48px; }
+.splash .press { color: #b5b4af; animation: press 1.8s 3s ease-in-out infinite both; }
+.title-menu { position: absolute; left: 48px; bottom: 110px; display: flex; flex-direction: column; gap: 4px; padding-left: 14px; border-left: 1px solid #262626; animation: title-ui 1s 2.4s ease-out both; }
+.title-menu button { display: flex; align-items: baseline; gap: 14px; padding: 5px 0; font: 300 28px/1.1 var(--body); letter-spacing: 0.01em; color: #e4e3de; text-align: left; position: relative; }
+.title-menu button i { font: 400 10px/1 var(--body); font-style: normal; letter-spacing: 0.3em; text-transform: uppercase; color: #6d6c68; }
+.title-menu button:disabled { color: #5e5d59; cursor: default; }
+.title-menu button.on, .title-menu button:not(:disabled):hover { color: #ff7a1a; }
+.title-menu button.on::before { content: ''; position: absolute; left: -15px; top: 8px; bottom: 6px; width: 3px; background: #ff7a1a; }
+.splash .strap { position: absolute; left: 0; right: 0; bottom: 44px; margin: 0; text-align: center; font: 400 13px/1 var(--body); letter-spacing: 0.42em; text-transform: uppercase; color: #b5b4af; animation: title-ui 1s 2.6s ease-out both; }
+.splash .strap span { color: #ff7a1a; }
+/* A dark wash behind the menu, so it reads over the first figure's legs. */
+.splash .stage::after { content: ''; position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; background: radial-gradient(ellipse at 0% 100%, rgba(5, 5, 5, 0.85), rgba(5, 5, 5, 0) 70%); }
+@media (max-width: 900px) { .splash .strap, .splash .corner.tr { display: none; } .title-menu button { font-size: 22px; } }
+/* Upright screens: fit the name across the width instead of cropping it. */
+@media (max-aspect-ratio: 1/1) { .overlay.splash { --sw: 104vw; } .splash .stage { top: 42%; } }
+.splash .stage > *, .title-menu, .splash .strap, .splash .press { animation-play-state: paused; }
+.splash.reveal .stage > *, .splash.reveal .title-menu, .splash.reveal .strap, .splash.reveal .press { animation-play-state: running; }
+/* The name is scuffed like a film poster: a speckled mask eats into the letters. */
+.splash .title-word { -webkit-mask-size: calc(420 * var(--u)); mask-size: calc(420 * var(--u)); }
+/* The reveal: the street comes up out of black, the name settles, then the crew walk up in front of it. */
+@keyframes title-bg { from { opacity: 0; transform: scale(1.08); } }
+@keyframes title-push { to { transform: scale(1.05); } }
+@keyframes title-word { from { opacity: 0; letter-spacing: calc(60 * var(--u)); filter: blur(12px); } }
+@keyframes title-crew { from { opacity: 0; transform: translateY(calc(70 * var(--u))) scale(1.04); } }
+@keyframes title-ui { from { opacity: 0; transform: translateY(8px); } }
+@keyframes press { 50% { opacity: 0.35; } }
+/* The job board: London on the left, the jobs on the right, over the picked job's art. */
+.overlay.board-screen { background: #05080f; }
+.board-screen .art { filter: brightness(0.42); }
+.board-screen .art::after { background: radial-gradient(ellipse at 30% 50%, rgba(11, 18, 32, 0.2), rgba(5, 8, 16, 0.75)); }
+.board { position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 28px; width: min(1360px, 94vw); align-items: start; }
 .board-left { display: flex; flex-direction: column; gap: 34px; min-width: 0; }
 .board-right { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }
 .citymap { position: relative; overflow: hidden; aspect-ratio: 720 / 439; padding: 0; border-color: rgba(34, 227, 255, 0.45); }
@@ -125,7 +172,9 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .pin .house { fill: var(--c4); }
 .pin .halo { fill: none; stroke: var(--c4); stroke-width: 1.5; opacity: 0.6; }
 .pin .pulse { fill: none; stroke: var(--c1); stroke-width: 2; opacity: 0; }
-.pin text { opacity: 0; transition: opacity 0.15s; font: 700 15px var(--head); letter-spacing: 0.06em; text-transform: uppercase; fill: #fff; text-anchor: middle; paint-order: stroke; stroke: #070d1a; stroke-width: 4px; }
+.pin text { font: 700 15px var(--head); letter-spacing: 0.06em; text-transform: uppercase; fill: #fff; text-anchor: middle; paint-order: stroke; stroke: #070d1a; stroke-width: 4px; }
+/* Several jobs share a corner of London, so only the picked or pointed-at pin is named. */
+.pin text { opacity: 0; transition: opacity 0.15s; }
 .pin.sel text, .pin:hover text { opacity: 1; }
 .pin.sel .drop { stroke: var(--c1); filter: url(#glow); }
 .pin.sel .house { fill: var(--c1); }
@@ -147,6 +196,10 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .job .jh { display: flex; align-items: center; gap: 8px; font: 600 11px/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: #9fb0d4; }
 .job .jh .segs i { width: 14px; height: 10px; }
 .job .jh .segs i.on { background: var(--enemy); box-shadow: 0 0 6px rgba(255, 59, 78, 0.6); }
+/* What kind of job it is: a stick-up, a ride out, or holding your own trap. */
+.job .jm { align-self: flex-start; font: 700 11px/1 var(--head); letter-spacing: 0.16em; text-transform: uppercase; padding: 4px 8px 3px; border-radius: 3px; color: #cfe0ff; background: rgba(255, 255, 255, 0.08); }
+.job.mode-rideout .jm { color: #fff; background: rgba(255, 45, 155, 0.2); box-shadow: inset 0 0 0 1px var(--c2); }
+.job.mode-slid .jm { color: #fff; background: rgba(255, 176, 32, 0.16); box-shadow: inset 0 0 0 1px var(--c4); }
 .board .menu { flex-direction: row; flex-wrap: wrap; }
 .board .menu button { min-width: 0; flex: 1; font-size: 22px; text-align: center; }
 .controls-box summary { cursor: pointer; font: 700 14px/1 var(--head); letter-spacing: 0.14em; text-transform: uppercase; color: #8fb4ff; padding: 6px 0; pointer-events: auto; }
@@ -157,6 +210,7 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .results { display: flex; gap: 24px; align-items: stretch; }
 .res-left, .res-right { width: min(460px, 44vw); padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; border-color: rgba(34, 227, 255, 0.55); }
 .take { font: 700 72px/1 var(--head); color: var(--loot); text-align: center; text-shadow: 0 0 18px rgba(61, 255, 162, 0.4); }
+.take small { display: block; margin-top: 8px; font: 600 18px/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: #cfe0ff; text-shadow: none; }
 .reason { text-align: center; font: 700 18px/1 var(--head); letter-spacing: 0.14em; text-transform: uppercase; color: #cfe0ff; }
 .items { display: flex; justify-content: space-around; border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge); padding: 10px 0; }
 .item { display: flex; flex-direction: column; align-items: center; gap: 4px; font: 700 20px/1 var(--head); }
@@ -169,15 +223,64 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .cut .bar i { display: block; height: 100%; background: var(--col); }
 .cut .pct { font: 700 24px/1 var(--head); text-align: right; }
 .cut .tag { font: 600 11px/1 var(--body); color: var(--enemy); text-transform: uppercase; letter-spacing: 0.06em; }
+.payout { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: baseline; font: 500 14px/1.2 var(--body); color: #cfe0ff; padding-bottom: 12px; border-bottom: 1px solid var(--edge); }
+.payout .head { grid-column: 1 / -1; font: 700 12px/1 var(--head); letter-spacing: 0.14em; text-transform: uppercase; color: #8fb4ff; margin-bottom: 2px; }
+/* The heading comes first, so labels are the even children and amounts the odd. */
+.payout span:nth-child(even) { color: #b8c6e6; }
+.payout .plus { color: var(--loot); font-weight: 700; }
+.payout .minus { color: #9fb0d4; font-weight: 700; }
+.payout .sum { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.payout .total { font: 700 24px/1 var(--head); color: var(--loot); padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.payout .total.risk { color: var(--enemy); }
+.payout .total.lost { color: #9fb0d4; }
 .fall { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--edge); }
 .fall svg { width: 36px; height: 36px; }
 .fall .segs i { width: 22px; height: 26px; }
 .fall .lbl { grid-column: 2; font: 600 11px/1 var(--body); color: #9fb0d4; text-transform: uppercase; letter-spacing: 0.08em; margin-top: -8px; }
 .stars { display: flex; gap: 6px; color: var(--loot); }
 .stars svg { width: 34px; height: 34px; }
-.res-buttons { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; }
-.res-buttons button { display: flex; gap: 10px; align-items: center; padding: 12px 22px; font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 8px; border: 1px solid var(--c1); background: var(--glass); box-shadow: 0 0 14px rgba(34, 227, 255, 0.3); }
+.res-buttons { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; width: max-content; max-width: 94vw; }
+.res-buttons button { white-space: nowrap; display: flex; gap: 10px; align-items: center; padding: 12px 22px; font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 8px; border: 1px solid var(--c1); background: var(--glass); box-shadow: 0 0 14px rgba(34, 227, 255, 0.3); }
 .res-buttons svg { width: 22px; height: 22px; }
+
+/* Replay: a bar with play, speed, follow, how far through, and the clip button. */
+.bottom-bar .track { position: relative; width: 220px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.bottom-bar .track i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--c1), var(--c2)); }
+.bottom-bar .clock-txt { min-width: 92px; margin-left: 10px; font: 600 13px/1 var(--body); color: #cfe0ff; font-variant-numeric: tabular-nums; }
+.tool.clip-btn { gap: 8px; grid-auto-flow: column; color: #fff; box-shadow: inset 0 0 0 1px var(--c2); }
+.tool.clip-btn:hover { background: rgba(255, 45, 155, 0.16); }
+/* Recording a clip: the game in a tall frame in the middle, nothing else on screen but the note. */
+body.clip-rec #game { left: calc(50vw - 100vh * 9 / 32); right: auto; width: calc(100vh * 9 / 16); }
+body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
+.rec-note { position: absolute; left: 24px; top: 24px; display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.rec-note .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c2); box-shadow: 0 0 10px var(--c2); animation: press 1.2s ease-in-out infinite; }
+.rec-note b { display: block; font: 700 18px/1.1 var(--head); letter-spacing: 0.08em; text-transform: uppercase; }
+.rec-note .secs { font: 600 13px/1.4 var(--body); color: #9fb0d4; font-variant-numeric: tabular-nums; }
+.rec-note button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--edge); background: transparent; color: #fff; font: 600 13px/1 var(--body); }
+/* The finished clip, to watch and save. */
+.clip-ready { position: absolute; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 16px 0; background: rgba(5, 8, 16, 0.8); pointer-events: auto; }
+.clip-card { display: flex; gap: 28px; align-items: center; padding: 20px; max-width: 94vw; }
+.clip-card video { height: min(78vh, 720px); aspect-ratio: 9 / 16; border-radius: 10px; background: #05080f; }
+.clip-side { display: flex; flex-direction: column; gap: 14px; max-width: 340px; }
+.clip-side b { font: 700 30px/1 var(--head); letter-spacing: 0.06em; text-transform: uppercase; }
+.clip-side span { font: 400 14px/1.5 var(--body); color: #b8c6e6; }
+.clip-side .menu button { min-width: 0; font-size: 20px; }
+.clip-side .clip-msg { color: var(--loot); font-weight: 600; }
+
+/* Ride Out: what the targets have posted, as Jojo sees it. */
+.stories { position: absolute; top: 78px; right: 12px; width: 290px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.stories .sh { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; font: 700 13px/1 var(--head); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; }
+.stories .sh::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--enemy); box-shadow: 0 0 8px var(--enemy); animation: press 1.4s ease-in-out infinite; }
+.story { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 5px 0 5px 10px; border-left: 2px solid var(--enemy); }
+.story b { font: 700 15px/1.1 var(--head); letter-spacing: 0.05em; text-transform: uppercase; }
+.story .st { font: 600 11px/1.4 var(--body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--enemy); text-align: right; }
+.story .cap { grid-column: 1 / -1; font: 400 12px/1.35 var(--body); color: #b8c6e6; }
+.story.seen { border-left-color: #fff; }
+.story.seen .st { color: #fff; }
+.story.got { opacity: 0.45; border-left-color: rgba(255, 255, 255, 0.25); }
+.story.got .st { color: #9fb0d4; }
+/* The toasts sit below the stories when both are up. */
+.stories:not(.hidden) ~ .toasts { top: auto; bottom: 110px; }
 
 .hidden { display: none !important; }
 
@@ -189,7 +292,12 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
   .card .ring { width: 50px; height: 50px; }
   .go { min-width: 120px; height: 60px; font-size: 30px; }
   .results { flex-direction: column; }
+  .clip-card { flex-direction: column; }
+  .clip-card video { height: 60vh; }
+  .bottom-bar .track { width: 90px; }
   .res-left, .res-right { width: 90vw; }
+  .stories { width: 210px; top: 70px; }
+  .story .cap { display: none; }
 }
 
 .loading { font: 600 14px Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #8fb4ff; animation: pulse 1.2s ease-in-out infinite alternate; }

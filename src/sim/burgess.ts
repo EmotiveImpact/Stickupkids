@@ -162,10 +162,10 @@ export function buildBurgessPark(): Level {
   const loop = (...pts: [number, number][]) => pts.map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 }));
   const enemies: EnemyDef[] = [
     // At the count.
-    { id: 'elder', kind: 'dealer', model: 'gang-leader', name: 'Elder', x: 99.5, y: 124.5, facing: Math.PI, patrol: [] },
+    { id: 'elder', kind: 'dealer', model: 'gang-leader', persona: 'boss', name: 'Elder', x: 99.5, y: 124.5, facing: Math.PI, patrol: [] },
     { id: 'tally', kind: 'dealer', model: 'gang-muscle-b', name: 'Tally', x: 98.5, y: 121.5, facing: Math.PI * 0.75, patrol: [] },
     // Inside the arches, watching the west passage.
-    { id: 'minder', kind: 'soldier', model: 'gang-muscle-a', name: 'Minder', x: KILN.x + 2.5, y: KILN.y + 6.5, facing: -Math.PI / 2, patrol: [] },
+    { id: 'minder', kind: 'soldier', model: 'gang-muscle-a', persona: 'muscle', name: 'Minder', x: KILN.x + 2.5, y: KILN.y + 6.5, facing: -Math.PI / 2, patrol: [] },
     // Round the back of the kiln, north and west.
     {
       id: 'shotter', kind: 'soldier', model: 'gang-muscle-b', name: 'Shotter', x: 96.5, y: 108.5, facing: Math.PI,
@@ -184,8 +184,10 @@ export function buildBurgessPark(): Level {
       patrol: loop([76, 30], [86, 50], [98, 72], [100, 84], [98, 72], [86, 50]),
     },
     // At the car.
-    { id: 'driver', kind: 'soldier', model: 'gang-muscle-a', name: 'Driver', x: 91.5, y: 15.5, facing: Math.PI / 2, patrol: [] },
+    { id: 'driver', kind: 'soldier', model: 'gang-muscle-a', persona: 'muscle', name: 'Driver', x: 91.5, y: 15.5, facing: Math.PI / 2, patrol: [] },
     { id: 'dog', kind: 'dog', name: 'Dog', x: 88.5, y: 17.5, facing: Math.PI / 2, patrol: loop([88, 17], [81, 9], [95, 9]) },
+    // Out on the step of the flats by the car park, watching the car with the lights on.
+    { id: 'neighbour', kind: 'civilian', model: 'dealer', name: 'Neighbour', x: 100.5, y: 18.5, facing: Math.PI, patrol: [] },
     // On the BMX track with the phones.
     { id: 'bmxYounger', kind: 'runner', model: 'gang-runner', name: 'Younger', x: 208.5, y: 26.5, facing: Math.PI, patrol: [] },
     {

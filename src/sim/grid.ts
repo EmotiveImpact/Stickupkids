@@ -1,6 +1,10 @@
 import type { DoorState, Level, Vec } from './level.ts';
 
-export type Mover = 'crew' | 'guard' | 'dog' | 'plan';
+/** How many cells of walking a barricade is worth to someone breaking in. */
+const BARRICADE_COST = 30;
+
+/** raider: someone breaking in, who goes through barricades (slowly). */
+export type Mover = 'crew' | 'guard' | 'dog' | 'plan' | 'raider';
 
 /** Mutable map state: tiles plus the live state of every door. */
 export class Grid {
@@ -40,7 +44,7 @@ export class Grid {
     if (t === '#' || t === 'X' || t === 'b') return true;
     if (t === 'D') {
       const s = this.door(x, y);
-      return s === 'closed' || s === 'locked';
+      return s === 'closed' || s === 'locked' || s === 'barricaded';
     }
     return false;
   }
@@ -49,9 +53,10 @@ export class Grid {
     const t = this.tile(x, y);
     if (t === '#' || t === 'X' || t === 'W' || t === '=' || t === 'w' || t === 'b') return false;
     if (this.solid[y][x]) return false;
-    if (t === 'D' && m === 'dog') {
+    if (t === 'D') {
       const s = this.door(x, y);
-      return s === 'open' || s === 'broken';
+      if (m === 'dog') return s === 'open' || s === 'broken';
+      if (s === 'barricaded') return m === 'raider';
     }
     return true;
   }
@@ -139,7 +144,8 @@ export class Grid {
           }
           const nk = this.key(nx, ny);
           if (closed[nk]) continue;
-          const ng = g[cur] + (ox && oy ? Math.SQRT2 : 1);
+          // Someone breaking in would rather go round than ram a barricade, unless round is far.
+          const ng = g[cur] + (ox && oy ? Math.SQRT2 : 1) + (m === 'raider' && this.door(nx, ny) === 'barricaded' ? BARRICADE_COST : 0);
           if (ng < g[nk]) {
             g[nk] = ng;
             f[nk] = ng + hfn(nx, ny);

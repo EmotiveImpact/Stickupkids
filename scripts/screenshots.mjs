@@ -4,7 +4,7 @@ import fs from 'node:fs';
 
 const base = process.argv[2] ?? 'http://localhost:5173/';
 const out = process.argv[3] ?? 'shots';
-const shots = (process.env.SHOTS ?? 'title=?|planning=?auto=planning|raid=?auto=raid&t=11|paused=?auto=raid&t=24&pause=1|results=?auto=raid&t=90').split('|').map((s) => [s.slice(0, s.indexOf('=')), s.slice(s.indexOf('=') + 1)]);
+const shots = (process.env.SHOTS ?? 'title=?|board=?job=estate|planning=?auto=planning|raid=?auto=raid&t=11|paused=?auto=raid&t=24&pause=1|results=?auto=raid&t=90').split('|').map((s) => [s.slice(0, s.indexOf('=')), s.slice(s.indexOf('=') + 1)]);
 fs.mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({
   executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',

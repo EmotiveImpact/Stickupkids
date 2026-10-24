@@ -8,6 +8,8 @@ export const PALETTE = {
   street: '#FF9A2E',
   blueprint: '#1E4F8F',
   enemy: '#FF3B4E',
+  /** Civilians: never red, never a target. */
+  civilian: '#E4ECFF',
   loot: '#3DFFA2',
   // Scene materials.
   brick: '#3b2433',
