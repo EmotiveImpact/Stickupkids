@@ -84,15 +84,21 @@ const RIM = 0.24;
 
 export class CharacterKit {
   private readonly container: AssetContainer;
+  private readonly speeds: Record<string, number>;
   private count = 0;
 
-  private constructor(container: AssetContainer) {
+  private constructor(container: AssetContainer, speeds: Record<string, number>) {
     this.container = container;
+    this.speeds = speeds;
   }
 
-  /** `path` without extension, as for loadModel. */
-  static async load(scene: Scene, path: string): Promise<CharacterKit> {
-    return new CharacterKit(await loadModel(path, scene));
+  /**
+   * `path` without extension, as for loadModel. `speeds`: how fast each
+   * moving clip covers the ground at 1x, in metres a second, when the model
+   * has its own (scripts/import-meshy-crew.mjs prints them).
+   */
+  static async load(scene: Scene, path: string, speeds: Record<string, number> = {}): Promise<CharacterKit> {
+    return new CharacterKit(await loadModel(path, scene), speeds);
   }
 
   spawn(scene: Scene, name: string, look: Look): Character {
@@ -131,7 +137,7 @@ export class CharacterKit {
     const light = new HemisphericLight(`${id}:light`, Vector3.Up(), scene);
     light.specular = Color3.Black();
     light.includedOnlyMeshes = meshes;
-    const c = new Character(root, body, meshes, groups, light, slots, rims);
+    const c = new Character(root, body, meshes, groups, light, slots, rims, this.speeds);
     c.setTint(look.slot);
     return c;
   }
@@ -146,6 +152,7 @@ export class Character {
   private readonly groups: Map<string, AnimationGroup>;
   private readonly slots: PBRMaterial[];
   private readonly rims: RimPlugin[];
+  private readonly speeds: Record<string, number>;
   private cur: AnimationGroup | null = null;
   private fading: AnimationGroup[] = [];
   private frozen = false;
@@ -158,6 +165,7 @@ export class Character {
     light: HemisphericLight,
     slots: PBRMaterial[],
     rims: RimPlugin[],
+    speeds: Record<string, number>,
   ) {
     this.root = root;
     this.body = body;
@@ -166,6 +174,12 @@ export class Character {
     this.light = light;
     this.slots = slots;
     this.rims = rims;
+    this.speeds = speeds;
+  }
+
+  /** Ground speed of a moving clip at 1x, in metres a second, if the model says. */
+  natural(clip: string): number | undefined {
+    return this.speeds[clip];
   }
 
   /** Recolour the trim and rim: the slot colour, or grey once an enemy is out of it. */

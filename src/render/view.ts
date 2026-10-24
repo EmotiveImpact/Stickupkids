@@ -110,8 +110,12 @@ interface Fx {
 
 /** Character models in public/models/ai/. A level can name others; until they arrive the kind's model stands in. */
 // Models by name; an enemy whose model is not here uses their kind's.
-const MODELS = new Set(['crew', 'dealer', 'soldier', 'runner', 'dog', 'gang-leader', 'gang-lookout', 'gang-muscle-a', 'gang-muscle-b', 'gang-runner']);
+const MODELS = new Set(['dealer', 'soldier', 'runner', 'dog', 'gang-leader', 'gang-lookout', 'gang-muscle-a', 'gang-muscle-b', 'gang-runner']);
 const modelFor = (e: { kind: string; model?: string }) => (e.model && MODELS.has(e.model) ? e.model : e.kind);
+/** Each crew member's own model, by slot (Meshy, readied by scripts/import-meshy-crew.mjs). */
+const CREW_MODELS = ['crew-dex', 'crew-kemi', 'crew-jojo', 'crew-taz'];
+/** How fast the Meshy clips cover the ground at 1x, in metres a second. */
+const MESHY_SPEEDS = { Walk: 0.35, Run: 1.83, CrouchWalk: 1.36 };
 
 /** Enemies who are held up or down drop their red: grey reads as out of the fight. */
 const NEUTRAL = '#aab4c8';
@@ -262,8 +266,11 @@ export class View {
     const scene = this.scene;
     // One rigged model per kind, from the AI character pipeline (art in /mnt/project-files/ai-models).
     // Backup always comes as soldiers.
-    const kinds = [...new Set(['crew', 'soldier', ...this.level.enemies.map(modelFor)])];
-    const [estate, ...kits] = await Promise.all([loadEstate(scene, this.assets), ...kinds.map((k) => CharacterKit.load(scene, `models/ai/${k}`))]);
+    const kinds = [...new Set([...CREW_MODELS, 'soldier', ...this.level.enemies.map(modelFor)])];
+    const [estate, ...kits] = await Promise.all([
+      loadEstate(scene, this.assets),
+      ...kinds.map((k) => CharacterKit.load(scene, `models/ai/${k}`, CREW_MODELS.includes(k) ? MESHY_SPEEDS : {})),
+    ]);
     this.estate = estate;
     kinds.forEach((k, i) => this.kits.set(k, kits[i]));
     this.shadowLight.includedOnlyMeshes = estate.receivers;
@@ -326,7 +333,7 @@ export class View {
     dust.manualEmitCount = 0;
     dust.start();
 
-    for (const def of this.crewColours()) this.crew.push(this.makeCrewActor(def));
+    this.crewColours().forEach((colour, i) => this.crew.push(this.makeCrewActor(CREW_MODELS[i], colour)));
     for (const e of this.level.enemies) this.enemies.set(e.id, this.makeEnemyActor(e.kind, modelFor(e)));
     this.refreshKey();
     this.atmosphere = new Atmosphere(scene, this.co, this.level, estate, WORLD, 1 / Math.tan(TILT));
@@ -511,9 +518,9 @@ export class View {
 
   // ------------------------------------------------------------ actors
 
-  private makeCrewActor(color: string): Actor {
+  private makeCrewActor(model: string, color: string): Actor {
     const scene = this.scene;
-    const char = this.kits.get('crew')!.spawn(scene, 'crew', { slot: color });
+    const char = this.kits.get(model)!.spawn(scene, 'crew', { slot: color });
     const { root, body } = char;
     for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
     const bag = MeshBuilder.CreateCapsule('bag', { height: 0.62, radius: 0.17, orientation: new Vector3(1, 0, 0) }, scene);
@@ -604,8 +611,11 @@ export class View {
     if (pose === 'hands' && c.has('HandsUp')) c.play('HandsUp');
     else if (pose === 'crouch' || pose === 'hands') c.play(a.speed > 0.15 && c.has('CrouchWalk') ? 'CrouchWalk' : 'CrouchIdle');
     else if (pose !== 'idle' && a.speed > 0.15) {
-      if (a.speed < 1.9) c.play('Walk', Math.max(0.6, a.speed / (WALK * CHAR_SCALE)));
-      else c.play('Run', Math.max(0.6, a.speed / (RUN * CHAR_SCALE)));
+      // Walk or run, whichever clip's own pace is nearer, played at the pace they are going.
+      const walk = (c.natural('Walk') ?? WALK) * CHAR_SCALE;
+      const run = (c.natural('Run') ?? RUN) * CHAR_SCALE;
+      if (a.speed < Math.sqrt(walk * run)) c.play('Walk', Math.max(0.6, a.speed / walk));
+      else c.play('Run', Math.max(0.6, a.speed / run));
     } else if (pose === 'aim') c.play(c.has('Aim') ? 'Aim' : c.has('Bark') ? 'Bark' : 'Idle');
     else c.play('Idle');
   }
