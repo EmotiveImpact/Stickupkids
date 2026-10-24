@@ -5,22 +5,11 @@ import { buildAylesbury } from './aylesbury.ts';
 import { buildBrixton } from './brixton.ts';
 import { buildBrockwell } from './brockwell.ts';
 import { buildBurgessPark } from './burgess.ts';
-import { buildEstateHouse, type GoCode, type JobMode, type Level, type Vec } from './level.ts';
-import { buildElephant } from './elephant.ts';
 import { buildPeckham } from './peckham.ts';
+import { buildElephant } from './elephant.ts';
+import { buildEstateHouse, type GoCode, type JobMode, type Level, type Vec } from './level.ts';
 import { buildRideOut } from './rideout.ts';
-import {
-  aylesburyPlans,
-  brixtonPlans,
-  brockwellPlans,
-  burgessPlans,
-  elephantPlans,
-  peckhamPlans,
-  rideOutPlans,
-  samplePlans,
-  trapBarricades,
-  trapPlans,
-} from './samplePlan.ts';
+import { aylesburyPlans, brixtonPlans, brockwellPlans, burgessPlans, elephantPlans, peckhamPlans, rideOutPlans, samplePlans, trapBarricades, trapPlans } from './samplePlan.ts';
 import type { Waypoint } from './sim.ts';
 import { buildTrap } from './trap.ts';
 
@@ -85,45 +74,6 @@ export const JOBS: Job[] = [
       [62, 'A'],
       [86, 'B'],
     ],
-  },
-  {
-    id: 'rideout',
-    mode: 'rideout',
-    art: 'burgess',
-    title: 'Ride out, Burgess Park',
-    place: 'Wells Way, Burgess Park SE5',
-    brief:
-      "Marlowe's lot posted up at the bottom of the park an hour ago and Jojo's been watching their story since. Mandem in the whip, ballys on, and nobody's touching the food tonight. Catch who you can and get gone before the rest of the park wakes up. Every one you touch, they're coming back for.",
-    intel: [
-      'Five of them, known only from what they post',
-      'Jojo keeps the pins coming while he is up',
-      'The park wakes up 25 seconds after the first shout',
-      'A woman at the bus stop across Wells Way',
-    ],
-    heat: 4,
-    build: buildRideOut,
-    samplePlans: rideOutPlans,
-    sampleCodes: [],
-  },
-  {
-    id: 'slid',
-    mode: 'slid',
-    art: 'estate',
-    title: 'They slid, East Street',
-    place: 'Your trap, off East Street, Walworth SE17',
-    brief:
-      "Marlowe's lot found out where you keep it, and now they're outside the trap. Barricade the doors, put Dex on the stairs with the ting and hold it down till they back off or the boydem turn up. The bag's in the back bedroom, the food's in the kitchen and the P's are on the coffee table.",
-    intel: [
-      'Three waves: the front, then over the back fence, then both',
-      'Two barricades: click a door to brace it',
-      'Standing still, the crew are in cover',
-      'The neighbour rings 999 when the shooting starts',
-    ],
-    heat: 3,
-    build: buildTrap,
-    samplePlans: trapPlans,
-    sampleCodes: [],
-    sampleBarricades: trapBarricades,
   },
   {
     id: 'aylesbury',
@@ -224,6 +174,45 @@ export const JOBS: Job[] = [
       [30, 'A'],
       [100, 'B'],
     ],
+  },
+  {
+    id: 'rideout',
+    mode: 'rideout',
+    art: 'burgess',
+    title: 'Ride out, Burgess Park',
+    place: 'Wells Way, Burgess Park SE5',
+    brief:
+      "Marlowe's lot posted up at the bottom of the park an hour ago and Jojo's been watching their story since. Mandem in the whip, ballys on, and nobody's touching the food tonight. Catch who you can and get gone before the rest of the park wakes up. Every one you touch, they're coming back for.",
+    intel: [
+      'Five of them, known only from what they post',
+      'Jojo keeps the pins coming while he is up',
+      'The park wakes up 25 seconds after the first shout',
+      'A woman at the bus stop across Wells Way',
+    ],
+    heat: 4,
+    build: buildRideOut,
+    samplePlans: rideOutPlans,
+    sampleCodes: [],
+  },
+  {
+    id: 'slid',
+    mode: 'slid',
+    art: 'estate',
+    title: 'They slid, East Street',
+    place: 'Your trap, off East Street, Walworth SE17',
+    brief:
+      "Marlowe's lot found out where you keep it, and now they're outside the trap. Barricade the doors, put Dex on the stairs with the ting and hold it down till they back off or the boydem turn up. The bag's in the back bedroom, the food's in the kitchen and the P's are on the coffee table.",
+    intel: [
+      'Three waves: the front, then over the back fence, then both',
+      'Two barricades: click a door to brace it',
+      'Standing still, the crew are in cover',
+      'The neighbour rings 999 when the shooting starts',
+    ],
+    heat: 3,
+    build: buildTrap,
+    samplePlans: trapPlans,
+    sampleCodes: [],
+    sampleBarricades: trapBarricades,
   },
 ];
 

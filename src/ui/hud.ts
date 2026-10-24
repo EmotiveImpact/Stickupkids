@@ -55,13 +55,13 @@ const artFor = (id: string) => JOB_ART[id] ?? TITLE_ART;
 const PINS: Record<string, [number, number]> = {
   estate: [51.5245, -0.2005],
   burgess: [51.4822, -0.088],
-  rideout: [51.4818, -0.0815],
-  slid: [51.4893, -0.0915],
   aylesbury: [51.4866, -0.0852],
   elephant: [51.4926, -0.0989],
   brixton: [51.4618, -0.1146],
   peckham: [51.4708, -0.0672],
   brockwell: [51.4530, -0.1063],
+  rideout: [51.4818, -0.0815],
+  slid: [51.4893, -0.0915],
 };
 
 /** What each kind of job is called on the board. */

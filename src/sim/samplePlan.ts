@@ -49,25 +49,6 @@ export function burgessPlans(): Waypoint[][] {
 }
 
 /**
- * A ride out on Marlowe's lot at the east end of Burgess Park. Jojo goes up
- * Wells Way for the younger by the bins; Dex and Taz go over the dark grass
- * for the cut-through and the big man on the BMX gate; Kemi goes down to the
- * canal path for the bench. Everyone straight back to the whip.
- */
-export function rideOutPlans(): Waypoint[][] {
-  return [
-    // 1 Dex, Muscle: the big man on the gate, then back.
-    [wp(237, 128), wp(228, 122), wp(217, 118), wp(213, 116), wp(222, 121), wp(232, 126), wp(237, 128)],
-    // 2 Kemi, Creeper: along the dark grass to the bench on the canal path.
-    [wp(238, 129), wp(225, 134), wp(205, 138), wp(194, 140), wp(205, 138), wp(225, 134), wp(238, 129)],
-    // 3 Jojo, Lookout: up Wells Way for the younger by the bins.
-    [wp(237, 130), wp(237, 112), wp(237, 98), wp(237, 112), wp(237, 130)],
-    // 4 Taz, Talker: the cut-through, behind Dex.
-    [wp(238, 131), wp(228, 124), wp(219, 120), wp(210, 121), wp(219, 120), wp(230, 126), wp(238, 131)],
-  ];
-}
-
-/**
  * A plan for the Aylesbury stash flat. The crew come in from Thurlow Street
  * across the dark courtyard south of the block, keeping off the lit walkway.
  * Kemi picks the front door and the back bedroom, Dex and Taz follow her in
@@ -90,28 +71,23 @@ export function aylesburyPlans(): Waypoint[][] {
 }
 
 /**
- * Holding the trap. Both outside doors barricaded (trapBarricades). Dex at
- * the foot of the stairs and Taz beside him cover the hall from the front
- * door; Jojo and Kemi cover the kitchen from the back door.
+ * A ride out on Marlowe's lot at the east end of Burgess Park. Jojo goes up
+ * Wells Way for the younger by the bins; Dex and Taz go over the dark grass
+ * for the cut-through and the big man on the BMX gate; Kemi goes down to the
+ * canal path for the bench. Everyone straight back to the whip.
  */
-export function trapPlans(): Waypoint[][] {
+export function rideOutPlans(): Waypoint[][] {
   return [
-    // 1 Dex: on the stairs, facing the front door.
-    [wp(12, 11), wp(12, 12)],
-    // 2 Kemi: out of the back bedroom into the kitchen.
-    [wp(8, 10), wp(12, 10), wp(15, 10), wp(16, 12), wp(16, 11)],
-    // 3 Jojo: in the kitchen, facing the back door.
-    [wp(19, 11), wp(20, 12), wp(20, 11)],
-    // 4 Taz: through the living room into the hall beside Dex.
-    [wp(9, 14), wp(12, 16), wp(13, 11), wp(13, 12)],
+    // 1 Dex, Muscle: the big man on the gate, then back.
+    [wp(237, 128), wp(228, 122), wp(217, 118), wp(213, 116), wp(222, 121), wp(232, 126), wp(237, 128)],
+    // 2 Kemi, Creeper: along the dark grass to the bench on the canal path.
+    [wp(238, 129), wp(225, 134), wp(205, 138), wp(194, 140), wp(205, 138), wp(225, 134), wp(238, 129)],
+    // 3 Jojo, Lookout: up Wells Way for the younger by the bins.
+    [wp(237, 130), wp(237, 112), wp(237, 98), wp(237, 112), wp(237, 130)],
+    // 4 Taz, Talker: the cut-through, behind Dex.
+    [wp(238, 131), wp(228, 124), wp(219, 120), wp(210, 121), wp(219, 120), wp(230, 126), wp(238, 131)],
   ];
 }
-
-/** The two outside doors, barricaded. */
-export const trapBarricades = [
-  { x: 12, y: 19 },
-  { x: 19, y: 7 },
-];
 
 /**
  * A plan for the grow under the Elephant arches. The crew leave the van at the
@@ -187,3 +163,27 @@ export function brockwellPlans(): Waypoint[][] {
     [wp(132, 16), ...out, wp(113, 29, 'A'), ...terrace, wp(64, 25), wp(64, 23), wp(67, 22), wp(69, 23), wp(67, 22), wp(66, 24), wp(64, 26), wp(64, 28), wp(56, 28), wp(52, 29), wp(56, 28), ...terraceBack, ...back, wp(132, 16)],
   ];
 }
+
+/**
+ * Holding the trap. Both outside doors barricaded (trapBarricades). Dex at
+ * the foot of the stairs and Taz beside him cover the hall from the front
+ * door; Jojo and Kemi cover the kitchen from the back door.
+ */
+export function trapPlans(): Waypoint[][] {
+  return [
+    // 1 Dex: on the stairs, facing the front door.
+    [wp(12, 11), wp(12, 12)],
+    // 2 Kemi: out of the back bedroom into the kitchen.
+    [wp(8, 10), wp(12, 10), wp(15, 10), wp(16, 12), wp(16, 11)],
+    // 3 Jojo: in the kitchen, facing the back door.
+    [wp(19, 11), wp(20, 12), wp(20, 11)],
+    // 4 Taz: through the living room into the hall beside Dex.
+    [wp(9, 14), wp(12, 16), wp(13, 11), wp(13, 12)],
+  ];
+}
+
+/** The two outside doors, barricaded. */
+export const trapBarricades = [
+  { x: 12, y: 19 },
+  { x: 19, y: 7 },
+];
