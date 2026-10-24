@@ -23,11 +23,11 @@ To build a static copy for any web host: `npm run build`, then serve the `dist` 
 | Input | Planning | Raid |
 |---|---|---|
 | `1` to `4` or click a card | Pick a crew member | Pick a crew member |
-| Click / drag on the map | Add waypoints to their route | While paused, give them a new route |
-| Click a waypoint | Select it (drag to move it) | |
-| Right click, `Backspace` | Remove the selected point | |
-| `A`, `B`, `C` | Hold the selected point until that go code | Call the go code |
-| `K` | Kick locked doors after the selected point | |
+| Click / drag on the map | Add waypoints to their route | Live: click a crew member, then where they go (drag to draw a route). Paused: redraw the picked crew member's route from where they stand |
+| Click a waypoint | Select it (drag to move it) | Paused: the same |
+| Right click, `Backspace` | Remove the selected point | Paused: the same |
+| `A`, `B`, `C` | Hold the selected point until that go code | Call the go code. Paused with a point picked: hold it for that code |
+| `K` | Kick locked doors after the selected point | Paused: the same |
 | `Enter` or **Go** | Start the raid | |
 | `Space` | | Pause and resume |
 | `F` | | Speed 1x, 2x, 4x |
@@ -37,7 +37,7 @@ To build a static copy for any web host: `npm run build`, then serve the `dist` 
 | Click or drag the minimap | Jump the camera there | Jump the camera there |
 | Click a crew card again | Find that crew member | Find that crew member |
 
-Locked doors are picked by default (quiet, slow; Kemi the Creeper is fastest). Kicking is fast but loud: it starts the police clock and brings guards running. Anyone who walks up on an unaware enemy holds them up (Taz the Talker is quickest); an enemy who clocks you first goes hostile, shouts for the others and starts the backup clock. Loot is bagged by walking next to it. Get everyone to the getaway zone by the van before the police arrive. **Load a sample plan** on the title screen shows a quiet run.
+Locked doors are picked by default (quiet, slow; Kemi the Creeper is fastest). Kicking is fast but loud: it starts the police clock and brings guards running. Anyone who walks up on an unaware enemy holds them up (Taz the Talker is quickest); an enemy who clocks you first goes hostile, shouts for the others and starts the backup clock. Loot is bagged by walking next to it. Plans never survive contact, so the raid can be steered as it goes: pause with Space at any moment, redraw anyone's remaining route, add holds and go codes, then carry on; or, without pausing, click a crew member and then where they should go. Get everyone to the getaway zone by the van before the police arrive. **Load a sample plan** on the title screen shows a quiet run.
 
 ## Code layout
 

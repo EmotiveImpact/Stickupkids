@@ -868,7 +868,7 @@ export class View {
       // Waypoint dots and go-code diamonds.
       wps.forEach((w, k) => {
         if (this.mode === 'raid' && k < startIdx) return;
-        const sel = plan && this.mode === 'planning' && plan.selected === i + 1 && plan.selectedWp === k;
+        const sel = plan && plan.selected === i + 1 && plan.selectedWp === k;
         if (w.hold) {
           const d = this.iconPlane(0.78, (g, s) => drawDiamond(g, s, colours[i], w.hold!, !!sel));
           d.rotation.x = Math.PI / 2;
@@ -881,13 +881,13 @@ export class View {
           dot.material = mat(this.scene, colours[i], { emissive: colours[i], unlit: true });
           dot.parent = this.markers;
           this.toOverlay(dot);
-          if (sel) {
-            const halo = MeshBuilder.CreateTorus('halo', { diameter: 0.55, thickness: 0.04, tessellation: 24 }, this.scene);
-            halo.position.set(this.co.X(w.x), 0.09, this.co.Z(w.y));
-            halo.material = mat(this.scene, '#ffffff', { emissive: '#ffffff', unlit: true });
-            halo.parent = this.markers;
-            this.toOverlay(halo);
-          }
+        }
+        if (sel && k > 0) {
+          const halo = MeshBuilder.CreateTorus('halo', { diameter: w.hold ? 0.95 : 0.55, thickness: 0.04, tessellation: 24 }, this.scene);
+          halo.position.set(this.co.X(w.x), 0.09, this.co.Z(w.y));
+          halo.material = mat(this.scene, '#ffffff', { emissive: '#ffffff', unlit: true });
+          halo.parent = this.markers;
+          this.toOverlay(halo);
         }
         if (w.kick && k < wps.length - 1) {
           const kk = this.iconPlane(0.6, (g, s) => drawKick(g, s, colours[i]));
@@ -1064,14 +1064,14 @@ export class View {
     }
     // Paths.
     this.pathT -= dt;
-    const key = planning ? `p${plan?.version}:${plan?.selected}:${plan?.selectedWp}` : `r`;
+    const key = `${planning ? 'p' : 'r'}${plan?.version}:${plan?.selected}:${plan?.selectedWp}`;
     if (key !== this.pathKey || (!planning && this.pathT <= 0)) {
       this.pathKey = key;
       this.pathT = 0.2;
       this.buildPaths(sim, plan);
     }
     // Hover highlight.
-    if (planning && plan?.hover) {
+    if (plan?.hover) {
       this.hoverMesh.setEnabled(true);
       this.hoverMesh.position.x = this.co.X(Math.floor(plan.hover.x) + 0.5);
       this.hoverMesh.position.z = this.co.Z(Math.floor(plan.hover.y) + 0.5);

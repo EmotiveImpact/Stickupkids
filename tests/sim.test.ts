@@ -116,3 +116,62 @@ test('shrubs block sight and movement, water blocks movement only', () => {
   assert.equal(new Grid(level).passable(0, 0, 'crew'), false);
   assert.equal(new Grid(level).blocksSight(0, 0), false);
 });
+
+test('rewriting everyone as orders from where they stand changes nothing', () => {
+  for (const job of JOBS) {
+    const plain = new Sim(job.build(), job.samplePlans());
+    run(plain, job.sampleCodes, 400);
+    // The same raid, paused every few seconds (pausing rewrites each plan as orders).
+    const paused = new Sim(job.build(), job.samplePlans());
+    const dt = 1 / 60;
+    let next = 0;
+    while (!paused.outcome && paused.time < 400) {
+      if (paused.time >= next) {
+        next += 3;
+        for (const c of paused.crew) if (c.state !== 'down' && c.state !== 'escaped') paused.setOrders(c.def.slot, paused.orders(c.def.slot));
+      }
+      for (const [t, c] of job.sampleCodes) if (paused.time < t && paused.time + dt >= t) paused.callCode(c);
+      paused.step(dt);
+      paused.events = [];
+    }
+    assert.equal(paused.outcome?.reason, plain.outcome?.reason, job.id);
+    assert.equal(paused.outcome?.take, plain.outcome?.take, job.id);
+    assert.equal(paused.time.toFixed(2), plain.time.toFixed(2), job.id);
+  }
+});
+
+test('mid-raid orders: a new route, a hold for a go code, and a lock still being picked', () => {
+  const level = buildEstateHouse();
+  const sim = new Sim(level, []);
+  const start = sim.orders(1);
+  assert.equal(start.length, 1);
+  // Send Dex two cells along the street and on, holding at the first for C.
+  const s = start[0];
+  const hold = { x: s.x + 2, y: s.y, hold: 'C' as const, kick: false };
+  const on = { x: s.x + 4, y: s.y, hold: null, kick: false };
+  sim.setOrders(1, [...start, hold, on]);
+  for (let i = 0; i < 60 * 10; i++) sim.step(1 / 60);
+  const dex = sim.crew[0];
+  assert.equal(dex.state, 'hold');
+  assert.ok(Math.hypot(dex.x - hold.x, dex.y - hold.y) < 0.05);
+  // While held, his orders start where he stands, with the hold.
+  assert.equal(sim.orders(1)[0].hold, 'C');
+  sim.callCode('C');
+  for (let i = 0; i < 60 * 10; i++) sim.step(1 / 60);
+  assert.ok(Math.hypot(dex.x - on.x, dex.y - on.y) < 0.05);
+
+  // Adding a point further on does not stop someone part way through a lock.
+  const raid = new Sim(level, samplePlans());
+  let picker = null;
+  for (let i = 0; i < 60 * 120 && !picker; i++) {
+    raid.step(1 / 60);
+    picker = raid.crew.find((c) => c.action?.kind === 'pick' && c.action.t > 0.5) ?? null;
+  }
+  assert.ok(picker, 'someone picks a lock in the sample plan');
+  const act = picker!.action;
+  const o = raid.orders(picker!.def.slot);
+  o.push({ ...o[o.length - 1] });
+  raid.setOrders(picker!.def.slot, o);
+  assert.equal(picker!.action, act);
+  assert.equal(picker!.state, 'pick');
+});

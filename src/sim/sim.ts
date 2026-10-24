@@ -361,15 +361,38 @@ export class Sim {
     this.codes.add(code);
   }
 
-  /** Replace a crew member's remaining plan (used when paused mid-raid). */
-  replan(slot: number, waypoints: Waypoint[]): void {
+  /** A crew member's orders as they stand mid-raid: first where they are
+   *  now (with any hold they are waiting on, and whether they kick on the
+   *  leg they are walking), then the waypoints still ahead. A copy. */
+  orders(slot: number): Waypoint[] {
     const c = this.crew[slot - 1];
-    if (!c || c.state === 'down' || c.state === 'escaped') return;
-    c.plan = [{ x: c.x, y: c.y, hold: null, kick: waypoints[0]?.kick ?? false }, ...waypoints];
+    const rest = c.plan.slice(c.wp).map((w) => ({ ...w }));
+    // Waiting at (or standing on) the waypoint they were walking to: that is "here".
+    if (rest.length && (c.state === 'hold' || (!c.route.length && dist(c, rest[0]) < 0.05))) {
+      return [{ ...rest[0], x: c.x, y: c.y }, ...rest.slice(1)];
+    }
+    return [{ x: c.x, y: c.y, hold: null, kick: c.kickSeg }, ...rest];
+  }
+
+  /** Give a crew member new orders (shaped as orders() returns them). If
+   *  the leg they are on is unchanged they carry on along it, finishing a
+   *  lock or a door; otherwise they drop it and head for the new point. */
+  setOrders(slot: number, orders: Waypoint[]): void {
+    const c = this.crew[slot - 1];
+    if (!c || c.state === 'down' || c.state === 'escaped' || !orders.length) return;
+    const here: Waypoint = { ...orders[0], x: c.x, y: c.y };
+    const was = c.state !== 'hold' && c.route.length ? c.plan[c.wp] : null;
+    const to = orders[1];
+    const sameLeg = !!was && !!to && was.x === to.x && was.y === to.y && !here.hold && here.kick === c.kickSeg;
+    c.plan = [here, ...orders.slice(1)];
+    if (sameLeg) {
+      c.wp = 1;
+      return;
+    }
     c.wp = 0;
     c.route = [];
     if (c.action && c.action.kind !== 'loot') c.action = null;
-    c.state = 'moving';
+    if (c.state !== 'fight' && c.state !== 'loot') c.state = 'moving';
   }
 
   /** Leave now: whoever is at the van gets away, the rest are left behind. */

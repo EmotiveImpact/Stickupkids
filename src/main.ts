@@ -28,7 +28,10 @@ let preview = new Sim(level, plans);
 let sim = preview;
 let paused = false;
 let speed = 1;
-let replanBuf = new Map<number, Waypoint[]>();
+/** Crew members whose route has been redrawn during this pause. */
+let touched = new Set<number>();
+/** The crew member who takes a live order on the next click on the map. */
+let armed: number | null = null;
 let dragging: { kind: 'draw' } | { kind: 'move'; idx: number } | null = null;
 
 const hud = new Hud(document.getElementById('hud')!, {
@@ -148,7 +151,8 @@ function go() {
   view.bind(sim);
   view.setMode('raid');
   paused = false;
-  replanBuf = new Map();
+  touched = new Set();
+  armed = null;
   selectedWp = null;
 }
 
@@ -160,6 +164,8 @@ function selectCrew(slot: number) {
   }
   selected = slot;
   selectedWp = null;
+  // Mid-raid, picking someone readies an order: the next click on the map sends them there.
+  armed = phase === 'raid' && !paused && alive(slot) ? slot : null;
   version++;
 }
 
@@ -170,6 +176,16 @@ function currentWp(): Waypoint | null {
 }
 
 function tool(t: 'kick' | 'undo' | 'clear' | 'sample') {
+  if (phase === 'raid' && paused) {
+    if (t === 'kick') {
+      order((o) => {
+        const k = selectedWp ?? o.length - 1;
+        o[k].kick = !o[k].kick;
+        return true;
+      });
+    } else if (t === 'undo') removeOrderPoint();
+    return;
+  }
   if (phase !== 'planning') return;
   const plan = plans[selected - 1];
   if (t === 'kick') {
@@ -195,6 +211,16 @@ function code(c: GoCode) {
     if (w) w.hold = w.hold === c ? null : c;
     changed();
   } else if (phase === 'raid') {
+    // Paused with one of their points picked: hold there for the code.
+    if (paused && selectedWp !== null) {
+      order((o) => {
+        const w = o[selectedWp!];
+        if (!w) return false;
+        w.hold = w.hold === c ? null : c;
+        return true;
+      });
+      return;
+    }
     sim.callCode(c);
     hud.toast(`Go code ${c} called`, CREW[0].color);
   }
@@ -203,8 +229,63 @@ function code(c: GoCode) {
 function togglePause() {
   if (phase !== 'raid') return;
   paused = !paused;
-  if (!paused) replanBuf = new Map();
+  touched = new Set();
+  armed = null;
+  selectedWp = null;
+  // Rewrite everyone's plan as orders from where they stand, so the points
+  // drawn and the points picked share their numbering. It changes nothing
+  // about where they go.
+  if (paused) for (const c of sim.crew) if (alive(c.def.slot)) sim.setOrders(c.def.slot, sim.orders(c.def.slot));
+  version++;
   view.setPaused(paused);
+}
+
+// ------------------------------------------------------- orders mid-raid
+
+function alive(slot: number) {
+  const c = sim.crew[slot - 1];
+  return !!c && c.state !== 'down' && c.state !== 'escaped';
+}
+
+/** Change the selected crew member's orders mid-raid. Orders start where
+ *  they stand (index 0), so a picked point keeps its index while paused. */
+function order(fn: (o: Waypoint[]) => boolean): boolean {
+  if (!alive(selected)) return false;
+  const o = sim.orders(selected);
+  if (!fn(o)) return false;
+  sim.setOrders(selected, o);
+  version++;
+  return true;
+}
+
+/** Add a point to the selected crew member's orders: after the picked point,
+ *  or at the end. A fresh order drops the rest of the route and starts from
+ *  where they stand. */
+function orderPoint(p: Vec, fresh: boolean): boolean {
+  return order((o) => {
+    if (fresh) {
+      o.splice(1);
+      o[0].hold = null;
+      o[0].kick = false;
+    }
+    const c = cellCentre(p);
+    const at = !fresh && selectedWp !== null ? selectedWp + 1 : o.length;
+    const prev = o[at - 1];
+    if (near(prev, c, 0.1) || !sim.grid.findPath(prev.x, prev.y, c.x, c.y, 'crew')) return false;
+    o.splice(at, 0, { ...c, hold: null, kick: false });
+    selectedWp = paused && at < o.length - 1 ? at : null;
+    return true;
+  });
+}
+
+function removeOrderPoint() {
+  order((o) => {
+    const k = selectedWp ?? o.length - 1;
+    if (k < 1) return false;
+    o.splice(k, 1);
+    selectedWp = null;
+    return true;
+  });
 }
 
 function toggleSpeed() {
@@ -262,33 +343,74 @@ canvas.addEventListener('pointerdown', (e) => {
     }
     if (addPoint(p)) dragging = { kind: 'draw' };
     canvas.setPointerCapture(e.pointerId);
-  } else if (phase === 'raid') {
+  } else if (phase === 'raid' && !sim.outcome) {
+    if (e.button === 2) {
+      if (paused) removeOrderPoint();
+      return;
+    }
+    // Clicking a crew member picks them (and, while the raid runs, readies an order).
     for (const c of sim.crew) {
-      if (near(c, p, 0.6)) {
+      if (c.state !== 'down' && c.state !== 'escaped' && near(c, p, 0.6)) {
         selectCrew(c.def.slot);
         return;
       }
     }
-    if (!paused) {
-      hud.toast('Pause (Space) to redraw a route');
+    if (!alive(selected)) return;
+    if (paused) {
+      // One of their points: pick it, and drag to move it.
+      const o = sim.orders(selected);
+      for (let k = o.length - 1; k >= 1; k--) {
+        if (near(o[k], p, 0.45)) {
+          selectedWp = k;
+          dragging = { kind: 'move', idx: k };
+          version++;
+          return;
+        }
+      }
+      // The first click in a pause redraws their route from where they stand.
+      if (orderPoint(p, !touched.has(selected) && selectedWp === null)) {
+        touched.add(selected);
+        dragging = { kind: 'draw' };
+      }
+      canvas.setPointerCapture(e.pointerId);
       return;
     }
-    const c = sim.crew[selected - 1];
-    if (c.state === 'down' || c.state === 'escaped') return;
-    const buf = replanBuf.get(selected) ?? [];
-    const from = buf.length ? buf[buf.length - 1] : c;
-    const cc = cellCentre(p);
-    if (!sim.grid.findPath(from.x, from.y, cc.x, cc.y, 'crew')) return;
-    buf.push({ ...cc, hold: null, kick: false });
-    replanBuf.set(selected, buf);
-    sim.replan(selected, buf);
+    if (armed !== selected) {
+      hud.toast('Click a crew member, then where they should go. Space pauses to redraw routes.');
+      return;
+    }
+    // A live order: off they go from where they stand. Drag to draw a route.
+    armed = null;
+    if (orderPoint(p, true)) {
+      dragging = { kind: 'draw' };
+      canvas.setPointerCapture(e.pointerId);
+    }
   }
 });
 
 canvas.addEventListener('pointermove', (e) => {
   const p = view.pick(e.clientX, e.clientY);
   hover = p;
-  if (!p || !dragging || phase !== 'planning') return;
+  if (!p || !dragging) return;
+  if (phase === 'raid') {
+    if (dragging.kind === 'draw') {
+      const o = sim.orders(selected);
+      const last = o[selectedWp ?? o.length - 1];
+      if (last && Math.hypot(last.x - p.x, last.y - p.y) >= 2.2) orderPoint(p, false);
+    } else if (paused) {
+      const idx = dragging.idx;
+      const c = cellCentre(p);
+      order((o) => {
+        const w = o[idx];
+        if (!w || near(w, c, 0.1) || !sim.grid.passable(Math.floor(c.x), Math.floor(c.y), 'crew')) return false;
+        w.x = c.x;
+        w.y = c.y;
+        return true;
+      });
+    }
+    return;
+  }
+  if (phase !== 'planning') return;
   const plan = plans[selected - 1];
   if (dragging.kind === 'draw') {
     const last = plan[selectedWp ?? plan.length - 1];
@@ -315,6 +437,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'backspace' || k === 'delete') tool('undo');
   else if (k === 'escape') {
     selectedWp = null;
+    armed = null;
     version++;
   } else if (k === 'enter') go();
   else if (k === ' ') {
@@ -414,7 +537,8 @@ function tick(dt: number) {
   }
   const overlay: PlanOverlay = { plans, version, selected, selectedWp, hover };
   view.bind(sim);
-  view.frame(dt, sim, phase === 'planning' || phase === 'title' ? overlay : { ...overlay, hover: null });
+  const aiming = phase === 'planning' || phase === 'title' || (phase === 'raid' && (paused || armed !== null));
+  view.frame(dt, sim, aiming ? overlay : { ...overlay, hover: null });
   hudT -= dt;
   if (hudT <= 0) {
     hudT = 0.1;
@@ -423,7 +547,10 @@ function tick(dt: number) {
     if (phase === 'planning' || phase === 'title') {
       const d = planDoors(level, preview.grid, plans);
       hud.updatePlanning({ plans, selected, selectedWp, kicks: d.kicks, picks: d.picks });
-    } else if (phase === 'raid') hud.updateRaid(sim, paused, speed, selected);
+    } else if (phase === 'raid') {
+      const wp = paused && selectedWp !== null ? (sim.orders(selected)[selectedWp] ?? null) : null;
+      hud.updateRaid(sim, paused, speed, selected, { point: wp ? selectedWp : null, hold: wp?.hold ?? null, armed: armed !== null });
+    }
   }
   if (phase === 'raid' && sim.outcome) {
     phase = 'results';

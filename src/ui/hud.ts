@@ -153,10 +153,11 @@ export class Hud {
           <b>1 to 4</b><span>Pick a crew member (or click their card)</span>
           <b>Click / drag</b><span>Add waypoints to their route. Click a point to select it</span>
           <b>Right click</b><span>Remove the selected point (Backspace also works)</span>
-          <b>A, B, C</b><span>Planning: hold the selected point for that go code. Raid: call the code</span>
+          <b>A, B, C</b><span>Hold the selected point for that go code. In the raid, with no point picked: call the code</span>
           <b>K</b><span>Kick locked doors after the selected point (loud but fast). Otherwise they get picked</span>
           <b>Enter</b><span>Go</span>
-          <b>Space</b><span>Pause the raid. While paused, click to redraw the selected crew member's route</span>
+          <b>Space</b><span>Pause the raid. While paused, redraw a crew member's route, move points, add holds</span>
+          <b>Crew, then map</b><span>In the raid without pausing: click a crew member, then where they should go</span>
           <b>F</b><span>Toggle speed</span>
           <b>Wheel, arrows</b><span>Zoom and pan the camera (middle-drag pans too)</span>
         </div></details>
@@ -282,7 +283,13 @@ export class Hud {
     );
   }
 
-  updateRaid(sim: Sim, paused: boolean, speed: number, selected: number) {
+  updateRaid(
+    sim: Sim,
+    paused: boolean,
+    speed: number,
+    selected: number,
+    orders: { point: number | null; hold: GoCode | null; armed: boolean } = { point: null, hold: null, armed: false },
+  ) {
     this.setMode('raid');
     sim.crew.forEach((c, i) => {
       const card = this.cards[i];
@@ -316,15 +323,23 @@ export class Hud {
     if (pauseBtn) setHtml(pauseBtn as HTMLElement, paused ? ICONS.play : ICONS.pause);
     const sp = this.bar.querySelector('[data-r="speed"] .k');
     if (sp) setText(sp as HTMLElement, `${speed}x`);
-    this.bar.querySelectorAll<HTMLElement>('[data-c]').forEach((b) => b.classList.toggle('fired', sim.codes.has(b.dataset.c as GoCode)));
+    this.bar.querySelectorAll<HTMLElement>('[data-c]').forEach((b) => {
+      b.classList.toggle('fired', sim.codes.has(b.dataset.c as GoCode));
+      b.classList.toggle('on', orders.hold === b.dataset.c);
+    });
+    this.bar.style.setProperty('--selcol', CREW[selected - 1].color);
     this.banner.classList.toggle('hidden', !paused);
     setText(this.banner, 'Paused');
     const name = CREW[selected - 1].name;
     setText(
       this.hint,
       paused
-        ? `Paused. Click the map to give ${name} a new route from where they stand. Space to carry on.`
-        : 'Space to pause and redraw routes. Call go codes with A, B and C. Get everyone to the van.',
+        ? orders.point !== null
+          ? `Point ${orders.point} of ${name}'s route picked. A, B or C to hold there for a go code, K to kick doors after it, Delete to remove it. Space to carry on.`
+          : `Paused. Click the map to redraw ${name}'s route from where they stand, or drag to draw it. Click one of their points to move it or give it a go code. Space to carry on.`
+        : orders.armed
+          ? `Click where ${name} should go. Drag to draw a route.`
+          : 'Click a crew member, then where they should go. Space pauses to redraw routes and set go codes. A, B and C call the codes. Get everyone to the van.',
     );
   }
 
