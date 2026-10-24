@@ -17,6 +17,7 @@ import {
   Mesh,
   MeshBuilder,
   MirrorTexture,
+  RenderTargetTexture,
   ParticleSystem,
   PBRMaterial,
   Plane,
@@ -40,6 +41,7 @@ import { Coords, mat } from './world.ts';
 import { loadEstate, type Estate } from './estate.ts';
 import { CHAR_SCALE, CharacterKit, type Character, type Weapon } from './characters.ts';
 import { Atmosphere, dotTexture, glowTexture } from './atmosphere.ts';
+import { sprayTags } from './graffiti.ts';
 import { Constants } from '@babylonjs/core/Engines/constants';
 
 const OVERLAY = 0x10000000;
@@ -81,25 +83,82 @@ uniform float amount;
 uniform vec2 screenSize;
 uniform sampler2D depthSampler;
 uniform float depthRange;
+// The raid: crew torches light the night, and the paint-like smear.
+uniform sampler2D torchSampler;
+uniform float dark;
+uniform float paint;
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // The deck's grade: a cold, wet night. Blues and violets wash out to a dark
 // teal-grey; sodium and orange keep their colour; blacks sit just off black.
+// In the raid it goes further, to near black and white: only red (the
+// opposition, tail lights) keeps its colour, sodium keeps a little.
 vec3 grade(vec3 c) {
-  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  float l = luma(c);
   float warm = smoothstep(0.03, 0.22, c.r - c.b) * smoothstep(-0.05, 0.12, c.r - c.g);
-  vec3 g = mix(vec3(l), c, mix(0.3, 0.92, warm));
+  float red = smoothstep(0.5, 0.25, c.g / max(c.r, 0.0001)) * smoothstep(0.05, 0.2, c.r - c.b);
+  float sat = mix(mix(0.3, 0.92, warm), mix(mix(0.08, 0.45, warm), 1.0, red), dark);
+  vec3 g = mix(vec3(l), c, sat);
   vec3 teal = vec3(0.78, 0.97, 0.95);
-  g *= mix(teal, vec3(1.0), clamp(smoothstep(0.3, 0.85, l) + warm * 0.7, 0.0, 1.0));
+  g *= mix(teal, vec3(1.0), clamp(smoothstep(0.3, 0.85, l) + warm * 0.7 + dark * 0.5, 0.0, 1.0));
   // A soft S: deeper shadows, mids held, highlights left to bloom.
   g = g * g * (3.0 - 2.0 * g) * 0.35 + g * 0.65;
-  return max(g - 0.006, 0.0) + vec3(0.004, 0.008, 0.009);
+  // Crushed blacks for the raid.
+  g = max(g - 0.025 * dark, 0.0) * (1.0 + 0.04 * dark);
+  return max(g - 0.006, 0.0) + vec3(0.004, 0.008, 0.009) * (1.0 - dark * 0.7);
 }
-float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+// A small Kuwahara filter: each pixel takes the calmest of the four squares
+// round it, which flattens texture into brush-like strokes and keeps edges.
+vec3 kuwahara(vec2 uv, float r) {
+  vec2 px = r / screenSize;
+  vec3 m0 = vec3(0.0); vec3 m1 = vec3(0.0); vec3 m2 = vec3(0.0); vec3 m3 = vec3(0.0);
+  vec3 s0 = vec3(0.0); vec3 s1 = vec3(0.0); vec3 s2 = vec3(0.0); vec3 s3 = vec3(0.0);
+  for (int j = -2; j <= 2; j++) {
+    for (int i = -2; i <= 2; i++) {
+      vec3 c = texture2D(textureSampler, uv + vec2(float(i), float(j)) * px).rgb;
+      vec3 c2 = c * c;
+      if (i <= 0 && j <= 0) { m0 += c; s0 += c2; }
+      if (i >= 0 && j <= 0) { m1 += c; s1 += c2; }
+      if (i <= 0 && j >= 0) { m2 += c; s2 += c2; }
+      if (i >= 0 && j >= 0) { m3 += c; s3 += c2; }
+    }
+  }
+  m0 /= 9.0; m1 /= 9.0; m2 /= 9.0; m3 /= 9.0;
+  vec3 v0 = s0 / 9.0 - m0 * m0; vec3 v1 = s1 / 9.0 - m1 * m1;
+  vec3 v2 = s2 / 9.0 - m2 * m2; vec3 v3 = s3 / 9.0 - m3 * m3;
+  float e0 = v0.r + v0.g + v0.b; float e1 = v1.r + v1.g + v1.b;
+  float e2 = v2.r + v2.g + v2.b; float e3 = v3.r + v3.g + v3.b;
+  vec3 best = m0; float e = e0;
+  if (e1 < e) { best = m1; e = e1; }
+  if (e2 < e) { best = m2; e = e2; }
+  if (e3 < e) { best = m3; }
+  return best;
+}
+// How much torchlight falls here, softened so the beams have no hard rims.
+float torchAt(vec2 uv) {
+  vec2 o = 5.0 / screenSize;
+  float t = texture2D(torchSampler, uv).r * 0.4;
+  t += texture2D(torchSampler, uv + vec2(o.x, o.y)).r * 0.15;
+  t += texture2D(torchSampler, uv + vec2(-o.x, o.y)).r * 0.15;
+  t += texture2D(torchSampler, uv + vec2(o.x, -o.y)).r * 0.15;
+  t += texture2D(torchSampler, uv + vec2(-o.x, -o.y)).r * 0.15;
+  return t;
+}
 // Depth in metres from the camera, from the depth renderer's linear depth.
 float depthAt(vec2 uv) { return texture2D(depthSampler, uv).r * depthRange; }
 void main(void) {
-  vec4 c = texture2D(textureSampler, vUV);
-  c.rgb = grade(clamp(c.rgb, 0.0, 1.0));
-  if (amount <= 0.001) { gl_FragColor = c; return; }
+  vec3 src = clamp(texture2D(textureSampler, vUV).rgb, 0.0, 1.0);
+  if (paint > 0.001) src = mix(src, kuwahara(vUV, 1.5), paint);
+  vec3 col = grade(src);
+  if (dark > 0.001) {
+    // Outside the torch beams the night takes over; lamps, lit windows and
+    // screens hold their own.
+    float t = smoothstep(0.0, 0.7, torchAt(vUV));
+    float own = smoothstep(0.1, 0.42, luma(col));
+    col *= mix(1.0, mix(0.3, 1.0, max(t, own)) * (1.0 + 0.9 * t), dark);
+    // The beam itself, a cold white wash on whatever it falls on.
+    col += vec3(0.82, 0.88, 1.0) * t * 0.06 * dark;
+  }
+  if (amount <= 0.001) { gl_FragColor = vec4(col, 1.0); return; }
   // The plan: the real scene, lifted and cooled to a monochrome you can read,
   // with the building drawn in white lines where the geometry steps (walls,
   // doors, kerbs, furniture), not where a texture happens to be busy.
@@ -123,7 +182,7 @@ void main(void) {
   vec2 g = mod(gl_FragCoord.xy, 32.0);
   float grid = (g.x < 1.0 || g.y < 1.0) ? 1.0 : 0.0;
   bp += vec3(0.03) * grid * (1.0 - edge);
-  gl_FragColor = vec4(mix(c.rgb, bp, amount), 1.0);
+  gl_FragColor = vec4(mix(col, bp, amount), 1.0);
 }
 `;
 
@@ -219,6 +278,10 @@ export class View {
   private bp: PostProcess;
   private depth: DepthRenderer;
   private bpAmount = 1;
+  /** Torchlight: what the crew's beams light, drawn white on black, and how far the night has fallen (0 to 1). */
+  private torchMask: RenderTargetTexture;
+  private torchMat: StandardMaterial;
+  private darkAmount = 0;
   private bpTarget = 1;
   private estate: Estate | null = null;
   private readonly kits = new Map<string, CharacterKit>();
@@ -333,8 +396,27 @@ export class View {
 
     // Depth for the plan's line drawing; only rendered while the plan shows.
     const depth = (this.depth = scene.enableDepthRenderer(this.cam, false, true));
-    this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange'], ['depthSampler'], 1, this.cam);
+    // The torch mask: crew beams and a pool round each of them, white on black, at half size.
+    const torch = (this.torchMask = new RenderTargetTexture('torchMask', { ratio: 0.5 }, scene, false));
+    torch.activeCamera = this.cam;
+    torch.clearColor = new Color4(0, 0, 0, 1);
+    torch.renderList = [];
+    scene.customRenderTargets.push(torch);
+    const tm = (this.torchMat = new StandardMaterial('torchMaskMat', scene));
+    tm.emissiveColor = Color3.White();
+    tm.diffuseColor = Color3.Black();
+    tm.specularColor = Color3.Black();
+    tm.disableLighting = true;
+    tm.backFaceCulling = false;
+    tm.disableDepthWrite = true;
+    // Screen blending, so overlapping beams add up without blowing out.
+    tm.alpha = 0.999;
+    tm.alphaMode = Constants.ALPHA_SCREENMODE;
+    this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange', 'dark', 'paint'], ['depthSampler', 'torchSampler'], 1, this.cam);
     this.bp.onApply = (e) => {
+      e.setTexture('torchSampler', torch);
+      e.setFloat('dark', this.darkAmount);
+      e.setFloat('paint', this.darkAmount * 0.8);
       e.setFloat('amount', this.bpAmount);
       e.setFloat2('screenSize', this.bp.width, this.bp.height);
       e.setTexture('depthSampler', depth.getDepthMap());
@@ -369,6 +451,7 @@ export class View {
     for (const [id, node] of estate.loot) if (!lv.loot.some((l) => l.id === id)) node.setEnabled(false);
     this.shadowLight.includedOnlyMeshes = estate.receivers;
     this.wetGround(estate);
+    sprayTags(scene, lv, this.co, lv.w * 7919 + lv.h);
 
     // A soft moon key so characters keep their shape between pools of light.
     const key = (this.keyLight = new DirectionalLight('key', new Vector3(0.35, -0.85, 0.55), scene));
@@ -727,6 +810,23 @@ export class View {
     this.toOverlay(ring);
     // Torch light, not team colour: the crew colour lives on the ring and the route.
     const cone = this.makeCone('#eef3ff', 0.1);
+    // A pool of light round them, seen only by the torch mask.
+    const pool = MeshBuilder.CreateDisc('pool', { radius: 2.4 / CHAR_SCALE, tessellation: 32 }, scene);
+    const pp = pool.getVerticesData(VertexBuffer.PositionKind)!;
+    const pc: number[] = [];
+    for (let i = 0; i < pp.length; i += 3) {
+      const f = Math.hypot(pp[i], pp[i + 1]) < 1e-4 ? 1 : 0;
+      pc.push(f, f, f, 1);
+    }
+    pool.setVerticesData(VertexBuffer.ColorKind, pc);
+    pool.rotation.x = Math.PI / 2;
+    pool.position.y = 0.03;
+    pool.parent = root;
+    pool.layerMask = 0;
+    for (const m of [cone, pool]) {
+      this.torchMask.renderList!.push(m);
+      this.torchMask.setMaterialForRendering(m, this.torchMat);
+    }
     return { root, body, light: char.light, char, ring, cone, bag, torch, last: null, speed: 0 };
   }
 
@@ -868,6 +968,7 @@ export class View {
     const idx: number[] = [];
     for (let i = 0; i < rays; i++) idx.push(0, i + 2, i + 1);
     vd.indices = idx;
+    vd.colors = new Array((rays + 2) * 4).fill(1);
     vd.applyToMesh(m, true);
     const cm = new StandardMaterial('coneMat', this.scene);
     cm.emissiveColor = Color3.FromHexString(color);
@@ -881,8 +982,15 @@ export class View {
     return m;
   }
 
-  private setCone(m: Mesh, pts: Vec[], ox: number, oy: number, y: number) {
+  private setCone(m: Mesh, pts: Vec[], ox: number, oy: number, y: number, range = 8) {
     const pos = m.getVerticesData(VertexBuffer.PositionKind)!;
+    // Fades with distance, like a beam.
+    const col = m.getVerticesData(VertexBuffer.ColorKind)!;
+    for (let i = 0; i < pts.length && i + 1 < pos.length / 3; i++) {
+      const f = Math.max(0, 1 - Math.hypot(pts[i].x - ox, pts[i].y - oy) / range);
+      col.fill(f, (i + 1) * 4, (i + 1) * 4 + 3);
+    }
+    m.updateVerticesData(VertexBuffer.ColorKind, col);
     pos[0] = this.co.X(ox);
     pos[1] = y;
     pos[2] = this.co.Z(oy);
@@ -1352,6 +1460,10 @@ export class View {
     // Film grain and fringing belong to the night, not the plan.
     this.pipeline.grain.intensity = 7 * (1 - this.bpAmount);
     this.pipeline.chromaticAberration.aberrationAmount = 10 * (1 - this.bpAmount);
+    // Night falls when the raid starts and lifts for the plan.
+    this.darkAmount += ((this.mode === 'raid' ? 1 : 0) - this.darkAmount) * Math.min(1, dt * 3);
+    if (this.darkAmount < 0.002) this.darkAmount = 0;
+    this.torchMask.refreshRate = this.darkAmount > 0 ? 1 : 0;
     const est = this.estate;
     if (!est) {
       this.scene.render();
@@ -1581,7 +1693,7 @@ export class View {
     a.ring.scaling.setAll(sel ? 1.25 : 1);
     a.bag!.setEnabled(c.carrying.length > 0);
     const sim = this.lastSim;
-    if (sim) this.setCone(a.cone, sim.grid.visionFan(c.x, c.y, c.facing, c.fov, c.range, 36), c.x, c.y, 0.05);
+    if (sim) this.setCone(a.cone, sim.grid.visionFan(c.x, c.y, c.facing, c.fov, c.range, 36), c.x, c.y, 0.05, c.range);
   }
 
   private lastSim: Sim | null = null;
@@ -1623,7 +1735,7 @@ export class View {
       // His men have their guns up while the boss talks.
       this.animate(a, e.state === 'hostile' || (e.state === 'standoff' && e.leader) ? 'aim' : 'move');
       const fan = sim.grid.visionFan(e.x, e.y, e.facing, e.fov, e.range, 36);
-      this.setCone(a.cone, fan, e.x, e.y, 0.05);
+      this.setCone(a.cone, fan, e.x, e.y, 0.05, e.range);
       (a.cone.material as StandardMaterial).alpha = e.state === 'hostile' ? 0.24 : e.state === 'calm' ? 0.12 : 0.19;
     }
     // Status icon above the head.

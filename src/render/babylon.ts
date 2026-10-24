@@ -28,6 +28,7 @@ export { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imagePro
 export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 export { Texture } from '@babylonjs/core/Materials/Textures/texture';
 export { MirrorTexture } from '@babylonjs/core/Materials/Textures/mirrorTexture';
+export { RenderTargetTexture } from '@babylonjs/core/Materials/Textures/renderTargetTexture';
 export { Plane } from '@babylonjs/core/Maths/math.plane';
 export { Effect } from '@babylonjs/core/Materials/effect';
 export { Mesh } from '@babylonjs/core/Meshes/mesh';
