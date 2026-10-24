@@ -20,6 +20,20 @@ export interface HudHandlers {
   replan(fresh: boolean): void;
   pickJob(id: string): void;
   jobs(): void;
+  replay(action: ReplayAction): void;
+}
+
+export type ReplayAction = 'watch' | 'play' | 'restart' | 'speed' | 'follow' | 'clip' | 'back';
+
+export interface ReplayInfo {
+  playing: boolean;
+  speed: number;
+  follow: boolean;
+  /** Seconds played, of how many. */
+  time: number;
+  total: number;
+  /** Clips can be recorded in this browser. */
+  clips: boolean;
 }
 
 /** Menu art, made with ChatGPT (2560 by 1440 masters in /mnt/project-files/menu-art/). */
@@ -241,7 +255,7 @@ export class Hud {
     this.overlay.innerHTML = '';
   }
 
-  setMode(mode: 'planning' | 'raid' | 'results') {
+  setMode(mode: 'planning' | 'raid' | 'results' | 'replay') {
     if (mode === this.mode) return;
     this.mode = mode;
     this.goBtn.classList.toggle('hidden', mode !== 'planning');
@@ -272,12 +286,26 @@ export class Hud {
         ${(['A', 'B', 'C'] as const).map((c) => `<button class="tool code round" data-c="${c}" title="Call go code ${c}"><span>${c}</span></button>`).join('')}
         <span class="sep"></span>
         <button class="tool" data-r="drive" title="Drive off with whoever is at the van">${ICONS.car}<span class="cap">Leave</span></button>`;
+    } else if (mode === 'replay') {
+      this.topCentre.innerHTML = `<div class="job-now panel"><div class="t">${this.jobTitle}</div><div class="s">Replay</div></div>`;
+      this.topRight.innerHTML = '';
+      this.bar.innerHTML = `
+        <button class="tool" data-p="play" title="Play or pause (Space)">${ICONS.pause}</button>
+        <button class="tool" data-p="restart" title="From the start">${ICONS.replay}</button>
+        <button class="tool" data-p="speed" title="Speed (F)">${ICONS.fast}<span class="k">1x</span></button>
+        <button class="tool on" data-p="follow" title="Camera follows the action">${ICONS.follow}<span class="cap">Follow</span></button>
+        <span class="sep"></span>
+        <div class="track"><i></i></div><span class="clock-txt">0:00 / 0:00</span>
+        <span class="sep"></span>
+        <button class="tool wide clip-btn" data-p="clip" title="Record a 9:16 clip for TikTok or Shorts">${ICONS.film}<span>Make a clip</span></button>
+        <button class="tool" data-p="back" title="Back to the results">${ICONS.undo}<span class="cap">Back</span></button>`;
     } else {
       this.topCentre.innerHTML = '';
       this.topRight.innerHTML = '';
       this.bar.innerHTML = '';
     }
-    this.topRight.classList.toggle('hidden', mode === 'results');
+    this.topRight.classList.toggle('hidden', mode === 'results' || mode === 'replay');
+    this.bar.querySelectorAll<HTMLElement>('[data-p]').forEach((b) => b.addEventListener('click', () => this.h.replay(b.dataset.p as ReplayAction)));
     this.bar.classList.toggle('hidden', mode === 'results');
     this.bar.querySelectorAll<HTMLElement>('[data-t]').forEach((b) =>
       b.addEventListener('click', () => this.h.tool(b.dataset.t as 'kick')),
@@ -341,23 +369,7 @@ export class Hud {
     orders: { point: number | null; hold: GoCode | null; armed: boolean } = { point: null, hold: null, armed: false },
   ) {
     this.setMode('raid');
-    sim.crew.forEach((c, i) => {
-      const card = this.cards[i];
-      card.classList.toggle('sel', selected === i + 1);
-      card.classList.toggle('down', c.state === 'down');
-      setText(card.querySelector('.status')!, crewStatus(c, sim));
-      const badges = [];
-      if (c.carrying.length) badges.push(`<span class="bag" title="Carrying loot">${ICONS.bag}</span>`);
-      if (c.action?.kind === 'pick') badges.push(`<span title="Picking a lock">${ICONS.lock}</span>`);
-      setHtml(card.querySelector('.badges')!, badges.join(''));
-      (card.querySelector('.hp i') as HTMLElement).style.width = `${(100 * c.hp) / c.maxHp}%`;
-      if (this.lastHp[i] >= 0 && c.hp < this.lastHp[i]) {
-        card.classList.remove('hit');
-        void card.offsetWidth;
-        card.classList.add('hit');
-      }
-      this.lastHp[i] = c.hp;
-    });
+    this.updateCards(sim, selected);
     const setRing = (k: string, v: number) => {
       const c = this.topCentre.querySelector(`[data-k="${k}"] circle.fg`) as SVGCircleElement | null;
       if (c) c.style.strokeDashoffset = String(201 * (1 - Math.max(0, Math.min(1, v))));
@@ -391,6 +403,88 @@ export class Hud {
           ? `Click where ${name} should go. Drag to draw a route.`
           : 'Click a crew member, then where they should go. Space pauses to redraw routes and set go codes. A, B and C call the codes. Get everyone to the van.',
     );
+  }
+
+  /** The crew cards: state, badges and health. */
+  private updateCards(sim: Sim, selected: number) {
+    sim.crew.forEach((c, i) => {
+      const card = this.cards[i];
+      card.classList.toggle('sel', selected === i + 1);
+      card.classList.toggle('down', c.state === 'down');
+      setText(card.querySelector('.status')!, crewStatus(c, sim));
+      const badges = [];
+      if (c.carrying.length) badges.push(`<span class="bag" title="Carrying loot">${ICONS.bag}</span>`);
+      if (c.action?.kind === 'pick') badges.push(`<span title="Picking a lock">${ICONS.lock}</span>`);
+      setHtml(card.querySelector('.badges')!, badges.join(''));
+      (card.querySelector('.hp i') as HTMLElement).style.width = `${(100 * c.hp) / c.maxHp}%`;
+      if (this.lastHp[i] >= 0 && c.hp < this.lastHp[i]) {
+        card.classList.remove('hit');
+        void card.offsetWidth;
+        card.classList.add('hit');
+      }
+      this.lastHp[i] = c.hp;
+    });
+  }
+
+  /** The replay bar: play state, speed, follow, and how far through. */
+  updateReplay(sim: Sim, info: ReplayInfo) {
+    this.setMode('replay');
+    this.updateCards(sim, 0);
+    const play = this.bar.querySelector('[data-p="play"]');
+    if (play) setHtml(play as HTMLElement, info.playing ? ICONS.pause : ICONS.play);
+    const sp = this.bar.querySelector('[data-p="speed"] .k');
+    if (sp) setText(sp as HTMLElement, `${info.speed}x`);
+    this.bar.querySelector('[data-p="follow"]')?.classList.toggle('on', info.follow);
+    const fill = this.bar.querySelector('.track i') as HTMLElement | null;
+    if (fill) fill.style.width = `${(100 * Math.min(1, info.time / Math.max(0.001, info.total))).toFixed(1)}%`;
+    setText(this.bar.querySelector('.clock-txt')!, `${fmtTime(info.time)} / ${fmtTime(info.total)}`);
+    (this.bar.querySelector('[data-p="clip"]') as HTMLButtonElement | null)?.toggleAttribute('disabled', !info.clips);
+    setText(
+      this.hint,
+      info.clips
+        ? 'The camera follows the action; drag or zoom to look round yourself. Make a clip records a 9:16 video of the job for TikTok or Shorts.'
+        : 'The camera follows the action; drag or zoom to look round yourself. This browser cannot record video, so clips are off here.',
+    );
+  }
+
+  /** While a clip records: a note beside the frame, with a way to stop. */
+  showRecording(on: boolean, onCancel?: () => void) {
+    document.body.classList.toggle('clip-rec', on);
+    this.root.querySelector('.rec-note')?.remove();
+    if (!on) return;
+    const note = this.root.appendChild(
+      el(`<div class="rec-note panel"><span class="dot"></span><div><b>Recording a clip</b><span class="secs">0:00</span></div><button>Cancel</button></div>`),
+    );
+    note.querySelector('button')!.addEventListener('click', () => onCancel?.());
+  }
+
+  /** Seconds recorded so far, on the recording note. */
+  recordingTime(t: number) {
+    const s = this.root.querySelector('.rec-note .secs');
+    if (s) setText(s, fmtTime(t));
+  }
+
+  /** The finished clip, to watch and save. */
+  showClip(url: string, info: { seconds: number; mb: number; ext: string }, onSave: () => Promise<string>, onClose: () => void) {
+    const box = this.root.appendChild(
+      el(`<div class="clip-ready"><div class="clip-card panel">
+        <video src="${url}" autoplay loop muted playsinline></video>
+        <div class="clip-side">
+          <b>Your clip is ready</b>
+          <span>${fmtTime(info.seconds)} of vertical video, ${info.mb.toFixed(1)} MB, ${info.ext.toUpperCase()}. Made for TikTok, Shorts and Reels.</span>
+          <div class="menu"><button data-c="save">Save the clip</button><button data-c="close">Back to the replay</button></div>
+          <span class="clip-msg"></span>
+        </div></div></div>`),
+    );
+    const msg = box.querySelector('.clip-msg')!;
+    box.querySelector('[data-c="save"]')!.addEventListener('click', async () => {
+      const r = await onSave();
+      msg.textContent = r === 'saved' ? 'Saved.' : r === 'declined' ? 'Not saved.' : 'It could not be saved here.';
+    });
+    box.querySelector('[data-c="close"]')!.addEventListener('click', () => {
+      box.remove();
+      onClose();
+    });
   }
 
   toast(text: string, color = '#ffffff') {
@@ -455,12 +549,18 @@ export class Hud {
         </div>
       </div>
       <div class="res-buttons">
+        <button data-a="replay">${ICONS.replay}Watch the replay</button>
         <button data-a="replan">${ICONS.redo}Replan this job</button>
         <button data-a="fresh">${ICONS.clear}Start over</button>
         <button data-a="jobs">${ICONS.home}Pick another job</button>
       </div>`;
     this.overlay.querySelectorAll<HTMLElement>('[data-a]').forEach((b) =>
-      b.addEventListener('click', () => (b.dataset.a === 'jobs' ? this.h.jobs() : this.h.replan(b.dataset.a === 'fresh'))),
+      b.addEventListener('click', () => {
+        const a = b.dataset.a;
+        if (a === 'jobs') this.h.jobs();
+        else if (a === 'replay') this.h.replay('watch');
+        else this.h.replan(a === 'fresh');
+      }),
     );
   }
 }

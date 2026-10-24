@@ -197,9 +197,33 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .fall .lbl { grid-column: 2; font: 600 11px/1 var(--body); color: #9fb0d4; text-transform: uppercase; letter-spacing: 0.08em; margin-top: -8px; }
 .stars { display: flex; gap: 6px; color: var(--loot); }
 .stars svg { width: 34px; height: 34px; }
-.res-buttons { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; }
-.res-buttons button { display: flex; gap: 10px; align-items: center; padding: 12px 22px; font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 8px; border: 1px solid var(--c1); background: var(--glass); box-shadow: 0 0 14px rgba(34, 227, 255, 0.3); }
+.res-buttons { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; width: max-content; max-width: 94vw; }
+.res-buttons button { white-space: nowrap; display: flex; gap: 10px; align-items: center; padding: 12px 22px; font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 8px; border: 1px solid var(--c1); background: var(--glass); box-shadow: 0 0 14px rgba(34, 227, 255, 0.3); }
 .res-buttons svg { width: 22px; height: 22px; }
+
+/* Replay: a bar with play, speed, follow, how far through, and the clip button. */
+.bottom-bar .track { position: relative; width: 220px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.bottom-bar .track i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--c1), var(--c2)); }
+.bottom-bar .clock-txt { min-width: 92px; margin-left: 10px; font: 600 13px/1 var(--body); color: #cfe0ff; font-variant-numeric: tabular-nums; }
+.tool.clip-btn { gap: 8px; grid-auto-flow: column; color: #fff; box-shadow: inset 0 0 0 1px var(--c2); }
+.tool.clip-btn:hover { background: rgba(255, 45, 155, 0.16); }
+/* Recording a clip: the game in a tall frame in the middle, nothing else on screen but the note. */
+body.clip-rec #game { left: calc(50vw - 100vh * 9 / 32); right: auto; width: calc(100vh * 9 / 16); }
+body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
+.rec-note { position: absolute; left: 24px; top: 24px; display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.rec-note .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--c2); box-shadow: 0 0 10px var(--c2); animation: press 1.2s ease-in-out infinite; }
+.rec-note b { display: block; font: 700 18px/1.1 var(--head); letter-spacing: 0.08em; text-transform: uppercase; }
+.rec-note .secs { font: 600 13px/1.4 var(--body); color: #9fb0d4; font-variant-numeric: tabular-nums; }
+.rec-note button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--edge); background: transparent; color: #fff; font: 600 13px/1 var(--body); }
+/* The finished clip, to watch and save. */
+.clip-ready { position: absolute; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 16px 0; background: rgba(5, 8, 16, 0.8); pointer-events: auto; }
+.clip-card { display: flex; gap: 28px; align-items: center; padding: 20px; max-width: 94vw; }
+.clip-card video { height: min(78vh, 720px); aspect-ratio: 9 / 16; border-radius: 10px; background: #05080f; }
+.clip-side { display: flex; flex-direction: column; gap: 14px; max-width: 340px; }
+.clip-side b { font: 700 30px/1 var(--head); letter-spacing: 0.06em; text-transform: uppercase; }
+.clip-side span { font: 400 14px/1.5 var(--body); color: #b8c6e6; }
+.clip-side .menu button { min-width: 0; font-size: 20px; }
+.clip-side .clip-msg { color: var(--loot); font-weight: 600; }
 
 .hidden { display: none !important; }
 
@@ -211,6 +235,9 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
   .card .ring { width: 50px; height: 50px; }
   .go { min-width: 120px; height: 60px; font-size: 30px; }
   .results { flex-direction: column; }
+  .clip-card { flex-direction: column; }
+  .clip-card video { height: 60vh; }
+  .bottom-bar .track { width: 90px; }
   .res-left, .res-right { width: 90vw; }
 }
 

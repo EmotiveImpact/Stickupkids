@@ -177,6 +177,8 @@ export class View {
   private dust: ParticleSystem | null = null;
   private probeColour = new Color3();
   mode: Mode = 'planning';
+  /** Replays show everyone and lift the fog: the watcher sees what the crew could not. */
+  private reveal = false;
 
   /** `assets`: the folder holding the level's bake, e.g. models/estate/. */
   constructor(engine: Engine, level: Level, assets: string) {
@@ -366,6 +368,11 @@ export class View {
     }
   }
 
+  /** The margins the HUD takes on each side, in CSS pixels. */
+  getInsets(): View['insets'] {
+    return { ...this.insets };
+  }
+
   setInsets(i: Partial<View['insets']>) {
     Object.assign(this.insets, i);
     this.resize();
@@ -432,6 +439,37 @@ export class View {
     this.resize();
   }
 
+  /**
+   * Frame a replay shot: centre on a point at a zoom in CSS pixels a metre,
+   * never so far out, or so near an edge, that the frame shows past the level.
+   */
+  frameShot(x: number, y: number, pxPerMetre: number) {
+    this.zoom = Math.min(this.maxZoom, Math.max(this.fillZoom(), pxPerMetre / this.fitScale));
+    this.resize();
+    this.pan = { x: this.co.X(x), z: this.co.Z(y) };
+    const c = this.cam;
+    const hx = (c.orthoRight! - c.orthoLeft!) / 2;
+    const hz = (c.orthoTop! - c.orthoBottom!) / 2 / Math.sin(TILT);
+    const mx = Math.max(0, this.level.w / 2 - hx);
+    const mz = Math.max(0, this.level.h / 2 - hz);
+    this.pan.x = Math.max(-mx, Math.min(mx, this.pan.x));
+    this.pan.z = Math.max(-mz, Math.min(mz, this.pan.z));
+    this.resize();
+  }
+
+  /** The zoom at which the level fills the view both ways, not just one. */
+  private fillZoom(): number {
+    const sw = this.engine.getRenderWidth();
+    const sh = this.engine.getRenderHeight();
+    const dpr = sw / Math.max(1, this.engine.getRenderingCanvas()!.clientWidth);
+    const i = this.insets;
+    const uw = Math.max(100, sw - (i.left + i.right) * dpr);
+    const uh = Math.max(100, sh - (i.top + i.bottom) * dpr);
+    const kw = uw / (this.level.w + 1);
+    const kh = uh / (this.level.h * Math.sin(TILT) + WALL_H * Math.cos(TILT) + 0.5);
+    return Math.max(kw, kh) / Math.min(kw, kh);
+  }
+
   /** The stretch of map in view, in map coordinates. */
   visibleRect(): { x0: number; y0: number; x1: number; y1: number } | null {
     const i = this.insets;
@@ -478,6 +516,10 @@ export class View {
     this.atmosphere?.setRain(m === 'raid');
     this.bpTarget = m === 'planning' ? 1 : 0;
     this.pathKey = '';
+  }
+
+  setReveal(on: boolean) {
+    this.reveal = on;
   }
 
   /** A light blueprint wash while the raid is paused. */
@@ -1060,6 +1102,16 @@ export class View {
       }
       this.updateEnemy(a, e, sim, dt);
     }
+    // Backup from an earlier raid is not in this one (a replay, or planning again).
+    if (this.enemies.size > sim.enemies.length) {
+      const here = new Set(sim.enemies.map((e) => e.id));
+      for (const [id, a] of this.enemies) {
+        if (here.has(id)) continue;
+        a.root.setEnabled(false);
+        a.light.setEnabled(false);
+        a.cone.setEnabled(false);
+      }
+    }
     // Doors swing; a kicked door slams right back.
     for (const [key, d] of est.doors) {
       const [x, y] = key.split(',').map(Number);
@@ -1078,7 +1130,7 @@ export class View {
     }
     // Fog lifts once a room is seen.
     for (const [id, f] of this.fog) {
-      const target = sim.revealed.has(id) ? 0 : 1;
+      const target = this.reveal || sim.revealed.has(id) ? 0 : 1;
       const v = (f.visibility += (target - f.visibility) * Math.min(1, dt * 4));
       f.setEnabled(v > 0.02);
     }
@@ -1157,7 +1209,7 @@ export class View {
     let visible: boolean;
     if (e.state === 'gone') visible = false;
     else if (planning) visible = e.known;
-    else visible = e.seen || (e.known && (e.state === 'down' || e.state === 'subdued'));
+    else visible = this.reveal || e.seen || (e.known && (e.state === 'down' || e.state === 'subdued'));
     a.root.setEnabled(visible);
     a.light.setEnabled(visible);
     a.cone.setEnabled(visible && e.state !== 'down' && e.state !== 'subdued');

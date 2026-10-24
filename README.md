@@ -43,6 +43,8 @@ Clean jobs pay better. Auntie Pat pays 25% more for a job with no bodies and 5% 
 
 Plans never survive contact, so the raid can be steered as it goes: pause with Space at any moment, redraw anyone's remaining route, add holds and go codes, then carry on; or, without pausing, click a crew member and then where they should go. Get everyone to the getaway zone by the van before the police arrive. **Load a sample plan** on the title screen shows a quiet run.
 
+Every job can be watched again from the results screen. The replay shows everyone, fog lifted, with a camera that follows whoever the action is happening to (drag, scroll or press Follow to take it back). **Make a clip** records the replay as a 9:16 video for TikTok, Shorts or Reels, with the job's name, captions for what happens, the payout at the end and the STICKUPKIDS mark: MP4 where the browser can record it, WebM otherwise. The raid is recorded as its starting plan, its seed and the orders given during it (`src/sim/replay.ts`); the simulation is deterministic, so the replay matches step for step.
+
 ## Code layout
 
 ```

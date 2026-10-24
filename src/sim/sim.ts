@@ -167,6 +167,12 @@ export type SimEvent =
   | { type: 'drop'; id: string; loot: string }
   | { type: 'lost'; id: string; loot: string };
 
+/** An order given during the raid, by step, kept so the raid can be played again. */
+export type SimInput =
+  | { tick: number; kind: 'code'; code: GoCode }
+  | { tick: number; kind: 'orders'; slot: number; orders: Waypoint[] }
+  | { tick: number; kind: 'driveOff' };
+
 export interface Outcome {
   reason: 'escaped' | 'wiped' | 'police' | 'droveOff';
   take: number;
@@ -323,6 +329,12 @@ export class Sim {
   readonly codes = new Set<GoCode>();
   readonly revealed = new Set<string>();
   events: SimEvent[] = [];
+  /** What the raid started from and every order given since: enough to play it again (src/sim/replay.ts). */
+  readonly seed: number;
+  readonly startPlans: Waypoint[][];
+  readonly inputs: SimInput[] = [];
+  /** Steps taken. */
+  ticks = 0;
   time = 0;
   police = 0;
   policeActive = false;
@@ -339,6 +351,8 @@ export class Sim {
   constructor(level: Level, plans: Waypoint[][], seed = 7) {
     this.level = level;
     this.grid = new Grid(level);
+    this.seed = seed;
+    this.startPlans = plans.map((p) => p.map((w) => ({ ...w })));
     this.rng = mulberry32(seed);
     this.crew = CREW.map((def, i) => {
       const plan = plans[i]?.length ? plans[i] : [{ ...level.crewStarts[i], hold: null, kick: false }];
@@ -425,6 +439,7 @@ export class Sim {
 
   /** Call a go code: everyone holding on it moves off. */
   callCode(code: GoCode): void {
+    this.inputs.push({ tick: this.ticks, kind: 'code', code });
     this.codes.add(code);
   }
 
@@ -445,6 +460,7 @@ export class Sim {
    *  the leg they are on is unchanged they carry on along it, finishing a
    *  lock or a door; otherwise they drop it and head for the new point. */
   setOrders(slot: number, orders: Waypoint[]): void {
+    this.inputs.push({ tick: this.ticks, kind: 'orders', slot, orders: orders.map((w) => ({ ...w })) });
     const c = this.crew[slot - 1];
     if (!c || c.state === 'down' || c.state === 'escaped' || !orders.length) return;
     const here: Waypoint = { ...orders[0], x: c.x, y: c.y };
@@ -465,6 +481,7 @@ export class Sim {
   /** Leave now: whoever is at the van gets away, the rest are left behind. */
   driveOff(): void {
     if (this.outcome) return;
+    this.inputs.push({ tick: this.ticks, kind: 'driveOff' });
     for (const c of this.crew) {
       if (c.state !== 'down' && inRect(this.level.exit, c.x, c.y)) c.state = 'escaped';
     }
@@ -473,6 +490,7 @@ export class Sim {
 
   step(dt: number): void {
     if (this.outcome) return;
+    this.ticks++;
     this.time += dt;
     for (const e of this.enemies) e.seen = false;
     for (const c of this.crew) this.updateCrew(c, dt);

@@ -4,6 +4,7 @@ import { buildEstateHouse } from '../src/sim/level.ts';
 import { Grid } from '../src/sim/grid.ts';
 import { Sim, planSegments, TALK_TIME, type Enemy, type Waypoint } from '../src/sim/sim.ts';
 import { payoutFor, revengeRisk } from '../src/sim/payout.ts';
+import { Replay, record } from '../src/sim/replay.ts';
 import { inRect, type EnemyDef, type Level, type Vec } from '../src/sim/level.ts';
 import { samplePlans } from '../src/sim/samplePlan.ts';
 import { buildBurgessPark } from '../src/sim/burgess.ts';
@@ -332,4 +333,49 @@ test('clean jobs pay better', () => {
     assert.equal(o.bodies, 0, job.id);
     assert.ok(o.payout.total > o.take, `${job.id}: a quiet plan earns the clean bonus`);
   }
+});
+
+test('a replay plays the raid back step for step, orders and all', () => {
+  const dt = 1 / 60;
+  /** Where everyone is, to a millimetre. */
+  const trace = (sim: Sim) => [...sim.crew, ...sim.enemies].map((a) => `${a.x.toFixed(3)},${a.y.toFixed(3)}`).join(' ');
+  for (const job of JOBS) {
+    const sim = new Sim(job.build(), job.samplePlans(), 123457);
+    const seen: string[] = [];
+    let redirected = false;
+    while (!sim.outcome && sim.time < 400) {
+      for (const [t, c] of job.sampleCodes) if (sim.time < t && sim.time + dt >= t) sim.callCode(c);
+      // A pause rewrite at 4 s, and a new route for Jojo at 8 s: a few cells back the way he came.
+      if (sim.ticks === 240) for (const c of sim.crew) sim.setOrders(c.def.slot, sim.orders(c.def.slot));
+      if (sim.ticks === 480 && !redirected) {
+        redirected = true;
+        const o = sim.orders(3);
+        const back = sim.crew[2].plan[0];
+        sim.setOrders(3, [o[0], { ...back, hold: null, kick: false }, ...o.slice(1)]);
+      }
+      sim.step(dt);
+      sim.events = [];
+      seen.push(trace(sim));
+    }
+    const replay = new Replay(job.build(), record(sim, dt));
+    let k = 0;
+    while (!replay.done) {
+      replay.step();
+      replay.sim.events = [];
+      if (k < seen.length && replay.sim.ticks === k + 1) assert.equal(trace(replay.sim), seen[k++], `${job.id} step ${k}`);
+    }
+    assert.equal(k, seen.length, job.id);
+    assert.deepEqual(replay.sim.outcome, sim.outcome, job.id);
+  }
+});
+
+test('a replay of a raid ended by driving off ends the same way', () => {
+  const dt = 1 / 60;
+  const sim = new Sim(buildEstateHouse(), samplePlans(), 99);
+  while (sim.time < 3) sim.step(dt);
+  sim.driveOff();
+  const replay = new Replay(buildEstateHouse(), record(sim, dt));
+  while (!replay.done) replay.step();
+  assert.equal(replay.sim.outcome?.reason, 'droveOff');
+  assert.equal(replay.sim.ticks, sim.ticks);
 });

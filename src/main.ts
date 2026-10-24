@@ -5,11 +5,14 @@ import './ui/style.css';
 import type { GoCode, Level, Vec } from './sim/level.ts';
 import { JOBS, jobById, type Job } from './sim/jobs.ts';
 import { CREW, Sim, emptyPlans, planDoors, type SimEvent, type Waypoint } from './sim/sim.ts';
+import { Replay, record, type Recording } from './sim/replay.ts';
 import { View, createEngine, type PlanOverlay } from './render/view.ts';
-import { Hud } from './ui/hud.ts';
+import { Director } from './render/director.ts';
+import { ClipRecorder, saveFile } from './render/clip.ts';
+import { Hud, type ReplayAction } from './ui/hud.ts';
 import { Minimap } from './ui/minimap.ts';
 
-type Phase = 'title' | 'planning' | 'raid' | 'results';
+type Phase = 'title' | 'planning' | 'raid' | 'results' | 'replay';
 
 const q = new URLSearchParams(location.search);
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -50,6 +53,7 @@ const hud = new Hud(document.getElementById('hud')!, {
   },
   pickJob: (id) => pickJob(id),
   jobs: () => showJobs(),
+  replay: (a) => replayAction(a),
 });
 
 const minimap = new Minimap(document.getElementById('hud')!, (x, y) => view.focus(x, y));
@@ -84,10 +88,141 @@ function pickJob(id: string) {
   watchLoading();
 }
 
+// ----------------------------------------------------------------- replay
+
+/** The last raid, as it ended, and what it takes to play it again. */
+let finished: Sim | null = null;
+let recording: Recording | null = null;
+let replay: Replay | null = null;
+let replayPlaying = true;
+let replaySpeed = 1;
+/** The camera follows the action until the viewer moves it themselves. */
+let follow = true;
+const director = new Director();
+let clip: ClipRecorder | null = null;
+let clipT = 0;
+let clipSpeed = 1;
+let clipInsets: ReturnType<View['getInsets']> | null = null;
+/** A clip runs the raid fast enough to fit in about this many seconds. */
+const CLIP_RAID = 38;
+/** Seconds on the job's name before the raid starts moving in a clip. */
+const CLIP_LEAD = 1;
+/** Seconds on the payout at the end of a clip. */
+const CLIP_TAIL = 3.2;
+
+function replayAction(a: ReplayAction) {
+  if (a === 'watch') watchReplay();
+  else if (phase !== 'replay' || !replay || clip) return;
+  else if (a === 'play') {
+    if (replay.done) restartReplay();
+    else replayPlaying = !replayPlaying;
+  } else if (a === 'restart') restartReplay();
+  else if (a === 'speed') replaySpeed = replaySpeed === 1 ? 2 : replaySpeed === 2 ? 4 : 1;
+  else if (a === 'follow') follow = !follow;
+  else if (a === 'clip') void startClip();
+  else if (a === 'back') leaveReplay();
+}
+
+function watchReplay() {
+  if (!recording || !finished) return;
+  phase = 'replay';
+  hud.hideOverlay();
+  view.setReveal(true);
+  view.setMode('raid');
+  view.setPaused(false);
+  follow = true;
+  replaySpeed = 1;
+  restartReplay();
+}
+
+function restartReplay() {
+  replay = new Replay(level, recording!);
+  sim = replay.sim;
+  view.bind(sim);
+  director.reset();
+  replayPlaying = true;
+  acc = 0;
+}
+
+function leaveReplay() {
+  cancelClip();
+  view.setReveal(false);
+  replay = null;
+  sim = finished!;
+  view.bind(sim);
+  phase = 'results';
+  hud.showResults(finished!.outcome!, finished!);
+}
+
+/** Record the replay from the start as a 9:16 clip. */
+let clipStarting = false;
+async function startClip() {
+  if (!recording || clipStarting || !ClipRecorder.supported()) return;
+  clipStarting = true;
+  // The clip draws its words in the game's fonts.
+  await Promise.all([document.fonts.load('700 40px Rajdhani'), document.fonts.load('600 40px Inter')]).catch(() => null);
+  clipStarting = false;
+  if (phase !== 'replay') return;
+  restartReplay();
+  follow = true;
+  clipInsets = view.getInsets();
+  hud.showRecording(true, cancelClip);
+  view.setInsets({ left: 0, right: 0, top: 0, bottom: 0 });
+  clip = new ClipRecorder(canvas, { title: job.title, place: job.place });
+  clipSpeed = Math.min(4, Math.max(1, (recording.ticks * recording.dt) / CLIP_RAID));
+  clipT = 0;
+  clip.start();
+}
+
+function clipFrame(dt: number) {
+  if (!clip || !replay) return;
+  clip.frame(dt);
+  clipT += dt;
+  hud.recordingTime(clip.seconds);
+  const o = replay.sim.outcome;
+  if (replay.done && !clip.ending && o) {
+    const how = { escaped: 'Clean getaway', droveOff: 'Drove off', police: 'Police arrived', wiped: 'Crew wiped out' }[o.reason];
+    const m = Math.floor(o.time / 60);
+    clip.finish({ total: '£' + o.payout.total.toLocaleString('en-GB'), line: `${how} · ${m}:${String(Math.floor(o.time % 60)).padStart(2, '0')}` });
+  }
+  if (clip.ending > CLIP_TAIL) void finishClip();
+}
+
+async function finishClip() {
+  const c = clip!;
+  clip = null;
+  const blob = await c.stop();
+  endClipView();
+  replayPlaying = false;
+  const url = URL.createObjectURL(blob);
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+  hud.showClip(
+    url,
+    { seconds: c.seconds, mb: blob.size / 1e6, ext: c.ext },
+    () => saveFile(`stickupkids-${job.id}-${stamp}.${c.ext}`, blob),
+    () => URL.revokeObjectURL(url),
+  );
+}
+
+function cancelClip() {
+  if (!clip) return;
+  clip.cancel();
+  clip = null;
+  endClipView();
+}
+
+function endClipView() {
+  hud.showRecording(false);
+  if (clipInsets) view.setInsets(clipInsets);
+  clipInsets = null;
+}
+
 /** Back to the job board, keeping the current job picked. */
 function showJobs() {
   phase = 'title';
   paused = false;
+  view.setReveal(false);
   sim = preview;
   view.setMode('planning');
   hud.showTitle(JOBS, job.id);
@@ -147,6 +282,7 @@ function enterPlanning() {
 function go() {
   if (phase !== 'planning') return;
   phase = 'raid';
+  view.setReveal(false);
   sim = new Sim(level, plans, (Math.random() * 1e9) | 0);
   view.bind(sim);
   view.setMode('raid');
@@ -429,8 +565,16 @@ canvas.addEventListener('pointermove', (e) => {
 window.addEventListener('pointerup', () => (dragging = null));
 
 window.addEventListener('keydown', (e) => {
-  if (phase === 'title' || phase === 'results') return;
   const k = e.key.toLowerCase();
+  if (phase === 'replay') {
+    if (k === ' ') {
+      replayAction('play');
+      e.preventDefault();
+    } else if (k === 'f') replayAction('speed');
+    else if (k === 'escape') replayAction('back');
+    return;
+  }
+  if (phase === 'title' || phase === 'results') return;
   if (k >= '1' && k <= '4') selectCrew(Number(k));
   else if (k === 'a' || k === 'b' || k === 'c') code(k.toUpperCase() as GoCode);
   else if (k === 'k') tool('kick');
@@ -455,6 +599,7 @@ canvas.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault();
+    if (phase === 'replay') follow = false;
     if (!e.ctrlKey && isTrackpad(e)) view.panBy(-e.deltaX, -e.deltaY);
     else view.zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
   },
@@ -473,22 +618,25 @@ function isTrackpad(e: WheelEvent): boolean {
 }
 let panning: { x: number; y: number } | null = null;
 canvas.addEventListener('pointerdown', (e) => {
-  if (e.button !== 1) return;
+  // Middle-drag pans; in a replay, so does an ordinary drag.
+  if (e.button !== 1 && !(phase === 'replay' && e.button === 0)) return;
   panning = { x: e.clientX, y: e.clientY };
   e.preventDefault();
 });
 window.addEventListener('pointermove', (e) => {
   if (!panning) return;
+  if (phase === 'replay' && !clip) follow = false;
   view.panBy(e.clientX - panning.x, e.clientY - panning.y);
   panning = { x: e.clientX, y: e.clientY };
 });
 window.addEventListener('pointerup', (e) => {
-  if (e.button === 1) panning = null;
+  if (e.button === 1 || phase === 'replay') panning = null;
 });
 const PAN_KEYS: Record<string, [number, number]> = { arrowleft: [1, 0], arrowright: [-1, 0], arrowup: [0, 1], arrowdown: [0, -1] };
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (PAN_KEYS[k]) {
+    if (phase === 'replay') follow = false;
     view.panBy(PAN_KEYS[k][0] * 60, PAN_KEYS[k][1] * 60);
     e.preventDefault();
   } else if (k === '=' || k === '+') view.zoomAt(innerWidth / 2, innerHeight / 2, 1.2);
@@ -500,25 +648,31 @@ window.addEventListener('keydown', (e) => {
 const namesOf = (lv: Level): Record<string, string> => Object.fromEntries(lv.enemies.map((e) => [e.id, e.name]));
 let names = namesOf(level);
 
+/** A note on what just happened: a toast, and a caption when a clip is recording. */
+function note(text: string, colour = '#ffffff') {
+  hud.toast(text, colour);
+  clip?.caption(text, colour);
+}
+
 function narrate(events: SimEvent[]) {
   for (const ev of events) {
-    if (ev.type === 'alert') hud.toast(`${names[ev.id] ?? 'Backup'} has clocked you`, '#FF3B4E');
-    else if (ev.type === 'surrender') hud.toast(`${names[ev.id] ?? 'Backup'} gives up`, '#ffffff');
+    if (ev.type === 'alert') note(`${names[ev.id] ?? 'Backup'} has clocked you`, '#FF3B4E');
+    else if (ev.type === 'surrender') note(`${names[ev.id] ?? 'Backup'} gives up`, '#ffffff');
     else if (ev.type === 'loot') {
       const l = level.loot.find((x) => x.id === ev.id)!;
-      hud.toast(`${CREW[ev.slot - 1].name} bagged ${lower(l.name)}`, '#3DFFA2');
-    } else if (ev.type === 'backup') hud.toast(`Their backup has turned up at ${level.backup.place}`, '#FF3B4E');
-    else if (ev.type === 'reveal') hud.toast(`${level.rooms.find((r) => r.id === ev.room)?.name ?? 'Room'} scouted`, '#ffffff');
+      note(`${CREW[ev.slot - 1].name} bagged ${lower(l.name)}`, '#3DFFA2');
+    } else if (ev.type === 'backup') note(`Their backup has turned up at ${level.backup.place}`, '#FF3B4E');
+    else if (ev.type === 'reveal') note(`${level.rooms.find((r) => r.id === ev.room)?.name ?? 'Room'} scouted`, '#ffffff');
     else if (ev.type === 'down') {
       const civvy = !ev.crew && level.enemies.find((e) => e.id === ev.id)?.kind === 'civilian';
-      if (civvy) hud.toast(`The ${lower(names[ev.id])} has been hit. Nobody touches normal people`, '#ffffff');
-      else hud.toast(ev.crew ? `${CREW[Number(ev.id) - 1].name} is down` : `${names[ev.id] ?? 'Backup'} is down`, ev.crew ? '#FF3B4E' : '#ffffff');
-    } else if (ev.type === 'standoff') hud.toast(`${names[ev.id]} wants to talk. Get Taz on him before he runs out of patience`, CREW[3].color);
-    else if (ev.type === 'calling') hud.toast(`The ${lower(names[ev.id])} has seen you and is ringing 999. Hold them up`, '#ffffff');
-    else if (ev.type === 'police') hud.toast('They got through to 999. The police clock jumps', '#ffffff');
-    else if (ev.type === 'snatch') hud.toast(`${names[ev.id]} has grabbed ${lootName(ev.loot)} and is running`, '#FF3B4E');
-    else if (ev.type === 'drop') hud.toast(`${names[ev.id]} dropped ${lootName(ev.loot)}`, '#3DFFA2');
-    else if (ev.type === 'lost') hud.toast(`${names[ev.id]} got away with ${lootName(ev.loot)}`, '#FF3B4E');
+      if (civvy) note(`The ${lower(names[ev.id])} has been hit. Nobody touches normal people`, '#ffffff');
+      else note(ev.crew ? `${CREW[Number(ev.id) - 1].name} is down` : `${names[ev.id] ?? 'Backup'} is down`, ev.crew ? '#FF3B4E' : '#ffffff');
+    } else if (ev.type === 'standoff') note(`${names[ev.id]} wants to talk. Get Taz on him before he runs out of patience`, CREW[3].color);
+    else if (ev.type === 'calling') note(`The ${lower(names[ev.id])} has seen you and is ringing 999. Hold them up`, '#ffffff');
+    else if (ev.type === 'police') note('They got through to 999. The police clock jumps', '#ffffff');
+    else if (ev.type === 'snatch') note(`${names[ev.id]} has grabbed ${lootName(ev.loot)} and is running`, '#FF3B4E');
+    else if (ev.type === 'drop') note(`${names[ev.id]} dropped ${lootName(ev.loot)}`, '#3DFFA2');
+    else if (ev.type === 'lost') note(`${names[ev.id]} got away with ${lootName(ev.loot)}`, '#FF3B4E');
   }
 }
 
@@ -539,17 +693,29 @@ function tick(dt: number) {
       sim.step(STEP);
       acc -= STEP;
     }
+  } else if (phase === 'replay' && replay && replayPlaying && !replay.done && (!clip || clipT >= CLIP_LEAD)) {
+    acc += dt * (clip ? clipSpeed : replaySpeed);
+    while (acc >= STEP && !replay.done) {
+      replay.step();
+      acc -= STEP;
+    }
   }
   const events = sim.events;
   sim.events = [];
-  if (phase === 'raid') {
+  if (phase === 'raid' || phase === 'replay') {
     view.handleEvents(events);
     narrate(events);
+  }
+  if (phase === 'replay') {
+    const r = canvas.getBoundingClientRect();
+    const shot = director.update(dt, sim, events, r.width, r.height);
+    if (follow) view.frameShot(shot.x, shot.y, shot.ppm);
   }
   const overlay: PlanOverlay = { plans, version, selected, selectedWp, hover };
   view.bind(sim);
   const aiming = phase === 'planning' || phase === 'title' || (phase === 'raid' && (paused || armed !== null));
   view.frame(dt, sim, aiming ? overlay : { ...overlay, hover: null });
+  if (phase === 'replay') clipFrame(dt);
   hudT -= dt;
   if (hudT <= 0) {
     hudT = 0.1;
@@ -558,6 +724,15 @@ function tick(dt: number) {
     if (phase === 'planning' || phase === 'title') {
       const d = planDoors(level, preview.grid, plans);
       hud.updatePlanning({ plans, selected, selectedWp, kicks: d.kicks, picks: d.picks });
+    } else if (phase === 'replay' && replay) {
+      hud.updateReplay(sim, {
+        playing: replayPlaying && !replay.done,
+        speed: clip ? clipSpeed : replaySpeed,
+        follow,
+        time: sim.time,
+        total: recording!.ticks * recording!.dt,
+        clips: ClipRecorder.supported(),
+      });
     } else if (phase === 'raid') {
       const wp = paused && selectedWp !== null ? (sim.orders(selected)[selectedWp] ?? null) : null;
       hud.updateRaid(sim, paused, speed, selected, { point: wp ? selectedWp : null, hold: wp?.hold ?? null, armed: armed !== null });
@@ -565,6 +740,8 @@ function tick(dt: number) {
   }
   if (phase === 'raid' && sim.outcome) {
     phase = 'results';
+    finished = sim;
+    recording = record(sim, STEP);
     setTimeout(() => hud.showResults(sim.outcome!, sim), 900);
   }
 }
@@ -596,6 +773,12 @@ const api = {
   },
   get paused() {
     return paused;
+  },
+  replay: replayAction,
+  /** Play the replay to its end at once, and say how it ended. */
+  finishReplay() {
+    while (replay && !replay.done) replay.step();
+    return replay?.sim.outcome ?? null;
   },
   /** Screen position of a map point, for driving the mouse in tests. */
   toScreen(x: number, y: number) {

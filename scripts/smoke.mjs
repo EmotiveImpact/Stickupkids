@@ -126,6 +126,14 @@ const park = await page.evaluate(() => {
 assert.equal(park?.reason, 'escaped', 'the park sample plan escapes');
 assert.ok(park.take >= 15000, 'and takes the float');
 await page.screenshot({ path: process.env.OUT ? `${process.env.OUT}/smoke-park.png` : '/tmp/smoke-park.png' });
+
+// The replay plays the same raid again and ends the same way.
+await page.getByRole('button', { name: 'Watch the replay' }).click();
+await page.waitForFunction(() => window.__game.phase === 'replay' && window.__game.sim.time > 0, null, { timeout: 30000 });
+const again = await page.evaluate(() => window.__game.finishReplay());
+assert.deepEqual(again, park, 'the replay ends as the raid did');
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => window.__game.phase === 'results', null, { timeout: 10000 });
 assert.deepEqual(errors, [], 'no page errors');
 console.log('smoke test passed');
 await browser.close();
