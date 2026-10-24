@@ -125,6 +125,10 @@ let replaySpeed = 1;
 /** The camera follows the action until the viewer moves it themselves. */
 let follow = true;
 const director = new Director();
+/** In a raid the camera keeps the crew in a tight shot, until the player moves it; it drifts back after a while. */
+let raidCam: { x: number; y: number; ppm: number } | null = null;
+let raidCamIdle = 0;
+const RAID_CAM_RESUME = 8;
 let clip: ClipRecorder | null = null;
 let clipT = 0;
 let clipSpeed = 1;
@@ -320,10 +324,38 @@ function go() {
   sim = new Sim(level, plans, (Math.random() * 1e9) | 0, barricades);
   view.bind(sim);
   view.setMode('raid');
+  raidCam = view.shot();
+  raidCamIdle = RAID_CAM_RESUME;
   paused = false;
   touched = new Set();
   armed = null;
   selectedWp = null;
+}
+
+/** The raid camera: close on the crew still in it, easing as they spread and gather. */
+function followCrew(dt: number) {
+  if (!raidCam) return;
+  if (!paused) raidCamIdle += dt;
+  if (raidCamIdle < RAID_CAM_RESUME) {
+    // The player has the camera: pick up from wherever they left it.
+    raidCam = view.shot();
+    return;
+  }
+  const live = sim.crew.filter((c) => c.state !== 'escaped' && c.state !== 'down');
+  if (!live.length) return;
+  const xs = live.map((c) => c.x);
+  const ys = live.map((c) => c.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const i = view.getInsets();
+  const w = innerWidth - i.left - i.right;
+  const h = innerHeight - i.top - i.bottom;
+  // Room round the crew to see what they walk into; never so far out that people turn to specks.
+  const ppm = Math.min(46, Math.max(26, Math.min(w / (x1 - x0 + 18), h / ((y1 - y0) * 0.81 + 13))));
+  const k = 1 - Math.exp(-dt * 1.6);
+  raidCam.x += ((x0 + x1) / 2 - raidCam.x) * k;
+  raidCam.y += ((y0 + y1) / 2 - raidCam.y) * k;
+  raidCam.ppm *= Math.pow(ppm / raidCam.ppm, k);
+  view.frameShot(raidCam.x, raidCam.y, raidCam.ppm);
 }
 
 function selectCrew(slot: number) {
@@ -331,6 +363,7 @@ function selectCrew(slot: number) {
   if (slot === selected && view.big) {
     const c = phase === 'raid' || phase === 'results' ? sim.crew[slot - 1] : (currentWp() ?? plans[slot - 1][0]);
     view.focus(c.x, c.y);
+    raidCamIdle = 0;
   }
   selected = slot;
   selectedWp = null;
@@ -662,6 +695,7 @@ canvas.addEventListener(
   (e) => {
     e.preventDefault();
     if (phase === 'replay') follow = false;
+    raidCamIdle = 0;
     if (!e.ctrlKey && isTrackpad(e)) view.panBy(-e.deltaX, -e.deltaY);
     else view.zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
   },
@@ -688,6 +722,7 @@ canvas.addEventListener('pointerdown', (e) => {
 window.addEventListener('pointermove', (e) => {
   if (!panning) return;
   if (phase === 'replay' && !clip) follow = false;
+  raidCamIdle = 0;
   view.panBy(e.clientX - panning.x, e.clientY - panning.y);
   panning = { x: e.clientX, y: e.clientY };
 });
@@ -699,6 +734,7 @@ window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (PAN_KEYS[k]) {
     if (phase === 'replay') follow = false;
+    raidCamIdle = 0;
     view.panBy(PAN_KEYS[k][0] * 60, PAN_KEYS[k][1] * 60);
     e.preventDefault();
   } else if (k === '=' || k === '+') view.zoomAt(innerWidth / 2, innerHeight / 2, 1.2);
@@ -789,6 +825,7 @@ function tick(dt: number) {
     const shot = director.update(dt, sim, events, r.width, r.height);
     if (follow) view.frameShot(shot.x, shot.y, shot.ppm);
   }
+  if (phase === 'raid') followCrew(dt);
   const overlay: PlanOverlay = { plans, version, selected, selectedWp, hover };
   view.bind(sim);
   const aiming = phase === 'planning' || phase === 'title' || (phase === 'raid' && (paused || armed !== null));

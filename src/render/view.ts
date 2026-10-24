@@ -16,8 +16,10 @@ import {
   Matrix,
   Mesh,
   MeshBuilder,
+  MirrorTexture,
   ParticleSystem,
   PBRMaterial,
+  Plane,
   PointLight,
   PostProcess,
   Scene,
@@ -42,6 +44,30 @@ import { Constants } from '@babylonjs/core/Engines/constants';
 const OVERLAY = 0x10000000;
 const WORLD = 0x0fffffff;
 const TILT = (54 * Math.PI) / 180;
+/**
+ * How much each wet surface mirrors, as a multiple of a dry dielectric's
+ * reflection (about 4% looking down at this angle): roads and paving
+ * shine like the deck's street shots, hard floors indoors a little.
+ */
+const WET: Record<string, number> = {
+  tarmac: 9,
+  tarmac_alley: 8,
+  road: 9,
+  paint_road: 7,
+  paint_yellow: 7,
+  paving: 7,
+  path: 6,
+  path_edge: 5,
+  patio: 6,
+  concrete: 6,
+  kerb: 5,
+  coping: 4,
+  kiln_floor: 4,
+  track: 5,
+  tiles: 5,
+  lino: 4,
+  boards: 3,
+};
 /** Walk and run clip speeds in metres a second at scale 1. */
 const WALK = 0.95;
 const RUN = 3.4;
@@ -52,8 +78,21 @@ varying vec2 vUV;
 uniform sampler2D textureSampler;
 uniform float amount;
 uniform vec2 screenSize;
+// The deck's grade: a cold, wet night. Blues and violets wash out to a dark
+// teal-grey; sodium and orange keep their colour; blacks sit just off black.
+vec3 grade(vec3 c) {
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  float warm = smoothstep(0.03, 0.22, c.r - c.b) * smoothstep(-0.05, 0.12, c.r - c.g);
+  vec3 g = mix(vec3(l), c, mix(0.3, 0.92, warm));
+  vec3 teal = vec3(0.78, 0.97, 0.95);
+  g *= mix(teal, vec3(1.0), clamp(smoothstep(0.3, 0.85, l) + warm * 0.7, 0.0, 1.0));
+  // A soft S: deeper shadows, mids held, highlights left to bloom.
+  g = g * g * (3.0 - 2.0 * g) * 0.35 + g * 0.65;
+  return max(g - 0.006, 0.0) + vec3(0.004, 0.008, 0.009);
+}
 void main(void) {
   vec4 c = texture2D(textureSampler, vUV);
+  c.rgb = grade(clamp(c.rgb, 0.0, 1.0));
   if (amount <= 0.001) { gl_FragColor = c; return; }
   vec2 px = 1.0 / screenSize;
   float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
@@ -308,6 +347,7 @@ export class View {
     // A bake shared between jobs holds loot this job does not have.
     for (const [id, node] of estate.loot) if (!lv.loot.some((l) => l.id === id)) node.setEnabled(false);
     this.shadowLight.includedOnlyMeshes = estate.receivers;
+    this.wetGround(estate);
 
     // A soft moon key so characters keep their shape between pools of light.
     const key = (this.keyLight = new DirectionalLight('key', new Vector3(0.35, -0.85, 0.55), scene));
@@ -372,6 +412,30 @@ export class View {
     this.refreshKey();
     this.atmosphere = new Atmosphere(scene, this.co, this.level, estate, WORLD, 1 / Math.tan(TILT));
     this.atmosphere.setRain(this.mode === 'raid');
+  }
+
+  /**
+   * Rain on the ground: the outdoor surfaces and the hard floors mirror the
+   * lamps, lit windows and people above them, softly, the way wet paving does.
+   */
+  private wetGround(estate: Estate) {
+    const wet = new Set<PBRMaterial>();
+    for (const [key, m] of estate.materials) {
+      const name = key.replace(/:lm$/, '');
+      const k = WET[name];
+      if (k === undefined) continue;
+      m.roughness = Math.min(m.roughness ?? 1, 0.18);
+      m.environmentIntensity = k;
+      wet.add(m);
+    }
+    if (!wet.size) return;
+    const mirror = new MirrorTexture('wet', { ratio: 0.5 }, this.scene, true);
+    mirror.mirrorPlane = new Plane(0, -1, 0, 0.02);
+    mirror.adaptiveBlurKernel = 20;
+    mirror.activeCamera = this.cam;
+    // Everything in the world layer bar the wet floors themselves, which would only fight the plane.
+    mirror.renderListPredicate = (m) => (m.layerMask & WORLD) !== 0 && !(m.material instanceof PBRMaterial && wet.has(m.material));
+    for (const m of wet) m.reflectionTexture = mirror;
   }
 
   /** Drop the scene so another level can take the engine. */
@@ -477,6 +541,11 @@ export class View {
    * Frame a replay shot: centre on a point at a zoom in CSS pixels a metre,
    * never so far out, or so near an edge, that the frame shows past the level.
    */
+  /** Where the camera looks now, in map metres, and its zoom in CSS pixels a metre. */
+  shot(): { x: number; y: number; ppm: number } {
+    return { x: this.pan.x + this.level.w / 2, y: this.level.h / 2 - this.pan.z, ppm: this.ppm };
+  }
+
   frameShot(x: number, y: number, pxPerMetre: number) {
     this.zoom = Math.min(this.maxZoom, Math.max(this.fillZoom(), pxPerMetre / this.fitScale));
     this.resize();
@@ -711,21 +780,30 @@ export class View {
 
   /** Words that rise and fade over a spot on the map: HANDS UP, DOWN, and what people shout. */
   private popup(x: number, y: number, text: string, colour: string, height = 2.5) {
-    // Wide enough for the words (Rajdhani at this size runs about 46 px a letter).
-    const w = Math.max(512, Math.ceil((text.length * 50 + 64) / 64) * 64);
+    // A black chip with a hairline, the words spaced out in Inter, as on the HUD.
+    const font = '500 56px Inter, sans-serif';
+    const probe = document.createElement('canvas').getContext('2d')!;
+    probe.font = font;
+    const tw = probe.measureText(text.toUpperCase()).width + text.length * 7;
+    const w = Math.max(256, Math.ceil((tw + 72) / 64) * 64);
     const tex = new DynamicTexture('popup', { width: w, height: 128 }, this.scene, true);
     tex.hasAlpha = true;
     const g = tex.getContext() as unknown as CanvasRenderingContext2D;
     g.clearRect(0, 0, w, 128);
-    g.font = '700 92px Rajdhani, sans-serif';
+    const cw = tw + 56;
+    g.fillStyle = 'rgba(7,7,7,0.86)';
+    g.fillRect((w - cw) / 2, 20, cw, 88);
+    g.strokeStyle = 'rgba(242,241,238,0.22)';
+    g.lineWidth = 3;
+    g.strokeRect((w - cw) / 2, 20, cw, 88);
+    g.fillStyle = colour;
+    g.fillRect((w - cw) / 2, 20, 6, 88);
+    g.font = font;
+    (g as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '7px';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.lineJoin = 'round';
-    g.lineWidth = 16;
-    g.strokeStyle = 'rgba(8,12,24,0.9)';
-    g.strokeText(text, w / 2, 68);
     g.fillStyle = colour;
-    g.fillText(text, w / 2, 68);
+    g.fillText(text.toUpperCase(), w / 2 + 6, 66);
     tex.update();
     const m = new StandardMaterial('popupMat', this.scene);
     m.diffuseTexture = tex;
@@ -733,7 +811,7 @@ export class View {
     m.useAlphaFromDiffuseTexture = true;
     m.disableLighting = true;
     m.backFaceCulling = false;
-    const plane = MeshBuilder.CreatePlane('popup', { width: (3.6 * w) / 512, height: 0.9 }, this.scene);
+    const plane = MeshBuilder.CreatePlane('popup', { width: (2.6 * w) / 512, height: 0.65 }, this.scene);
     plane.material = m;
     plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
     plane.position.set(this.co.X(x), height, this.co.Z(y));
@@ -1607,7 +1685,7 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
     g.arc(s / 2, s / 2, s * 0.36, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, v));
     g.stroke();
     g.fillStyle = col;
-    g.font = `700 ${s * 0.36}px Rajdhani, sans-serif`;
+    g.font = `600 ${s * 0.36}px Inter, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText(talk ? '...' : '999', s / 2, s / 2 + (talk ? -s * 0.06 : s * 0.02));
@@ -1622,7 +1700,7 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
     g.closePath();
     g.fill();
     g.fillStyle = '#ffffff';
-    g.font = `700 ${s * 0.55}px Rajdhani, sans-serif`;
+    g.font = `600 ${s * 0.55}px Inter, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText(key === 'run' ? '»' : key === 'wait' ? '…' : '!', s / 2, s * 0.6);
@@ -1661,7 +1739,7 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
     g.fill();
     g.stroke();
     g.fillStyle = '#ffffff';
-    g.font = `700 ${s * 0.3}px Rajdhani, sans-serif`;
+    g.font = `600 ${s * 0.25}px Inter, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText('HELD', s / 2, s / 2 + s * 0.02);
@@ -1680,7 +1758,7 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
   g.arc(s / 2, s / 2, s * 0.36, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, v));
   g.stroke();
   g.fillStyle = surrender ? '#ffffff' : red;
-  g.font = `700 ${s * 0.5}px Rajdhani, sans-serif`;
+  g.font = `600 ${s * 0.5}px Inter, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillText(surrender ? '✋' : '?', s / 2, s / 2 + s * 0.03);
@@ -1725,10 +1803,10 @@ function drawPin(g: CanvasRenderingContext2D, name: string, age: string) {
   g.textAlign = 'left';
   g.textBaseline = 'middle';
   g.fillStyle = '#ffffff';
-  g.font = '700 54px Rajdhani, sans-serif';
+  g.font = '600 54px Inter, sans-serif';
   g.fillText(name.toUpperCase(), 122, 66, 360);
   g.fillStyle = red;
-  g.font = '700 44px Rajdhani, sans-serif';
+  g.font = '600 44px Inter, sans-serif';
   g.fillText(`POSTED ${age}`, 122, 120, 360);
 }
 
@@ -1801,7 +1879,7 @@ function drawWave(g: CanvasRenderingContext2D, s: number, waves: { n: number; t:
   g.fill();
   g.stroke();
   g.textBaseline = 'middle';
-  g.font = `700 ${s * 0.12}px Rajdhani, sans-serif`;
+  g.font = `600 ${s * 0.1}px Inter, sans-serif`;
   const label = `WAVE ${waves[0].n}`;
   const time = when(waves[0].t);
   const gap = s * 0.05;
@@ -1816,7 +1894,7 @@ function drawWave(g: CanvasRenderingContext2D, s: number, waves: { n: number; t:
   if (waves[1]) {
     g.textAlign = 'center';
     g.fillStyle = '#cfe0ff';
-    g.font = `600 ${s * 0.07}px Rajdhani, sans-serif`;
+    g.font = `500 ${s * 0.06}px Inter, sans-serif`;
     g.fillText(`THEN WAVE ${waves[1].n} AT ${when(waves[1].t)}`, c, top + s * 0.225);
   }
 }

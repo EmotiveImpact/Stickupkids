@@ -52,6 +52,8 @@ export interface Estate {
   lights: { kind: string; pos: Vector3 }[];
   /** Lightmapped meshes. They take character shadows. */
   receivers: AbstractMesh[];
+  /** Every mesh the level brought. */
+  meshes: AbstractMesh[];
   /** The TV screen, for flicker. */
   tv: PBRMaterial | null;
   materials: Map<string, PBRMaterial>;
@@ -209,7 +211,7 @@ export async function loadEstate(scene: Scene, base: string): Promise<Estate> {
   }
 
   const lights = meta.lights.map(([kind, p]) => ({ kind, pos: new Vector3(p[0], p[2], p[1]) }));
-  return { doors, loot, probe, lights, receivers, tv: materials.get('emit_tv') ?? null, materials, lamp: meta.lamp ?? '#ff9a3e' };
+  return { doors, loot, probe, lights, receivers, meshes: container.meshes, tv: materials.get('emit_tv') ?? null, materials, lamp: meta.lamp ?? '#ff9a3e' };
 }
 
 let curtainTex: DynamicTexture | null = null;
