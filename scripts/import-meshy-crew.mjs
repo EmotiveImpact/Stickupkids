@@ -4,6 +4,8 @@
 // - clips take the game's names (Idle, Walk, Run, CrouchWalk, Down), and
 //   the held poses the game needs are made from the first frame of a moving
 //   clip: Aim (rifle up, from walking while shooting) and CrouchIdle;
+// - Meshy's idle looks all round and sways, which reads as fidgeting from
+//   above, so it keeps only a share of its movement about its average pose;
 // - Meshy poses the arms for a rifle but sends no gun, so a plain rifle is
 //   built on the right hand bone, pointing at the left hand as it is while
 //   running and shooting (the clip with a true two-handed grip, and the one
@@ -24,6 +26,8 @@ const RENAME = {
 };
 /** Held poses: name, and the clip whose first frame they hold. Meshy's Combat_Stance holds the hands too far apart for a rifle. */
 const HELD = { Aim: 'Walk_Forward_While_Shooting', CrouchIdle: 'Cautious_Crouch_Walk_Forward' };
+/** Clips calmed down, and the share of their movement they keep. */
+const CALM = { Idle: 0.25 };
 /** Clips that travel; Down keeps its fall. */
 const MOVING = ['Walk_Forward_While_Shooting', 'Run_and_Shoot', 'Rifle_Charge', 'Cautious_Crouch_Walk_Forward', 'Sneaky_Walk'];
 
@@ -42,6 +46,17 @@ const qmul = (a, b) => [
   a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
 ];
 const conj = (q) => [-q[0], -q[1], -q[2], q[3]];
+const qdot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+const qnorm = (q) => q.map((x) => x / Math.hypot(...q));
+function slerp(a, b, t) {
+  const d = qdot(a, b);
+  if (d < 0) return slerp(a, b.map((x) => -x), t);
+  if (d > 0.9995) return qnorm(a.map((x, i) => x + (b[i] - x) * t));
+  const th = Math.acos(d);
+  const ka = Math.sin((1 - t) * th) / Math.sin(th);
+  const kb = Math.sin(t * th) / Math.sin(th);
+  return a.map((x, i) => x * ka + b[i] * kb);
+}
 const rot = (q, v) => qmul(qmul(q, [...v, 0]), conj(q)).slice(0, 3);
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
@@ -196,6 +211,23 @@ for (const [name, from] of Object.entries(HELD)) {
       .setOutput(acc(o.getType(), [...v, ...v], Float32Array))
       .setInterpolation('STEP');
     held.addSampler(sampler).addChannel(doc.createAnimationChannel().setTargetNode(ch.getTargetNode()).setTargetPath(ch.getTargetPath()).setSampler(sampler));
+  }
+}
+
+// ------------------------------------------------------------ calmer clips
+
+for (const [name, keep] of Object.entries(CALM)) {
+  for (const ch of anim(name)?.listChannels() ?? []) {
+    const o = ch.getSampler().getOutput();
+    const keys = Array.from({ length: o.getCount() }, (_, i) => o.getElement(i, []));
+    if (ch.getTargetPath() === 'rotation') {
+      // The average pose: the keys summed on the same side as the first, normalised.
+      const mean = qnorm(keys.reduce((m, q) => m.map((x, i) => x + (qdot(q, keys[0]) < 0 ? -q[i] : q[i])), [0, 0, 0, 0]));
+      keys.forEach((q, i) => o.setElement(i, slerp(mean, q, keep)));
+    } else {
+      const mean = keys.reduce((m, v) => m.map((x, i) => x + v[i] / keys.length), keys[0].map(() => 0));
+      keys.forEach((v, i) => o.setElement(i, mean.map((x, j) => x + (v[j] - x) * keep)));
+    }
   }
 }
 
