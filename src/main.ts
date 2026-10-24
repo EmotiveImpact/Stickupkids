@@ -66,11 +66,11 @@ const hud = new Hud(document.getElementById('hud')!, {
   },
 });
 
-const minimap = new Minimap(document.getElementById('hud')!, (x, y) => view.focus(x, y));
+const minimap = new Minimap(document.getElementById('hud')!, (x, y) => view.lookAt(x, y));
 
 /** A big level opens close in on the crew, with the overview map beside it. */
 function frameLevel() {
-  minimap.setLevel(view.big ? level : null);
+  minimap.setLevel(level);
   hud.big = view.big;
   if (!view.big) return;
   const s = level.crewStarts;
@@ -378,7 +378,8 @@ function currentWp(): Waypoint | null {
   return plan[plan.length - 1] ?? null;
 }
 
-function tool(t: 'kick' | 'undo' | 'clear' | 'sample') {
+function tool(t: 'kick' | 'undo' | 'clear' | 'sample' | 'hand') {
+  if (t === 'hand') return setHand(!hand);
   if (phase === 'raid' && paused) {
     if (t === 'kick') {
       order((o) => {
@@ -539,7 +540,7 @@ function addPoint(p: Vec): boolean {
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 canvas.addEventListener('pointerdown', (e) => {
-  if (e.button === 1) return;
+  if (e.button === 1 || (hand && e.button === 0)) return;
   const p = view.pick(e.clientX, e.clientY);
   if (!p) return;
   if (phase === 'planning') {
@@ -673,6 +674,7 @@ window.addEventListener('keydown', (e) => {
   if (k >= '1' && k <= '4') selectCrew(Number(k));
   else if (k === 'a' || k === 'b' || k === 'c') code(k.toUpperCase() as GoCode);
   else if (k === 'k') tool('kick');
+  else if (k === 'h') tool('hand');
   else if (k === 'backspace' || k === 'delete') tool('undo');
   else if (k === 'escape') {
     selectedWp = null;
@@ -713,10 +715,20 @@ function isTrackpad(e: WheelEvent): boolean {
   return wd !== 0 && wd % 120 !== 0;
 }
 let panning: { x: number; y: number } | null = null;
+/** The hand: while it is on, an ordinary drag moves round the map instead of drawing. */
+let hand = false;
+function setHand(on: boolean) {
+  hand = on;
+  hud.setHand(on);
+  canvas.classList.toggle('hand', on);
+  // A level that fits on screen has nowhere to go until you close in a little.
+  if (on && view.zoomLevel < 1.3) view.zoomAt(innerWidth / 2, innerHeight / 2, 1.6 / view.zoomLevel);
+}
 canvas.addEventListener('pointerdown', (e) => {
-  // Middle-drag pans; in a replay, so does an ordinary drag.
-  if (e.button !== 1 && !(phase === 'replay' && e.button === 0)) return;
+  // Middle-drag pans; with the hand, or in a replay, so does an ordinary drag.
+  if (e.button !== 1 && !((phase === 'replay' || hand) && e.button === 0)) return;
   panning = { x: e.clientX, y: e.clientY };
+  canvas.classList.add('grabbing');
   e.preventDefault();
 });
 window.addEventListener('pointermove', (e) => {
@@ -726,8 +738,9 @@ window.addEventListener('pointermove', (e) => {
   view.panBy(e.clientX - panning.x, e.clientY - panning.y);
   panning = { x: e.clientX, y: e.clientY };
 });
-window.addEventListener('pointerup', (e) => {
-  if (e.button === 1 || phase === 'replay') panning = null;
+window.addEventListener('pointerup', () => {
+  panning = null;
+  canvas.classList.remove('grabbing');
 });
 const PAN_KEYS: Record<string, [number, number]> = { arrowleft: [1, 0], arrowright: [-1, 0], arrowup: [0, 1], arrowdown: [0, -1] };
 window.addEventListener('keydown', (e) => {

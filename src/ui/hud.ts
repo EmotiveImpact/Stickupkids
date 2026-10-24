@@ -15,7 +15,7 @@ import { ICONS } from './icons.ts';
 
 export interface HudHandlers {
   selectCrew(slot: number): void;
-  tool(name: 'kick' | 'undo' | 'clear' | 'sample'): void;
+  tool(name: 'kick' | 'undo' | 'clear' | 'sample' | 'hand'): void;
   code(code: GoCode): void;
   go(): void;
   pause(): void;
@@ -383,6 +383,7 @@ export class Hud {
     const [what, where] = splitTitle(this.jobTitle);
     const codes = (title: string) =>
       (['A', 'B', 'C'] as const).map((c) => `<button class="tool code" data-c="${c}" title="${title} ${c}"><span>${c}</span></button>`).join('');
+    const handBtn = `<button class="tool${this.handOn ? ' on' : ''}" data-t="hand" title="Hand: drag to move round the map (H)">${ICONS.hand}<span class="k">H</span></button>`;
     if (mode === 'planning') {
       this.topLeft.innerHTML = `<span class="lab">Planning · time is frozen</span><span class="t">${where}${what ? ` <span>${what}</span>` : ''}</span>`;
       this.topBar.innerHTML = '';
@@ -391,6 +392,8 @@ export class Hud {
           ? `<span class="lab">Barricades</span><div class="segs bars"></div><span class="val"></span>`
           : `<span class="lab">Noise</span><div class="segs">${'<i></i>'.repeat(8)}</div><span class="val">Quiet</span>`;
       this.bar.innerHTML = `
+        ${handBtn}
+        <span class="sep"></span>
         <button class="tool" data-t="kick" title="Kick locked doors after this point (K)">${ICONS.boot}<span class="k">K</span></button>
         <span class="sep"></span>
         ${codes('Hold here until go code')}
@@ -411,6 +414,8 @@ export class Hud {
           <div class="take"><span class="lab">${take}</span><b>${this.jobMode === 'rideout' ? '0 of 0' : '£0'}</b></div></div>`;
       this.topRight.innerHTML = '';
       this.bar.innerHTML = `
+        ${handBtn}
+        <span class="sep"></span>
         <button class="tool" data-r="pause" title="Pause (Space)">${ICONS.pause}</button>
         <button class="tool" data-r="speed" title="Speed (F)">${ICONS.fast}<span class="k">1x</span></button>
         <span class="sep"></span>
@@ -450,6 +455,13 @@ export class Hud {
       }),
     );
     this.layout();
+  }
+
+  private handOn = false;
+  /** Light the hand button while dragging moves the map. */
+  setHand(on: boolean) {
+    this.handOn = on;
+    this.bar.querySelector('[data-t="hand"]')?.classList.toggle('on', on);
   }
 
   /** Tell the game how much of each edge the HUD takes, so the map is framed in what is left. */
@@ -520,7 +532,8 @@ export class Hud {
         (info.selectedWp !== null
           ? `Point ${info.selectedWp} of ${name}'s route selected. A, B or C to hold here for a go code, K to kick doors after it.`
           : `Click the map to add waypoints for ${name}. Drag to draw. Click a point to select it. Right click removes a point.`)) +
-        (this.big ? '\nTwo fingers or the arrow keys to look round, pinch to zoom, or click the overview map. Click a crew picture twice to find them.' : ''),
+        '\nThe hand (H) drags you round the map; scroll or pinch to zoom, or click the overview map.' +
+        (this.big ? ' Click a crew picture twice to find them.' : ''),
     );
   }
 

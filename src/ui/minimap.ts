@@ -1,4 +1,4 @@
-// The overview map for levels too big to see at once: the ground in
+// The overview map: the ground in
 // greys, lamps, loot, the crew, any of the opposition the crew
 // know about, and a frame round the part of the map in view. Click or drag
 // on it to move the camera.
@@ -48,7 +48,7 @@ export class Minimap {
     this.canvas.addEventListener('pointerup', () => (down = false));
   }
 
-  /** Show the map for a level, or hide it (null) for levels that fit on screen. */
+  /** Show the map for a level, or hide it (null). */
   setLevel(level: Level | null) {
     this.level = level;
     this.el.classList.toggle('hidden', !level);
@@ -83,6 +83,8 @@ export class Minimap {
     if (!lv || !this.base || this.el.classList.contains('off')) return;
     const g = this.canvas.getContext('2d')!;
     const s = this.canvas.width / lv.w;
+    // Markers keep a set size on screen: a small level would otherwise blow them up to blobs.
+    const u = Math.min(s, (2.2 * this.canvas.width) / 232);
     g.imageSmoothingEnabled = false;
     g.drawImage(this.base, 0, 0, this.canvas.width, this.canvas.height);
     // Lamp pools.
@@ -98,21 +100,21 @@ export class Minimap {
     // The getaway.
     const ex = lv.exit;
     g.strokeStyle = '#f2f1ee';
-    g.lineWidth = Math.max(1, s * 0.6);
+    g.lineWidth = Math.max(1, u * 0.6);
     g.strokeRect(ex.x0 * s, ex.y0 * s, (ex.x1 - ex.x0 + 1) * s, (ex.y1 - ex.y0 + 1) * s);
     // Loot still out there.
     g.fillStyle = '#ff7a1a';
     for (const l of sim.loot) {
       if (l.state !== 'placed') continue;
-      g.fillRect(l.x * s - 2.5 * s, l.y * s - 2.5 * s, 5 * s, 5 * s);
+      g.fillRect(l.x * s - 2.5 * u, l.y * s - 2.5 * u, 5 * u, 5 * u);
     }
     const dot = (x: number, y: number, r: number, fill: string, ring = false) => {
       g.beginPath();
-      g.arc(x * s, y * s, r * s, 0, Math.PI * 2);
+      g.arc(x * s, y * s, r * u, 0, Math.PI * 2);
       g.fillStyle = fill;
       g.fill();
       if (ring) {
-        g.lineWidth = Math.max(1, s * 0.5);
+        g.lineWidth = Math.max(1, u * 0.5);
         g.strokeStyle = '#070707';
         g.stroke();
       }
@@ -127,7 +129,7 @@ export class Minimap {
     });
     if (view) {
       g.strokeStyle = 'rgba(255,255,255,0.85)';
-      g.lineWidth = Math.max(1, s * 0.5);
+      g.lineWidth = Math.max(1, u * 0.5);
       const x0 = Math.max(0, view.x0) * s;
       const y0 = Math.max(0, view.y0) * s;
       const x1 = Math.min(lv.w, view.x1) * s;

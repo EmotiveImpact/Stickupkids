@@ -549,6 +549,16 @@ export class View {
     return Math.max(3.2, 52 / this.fitScale);
   }
 
+  /** How far in the camera is: 1 shows the whole level. */
+  get zoomLevel(): number {
+    return this.zoom;
+  }
+
+  /** Centre on a map point, closing in first when the whole level is in view. */
+  lookAt(x: number, y: number) {
+    this.focus(x, y, this.zoom < 1.5 ? 2 * this.fitScale : undefined);
+  }
+
   /** Centre the view on a map point, optionally at a zoom given in CSS pixels per metre. */
   focus(x: number, y: number, pxPerMetre?: number) {
     if (pxPerMetre) this.zoom = Math.min(this.maxZoom, Math.max(1, pxPerMetre / this.fitScale));
@@ -1619,7 +1629,9 @@ export class View {
     // Status icon above the head.
     if (a.icon) {
       let key = '';
-      if (e.state === 'hostile') key = '!';
+      // Planning: a pin over everyone the crew know about, so the plan is made against where they stand.
+      if (planning) key = e.kind === 'civilian' ? 'pin-civ' : e.kind === 'dog' ? 'pin-dog' : 'pin';
+      else if (e.state === 'hostile') key = '!';
       else if (e.state === 'fleeing') key = 'run';
       else if (e.state === 'standoff') key = e.leader ? 'wait' : `t${Math.round((e.talkT / TALK_TIME) * 20)}`;
       else if (e.state === 'calling') key = `c${Math.round((e.callT / CALL_TIME) * 20)}`;
@@ -1636,6 +1648,7 @@ export class View {
         a.icon.tex.update();
       }
       a.icon.plane.setEnabled(!!key && e.state !== 'down');
+      a.icon.plane.scaling.setAll(planning ? 1.5 : 1);
     }
   }
 }
@@ -1729,6 +1742,41 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText(key === 'run' ? '»' : key === 'wait' ? '…' : '!', s / 2, s * 0.6);
+    return;
+  }
+  if (key.startsWith('pin')) {
+    // A map pin pointing down at them: red for the opposition, pale for a civilian.
+    const civ = key === 'pin-civ';
+    const c = s / 2;
+    const cy = s * 0.36;
+    const r = s * 0.28;
+    g.beginPath();
+    g.arc(c, cy, r, Math.PI * 0.8, Math.PI * 0.2);
+    g.lineTo(c, s * 0.94);
+    g.closePath();
+    g.fillStyle = civ ? PALETTE.civilian : red;
+    g.fill();
+    g.strokeStyle = 'rgba(7,7,7,0.9)';
+    g.lineWidth = s * 0.05;
+    g.stroke();
+    g.fillStyle = civ ? '#070707' : '#ffffff';
+    if (key === 'pin-dog') {
+      g.beginPath();
+      g.ellipse(c, cy + s * 0.07, s * 0.085, s * 0.07, 0, 0, Math.PI * 2);
+      g.fill();
+      for (const [dx, dy] of [[-0.11, -0.03], [-0.04, -0.1], [0.04, -0.1], [0.11, -0.03]]) {
+        g.beginPath();
+        g.arc(c + dx * s, cy + dy * s, s * 0.035, 0, Math.PI * 2);
+        g.fill();
+      }
+    } else {
+      g.beginPath();
+      g.arc(c, cy - s * 0.07, s * 0.075, 0, Math.PI * 2);
+      g.fill();
+      g.beginPath();
+      g.ellipse(c, cy + s * 0.13, s * 0.15, s * 0.11, 0, Math.PI, 0);
+      g.fill();
+    }
     return;
   }
   if (key === 'target') {
