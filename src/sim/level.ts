@@ -34,7 +34,28 @@ export interface LootDef {
   heavy: boolean;
 }
 
-export type EnemyKind = 'dealer' | 'soldier' | 'runner' | 'dog';
+export type EnemyKind = 'dealer' | 'soldier' | 'runner' | 'dog' | 'civilian';
+
+/**
+ * How someone behaves once they clock the crew.
+ * - guard: shouts for the others and hunts the crew down.
+ * - muscle: hard to scare, holds his post and fights from there.
+ * - boss: talks before he shoots; only the Talker can talk him down, and his men stand down with him.
+ * - nervous: gives up easily, but if he sees you first he grabs the nearest stash and runs.
+ * - runner: runs for help, shouting the place up, and brings the backup sooner.
+ * - dog: charges, and its barking brings everyone near.
+ * - nosy: a civilian. Rings 999 unless someone gets to them first. Never armed, never a target.
+ */
+export type Persona = 'guard' | 'muscle' | 'boss' | 'nervous' | 'runner' | 'dog' | 'nosy';
+
+/** The persona each kind has unless its EnemyDef says otherwise. */
+export const DEFAULT_PERSONA: Record<EnemyKind, Persona> = {
+  dealer: 'nervous',
+  soldier: 'guard',
+  runner: 'runner',
+  dog: 'dog',
+  civilian: 'nosy',
+};
 
 export interface EnemyDef {
   id: string;
@@ -47,6 +68,8 @@ export interface EnemyDef {
   patrol: Vec[];
   /** Character model, when this one has their own (defaults to the kind's). */
   model?: string;
+  /** Behaviour, when it differs from the kind's default. */
+  persona?: Persona;
 }
 
 export interface PropDef {
@@ -251,7 +274,7 @@ export function buildEstateHouse(): Level {
         { x: 21.5, y: 11.5 },
       ],
     },
-    { id: 'runner', kind: 'runner', name: 'Runner', x: 9.5, y: 11.5, facing: Math.PI, patrol: [] },
+    { id: 'runner', kind: 'runner', name: 'Younger', x: 9.5, y: 11.5, facing: Math.PI, patrol: [] },
     {
       id: 'dog', kind: 'dog', name: 'Dog', x: 6.5, y: 5.5, facing: 0,
       patrol: [
@@ -259,6 +282,8 @@ export function buildEstateHouse(): Level {
         { x: 18.5, y: 5.5 },
       ],
     },
+    // Next door, out on the front step: sees the side passage and the front gardens.
+    { id: 'neighbour', kind: 'civilian', model: 'dealer', name: 'Neighbour', x: 28.5, y: 20.5, facing: Math.PI * 0.9, patrol: [] },
   ];
 
   return {

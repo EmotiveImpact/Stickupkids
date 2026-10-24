@@ -509,9 +509,20 @@ function narrate(events: SimEvent[]) {
       hud.toast(`${CREW[ev.slot - 1].name} bagged ${lower(l.name)}`, '#3DFFA2');
     } else if (ev.type === 'backup') hud.toast(`Their backup has turned up at ${level.backup.place}`, '#FF3B4E');
     else if (ev.type === 'reveal') hud.toast(`${level.rooms.find((r) => r.id === ev.room)?.name ?? 'Room'} scouted`, '#ffffff');
-    else if (ev.type === 'down') hud.toast(ev.crew ? `${CREW[Number(ev.id) - 1].name} is down` : `${names[ev.id] ?? 'Backup'} is down`, ev.crew ? '#FF3B4E' : '#ffffff');
+    else if (ev.type === 'down') {
+      const civvy = !ev.crew && level.enemies.find((e) => e.id === ev.id)?.kind === 'civilian';
+      if (civvy) hud.toast(`The ${lower(names[ev.id])} has been hit. Nobody touches normal people`, '#ffffff');
+      else hud.toast(ev.crew ? `${CREW[Number(ev.id) - 1].name} is down` : `${names[ev.id] ?? 'Backup'} is down`, ev.crew ? '#FF3B4E' : '#ffffff');
+    } else if (ev.type === 'standoff') hud.toast(`${names[ev.id]} wants to talk. Get Taz on him before he runs out of patience`, CREW[3].color);
+    else if (ev.type === 'calling') hud.toast(`The ${lower(names[ev.id])} has seen you and is ringing 999. Hold them up`, '#ffffff');
+    else if (ev.type === 'police') hud.toast('They got through to 999. The police clock jumps', '#ffffff');
+    else if (ev.type === 'snatch') hud.toast(`${names[ev.id]} has grabbed ${lootName(ev.loot)} and is running`, '#FF3B4E');
+    else if (ev.type === 'drop') hud.toast(`${names[ev.id]} dropped ${lootName(ev.loot)}`, '#3DFFA2');
+    else if (ev.type === 'lost') hud.toast(`${names[ev.id]} got away with ${lootName(ev.loot)}`, '#FF3B4E');
   }
 }
+
+const lootName = (id: string) => lower(level.loot.find((l) => l.id === id)?.name ?? 'the loot');
 
 /** Lower-case the first letter only, so place names keep their capitals. */
 const lower = (s: string) => s[0].toLowerCase() + s.slice(1);

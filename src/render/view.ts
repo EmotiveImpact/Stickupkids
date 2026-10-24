@@ -31,7 +31,7 @@ import {
   type AbstractMesh,
 } from './babylon.ts';
 import type { Level, Vec } from '../sim/level.ts';
-import { planSegments, type Crew, type Enemy, type Sim, type SimEvent, type Waypoint } from '../sim/sim.ts';
+import { CALL_TIME, TALK_TIME, planSegments, type Crew, type Enemy, type Sim, type SimEvent, type Waypoint } from '../sim/sim.ts';
 import { PALETTE, WALL_H } from './palette.ts';
 import { Coords, mat } from './world.ts';
 import { loadEstate, type Estate } from './estate.ts';
@@ -115,6 +115,8 @@ const modelFor = (e: { kind: string; model?: string }) => (e.model && MODELS.has
 
 /** Enemies who are held up or down drop their red: grey reads as out of the fight. */
 const NEUTRAL = '#aab4c8';
+/** Enemies are red; civilians are never red. */
+const colourOf = (kind: string) => (kind === 'civilian' ? PALETTE.civilian : PALETTE.enemy);
 
 interface Flash {
   light: PointLight;
@@ -546,16 +548,17 @@ export class View {
 
   private makeEnemyActor(kind: string, model = kind): Actor {
     const scene = this.scene;
-    const char = this.kits.get(model)!.spawn(scene, kind, { slot: PALETTE.enemy });
+    const col = colourOf(kind);
+    const char = this.kits.get(model)!.spawn(scene, kind, { slot: col });
     const { root, body, light } = char;
     for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
     const s = CHAR_SCALE;
     const ring = MeshBuilder.CreateTorus('ring', { diameter: (kind === 'dog' ? 0.66 : 0.6) / s, thickness: 0.035 / s, tessellation: 32 }, scene);
-    ring.material = mat(scene, PALETTE.enemy, { emissive: PALETTE.enemy, unlit: true });
+    ring.material = mat(scene, col, { emissive: col, unlit: true });
     ring.parent = root;
     ring.position.y = 0.04;
     this.toOverlay(ring);
-    const cone = this.makeCone(PALETTE.enemy, 0.2);
+    const cone = this.makeCone(col, 0.2);
     const tex = new DynamicTexture('icon', { width: 128, height: 128 }, scene, true);
     tex.hasAlpha = true;
     const plane = MeshBuilder.CreatePlane('icon', { size: 0.55 / s }, scene);
@@ -619,21 +622,23 @@ export class View {
     this.animate(a, 'down');
   }
 
-  /** Words that rise and fade over a spot on the map: HANDS UP, DOWN. */
-  private popup(x: number, y: number, text: string, colour: string) {
-    const tex = new DynamicTexture('popup', { width: 512, height: 128 }, this.scene, true);
+  /** Words that rise and fade over a spot on the map: HANDS UP, DOWN, and what people shout. */
+  private popup(x: number, y: number, text: string, colour: string, height = 2.5) {
+    // Wide enough for the words (Rajdhani at this size runs about 46 px a letter).
+    const w = Math.max(512, Math.ceil((text.length * 50 + 64) / 64) * 64);
+    const tex = new DynamicTexture('popup', { width: w, height: 128 }, this.scene, true);
     tex.hasAlpha = true;
     const g = tex.getContext() as unknown as CanvasRenderingContext2D;
-    g.clearRect(0, 0, 512, 128);
+    g.clearRect(0, 0, w, 128);
     g.font = '700 92px Rajdhani, sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.lineJoin = 'round';
     g.lineWidth = 16;
     g.strokeStyle = 'rgba(8,12,24,0.9)';
-    g.strokeText(text, 256, 68);
+    g.strokeText(text, w / 2, 68);
     g.fillStyle = colour;
-    g.fillText(text, 256, 68);
+    g.fillText(text, w / 2, 68);
     tex.update();
     const m = new StandardMaterial('popupMat', this.scene);
     m.diffuseTexture = tex;
@@ -641,10 +646,10 @@ export class View {
     m.useAlphaFromDiffuseTexture = true;
     m.disableLighting = true;
     m.backFaceCulling = false;
-    const plane = MeshBuilder.CreatePlane('popup', { width: 3.6, height: 0.9 }, this.scene);
+    const plane = MeshBuilder.CreatePlane('popup', { width: (3.6 * w) / 512, height: 0.9 }, this.scene);
     plane.material = m;
     plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
-    plane.position.set(this.co.X(x), 2.5, this.co.Z(y));
+    plane.position.set(this.co.X(x), height, this.co.Z(y));
     plane.isPickable = false;
     this.toOverlay(plane);
     this.fx.push({ mesh: plane, t: 0, life: 1.8, kind: 'popup' });
@@ -940,8 +945,13 @@ export class View {
           if (c) this.popup(c.x, c.y, `${c.def.name.toUpperCase()} DOWN`, this.crewColours()[c.def.slot - 1]);
         } else {
           const e = sim?.enemies.find((q) => q.id === ev.id);
-          if (e) this.popup(e.x, e.y, 'DOWN', '#ffffff');
+          if (e) this.popup(e.x, e.y, e.kind === 'civilian' ? 'HURT' : 'DOWN', '#ffffff');
         }
+      } else if (ev.type === 'say') {
+        const e = ev.slot ? null : this.lastSim?.enemies.find((q) => q.id === ev.id);
+        const col = ev.slot ? this.crewColours()[ev.slot - 1] : colourOf(e?.kind ?? 'enemy');
+        // A little north of the head, so it clears HANDS UP and DOWN.
+        this.popup(ev.x, ev.y - 1.1, ev.text, col, 3.2);
       }
       if (ev.type === 'noise' && ev.r >= 2.5) {
         const ring = MeshBuilder.CreateTorus('noise', { diameter: 2, thickness: 0.04, tessellation: 48 }, this.scene);
@@ -1149,7 +1159,7 @@ export class View {
     a.body.rotation.x = 0;
     a.body.position.y = 0;
     a.char?.update(dt);
-    const tint = e.state === 'down' || e.state === 'subdued' ? NEUTRAL : PALETTE.enemy;
+    const tint = e.state === 'down' || e.state === 'subdued' ? NEUTRAL : colourOf(e.kind);
     if (a.tint !== tint) {
       a.tint = tint;
       a.char?.setTint(tint);
@@ -1163,16 +1173,19 @@ export class View {
       this.animate(a, 'hands');
     } else {
       a.ring.visibility = 1;
-      this.animate(a, e.state === 'hostile' ? 'aim' : 'move');
+      // His men have their guns up while the boss talks.
+      this.animate(a, e.state === 'hostile' || (e.state === 'standoff' && e.leader) ? 'aim' : 'move');
       const fan = sim.grid.visionFan(e.x, e.y, e.facing, e.fov, e.range, 36);
       this.setCone(a.cone, fan, e.x, e.y, 0.05);
-      (a.cone.material as StandardMaterial).alpha = e.state === 'hostile' ? 0.32 : e.state === 'suspicious' ? 0.26 : 0.18;
+      (a.cone.material as StandardMaterial).alpha = e.state === 'hostile' ? 0.32 : e.state === 'calm' ? 0.18 : 0.27;
     }
     // Status icon above the head.
     if (a.icon) {
       let key = '';
       if (e.state === 'hostile') key = '!';
       else if (e.state === 'fleeing') key = 'run';
+      else if (e.state === 'standoff') key = e.leader ? 'wait' : `t${Math.round((e.talkT / TALK_TIME) * 20)}`;
+      else if (e.state === 'calling') key = `c${Math.round((e.callT / CALL_TIME) * 20)}`;
       else if (e.state === 'subdued') key = 'hands';
       else if (e.state === 'suspicious') key = `?${Math.round(e.alert * 10)}`;
       else if (e.surrender > 0.02) key = `s${Math.round(e.surrender * 10)}`;
@@ -1242,7 +1255,30 @@ function drawKick(g: CanvasRenderingContext2D, s: number, color: string) {
 function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enemy) {
   const red = PALETTE.enemy;
   g.lineCap = 'round';
-  if (key === '!' || key === 'run') {
+  if (key.startsWith('t') || key.startsWith('c')) {
+    // The boss talking, or a civilian on the phone: a bubble, and an arc for the time left.
+    const talk = key.startsWith('t');
+    const col = talk ? red : PALETTE.civilian;
+    const v = talk ? e.talkT / TALK_TIME : e.callT / CALL_TIME;
+    g.fillStyle = 'rgba(10,18,36,0.9)';
+    g.beginPath();
+    g.arc(s / 2, s / 2, s * 0.36, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.18)';
+    g.lineWidth = s * 0.09;
+    g.stroke();
+    g.strokeStyle = col;
+    g.beginPath();
+    g.arc(s / 2, s / 2, s * 0.36, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, v));
+    g.stroke();
+    g.fillStyle = col;
+    g.font = `700 ${s * 0.36}px Rajdhani, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(talk ? '...' : '999', s / 2, s / 2 + (talk ? -s * 0.06 : s * 0.02));
+    return;
+  }
+  if (key === '!' || key === 'run' || key === 'wait') {
     g.fillStyle = red;
     g.beginPath();
     g.moveTo(s / 2, s * 0.08);
@@ -1254,7 +1290,7 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
     g.font = `700 ${s * 0.55}px Rajdhani, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText(key === 'run' ? '»' : '!', s / 2, s * 0.6);
+    g.fillText(key === 'run' ? '»' : key === 'wait' ? '…' : '!', s / 2, s * 0.6);
     return;
   }
   if (key === 'hands') {

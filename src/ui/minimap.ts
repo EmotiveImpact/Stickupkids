@@ -119,7 +119,7 @@ export class Minimap {
     };
     for (const e of sim.enemies) {
       if (!e.known || e.state === 'gone') continue;
-      dot(e.x, e.y, 2.2, e.state === 'down' || e.state === 'subdued' ? '#6b7690' : '#ff3b4e', true);
+      dot(e.x, e.y, 2.2, e.state === 'down' || e.state === 'subdued' ? '#6b7690' : e.kind === 'civilian' ? '#e4ecff' : '#ff3b4e', true);
     }
     sim.crew.forEach((c, i) => {
       if (c.state === 'escaped') return;

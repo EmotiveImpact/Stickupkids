@@ -168,6 +168,13 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .cut .bar i { display: block; height: 100%; background: var(--col); }
 .cut .pct { font: 700 24px/1 var(--head); text-align: right; }
 .cut .tag { font: 600 11px/1 var(--body); color: var(--enemy); text-transform: uppercase; letter-spacing: 0.06em; }
+.payout { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: baseline; font: 500 14px/1.2 var(--body); color: #cfe0ff; padding-bottom: 12px; border-bottom: 1px solid var(--edge); }
+.payout .head { grid-column: 1 / -1; font: 700 12px/1 var(--head); letter-spacing: 0.14em; text-transform: uppercase; color: #8fb4ff; margin-bottom: 2px; }
+.payout span:nth-child(odd):not(.head) { color: #b8c6e6; }
+.payout .plus { color: var(--loot); font-weight: 700; }
+.payout .minus { color: #9fb0d4; font-weight: 700; }
+.payout .sum { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.payout .total { font: 700 24px/1 var(--head); color: var(--loot); padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
 .fall { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--edge); }
 .fall svg { width: 36px; height: 36px; }
 .fall .segs i { width: 22px; height: 26px; }

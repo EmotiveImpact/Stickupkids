@@ -315,7 +315,7 @@ export class Hud {
     setRing('police', sim.police);
     setRing('backup', sim.backupProgress);
     const total = sim.loot.reduce((s, l) => s + l.def.value, 0);
-    const got = sim.loot.filter((l) => l.state !== 'placed').reduce((s, l) => s + l.def.value, 0);
+    const got = sim.loot.filter((l) => l.state === 'carried' || l.state === 'secured').reduce((s, l) => s + l.def.value, 0);
     const segs = this.topRight.querySelectorAll('.segs i');
     segs.forEach((s, i) => s.classList.toggle('on', i < Math.round((got / total) * segs.length)));
     setText(this.topRight.querySelector('.amt')!, money(got));
@@ -385,17 +385,23 @@ export class Hud {
     this.overlay.innerHTML = `
       <div class="results">
         <div class="res-left panel">
-          <div class="take">${money(o.take)}</div>
+          <div class="take">${money(o.payout.total)}</div>
           <div class="reason">${reason} · ${fmtTime(o.time)}</div>
           <div class="items">${items}</div>
           ${cuts}
         </div>
         <div class="res-right panel">
+          <div class="payout">
+            <span class="head">What Auntie Pat pays</span>
+            <span>Loot carried out</span><span>${money(o.take)}</span>
+            ${o.payout.lines.map((l) => `<span>${l.label}</span><span class="${l.pct >= 0 ? 'plus' : 'minus'}">${l.pct >= 0 ? '+' : '−'}${Math.round(Math.abs(l.pct) * 100)}%</span>`).join('')}
+            <span class="sum">The crew banks</span><span class="total">${money(o.payout.total)}</span>
+          </div>
           <div class="fall"><span>${ICONS.siren}</span>${bar(Math.round(o.policeHeat / 6), '#22E3FF')}<span class="lbl">Police heat +${o.policeHeat}</span></div>
-          <div class="fall"><span style="color:var(--enemy)">${ICONS.mask}</span>${bar(Math.round(o.rivalHeat / 5), '#FF3B4E')}<span class="lbl">Rival crew heat +${o.rivalHeat}</span></div>
+          <div class="fall"><span style="color:var(--enemy)">${ICONS.mask}</span>${bar(Math.round(o.rivalHeat / 5), '#FF3B4E')}<span class="lbl">Rival crew heat +${o.rivalHeat} · Revenge risk ${o.revengeRisk}%</span></div>
           <div class="fall"><span>${ICONS.crew}</span><div class="stars">${Array.from({ length: 5 }, (_, i) => (i < stars ? ICONS.starFill : ICONS.star)).join('')}</div><span class="lbl">Reputation ${o.rep >= 0 ? '+' : ''}${o.rep}</span></div>
           <div class="fall" style="border:0"><span></span><div style="font:400 13px/1.5 var(--body);color:#b8c6e6">
-            ${o.shots ? `${o.shots} shots fired. ` : 'No shots fired. '}${o.enemiesSubdued} held up, ${o.enemiesDown} put down.</div></div>
+            ${o.shots ? `${o.shots} shots fired. ` : 'No shots fired. '}${o.enemiesSubdued} held up, ${o.bodies} ${o.bodies === 1 ? 'body' : 'bodies'}${o.dogsDown ? `, ${o.dogsDown} ${o.dogsDown === 1 ? 'dog' : 'dogs'} down` : ''}.${o.civiliansHurt ? ` ${o.civiliansHurt} civilian${o.civiliansHurt === 1 ? '' : 's'} hurt.` : ''}${o.policeCalled ? ' A neighbour rang 999.' : ''}</div></div>
         </div>
       </div>
       <div class="res-buttons">
