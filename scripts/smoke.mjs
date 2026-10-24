@@ -13,8 +13,12 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 await page.goto(base);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 60000 });
-await page.getByRole('button', { name: 'Start' }).click();
-await page.getByText('Plan the job').click();
+// Past the title, onto the job board. Every job's Plan button has to sit on screen.
+await page.keyboard.press('Enter');
+const plan = page.getByRole('button', { name: 'Plan the job' });
+const box = await plan.boundingBox();
+assert.ok(box && box.y + box.height <= 900, 'Plan the job is on screen');
+await plan.click();
 
 const clickMap = async (x, y, button = 'left') => {
   const p = await page.evaluate(([x, y]) => window.__game.toScreen(x, y), [x, y]);

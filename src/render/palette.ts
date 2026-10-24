@@ -2,7 +2,7 @@
 // charcoal or plum.
 
 export const PALETTE = {
-  night: '#0B1220',
+  night: '#070707',
   glass: '#121A2B',
   moon: '#3A6FD8',
   street: '#FF9A2E',
@@ -10,7 +10,8 @@ export const PALETTE = {
   enemy: '#FF3B4E',
   /** Civilians: never red, never a target. */
   civilian: '#E4ECFF',
-  loot: '#3DFFA2',
+  /** Loot is the accent: sodium orange. */
+  loot: '#FF7A1A',
   // Scene materials.
   brick: '#3b2433',
   brickTop: '#6d5a72',

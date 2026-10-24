@@ -59,6 +59,11 @@ const hud = new Hud(document.getElementById('hud')!, {
   pickJob: (id) => pickJob(id),
   jobs: () => showJobs(),
   replay: (a) => replayAction(a),
+  // While a clip records the game fills the frame; the HUD's margins come back afterwards.
+  layout: (i) => {
+    if (clipInsets) clipInsets = i;
+    else view.setInsets(i);
+  },
 });
 
 const minimap = new Minimap(document.getElementById('hud')!, (x, y) => view.focus(x, y));
@@ -77,10 +82,10 @@ function frameLevel() {
     const x1 = Math.max(...pts.map((p) => p.x)) + 6;
     const y0 = Math.min(...pts.map((p) => p.y)) - 6;
     const y1 = Math.max(...pts.map((p) => p.y)) + 10;
-    // The story panel takes the right-hand side.
-    const panel = innerWidth < 900 ? 220 : 300;
-    const ppm = Math.min(28, Math.max(8, Math.min((innerWidth - 280 - panel) / (x1 - x0), (innerHeight - 160) / ((y1 - y0) * 0.81))));
-    view.focus((x0 + x1) / 2 + panel / 2 / ppm, (y0 + y1) / 2, ppm);
+    // Fit it in what the HUD leaves clear (the story panel included).
+    const i = view.getInsets();
+    const ppm = Math.min(28, Math.max(8, Math.min((innerWidth - i.left - i.right) / (x1 - x0), (innerHeight - i.top - i.bottom) / ((y1 - y0) * 0.81))));
+    view.focus((x0 + x1) / 2, (y0 + y1) / 2, ppm);
     return;
   }
   view.focus(s.reduce((a, c) => a + c.x, 0) / s.length - 12, s.reduce((a, c) => a + c.y, 0) / s.length, 28);
@@ -89,13 +94,15 @@ function frameLevel() {
 /** Swap the level under the game for another job's. */
 function pickJob(id: string) {
   const next = jobById(id);
-  hud.selectJob(next.id);
-  if (next === job) return;
+  if (next === job) return hud.selectJob(next.id);
   job = next;
   view.dispose();
   level = job.build();
   names = namesOf(level);
   view = new View(engine, level, artOf(job));
+  // The HUD lays itself out for this job and gives the new view its margins, then the level is framed in them.
+  hud.setJob(job, level);
+  hud.selectJob(job.id);
   frameLevel();
   plans = emptyPlans(level);
   barricades = [];
@@ -104,7 +111,6 @@ function pickJob(id: string) {
   changed();
   sim = preview;
   view.setMode('planning');
-  hud.setJob(job);
   watchLoading();
 }
 
@@ -180,7 +186,7 @@ async function startClip() {
   if (!recording || clipStarting || !ClipRecorder.supported()) return;
   clipStarting = true;
   // The clip draws its words in the game's fonts.
-  await Promise.all([document.fonts.load('700 40px Rajdhani'), document.fonts.load('600 40px Inter')]).catch(() => null);
+  await Promise.all([document.fonts.load('400 40px Anton'), document.fonts.load('300 40px Inter'), document.fonts.load('600 40px Inter')]).catch(() => null);
   clipStarting = false;
   if (phase !== 'replay') return;
   restartReplay();
@@ -828,7 +834,7 @@ engine.runRenderLoop(() => {
   last = now;
 });
 
-hud.setJob(job);
+hud.setJob(job, level);
 // The title screen first, unless a job was asked for by name.
 if (q.has('job')) hud.showTitle(JOBS, job.id);
 else hud.showSplash(JOBS, job.id);
@@ -849,6 +855,9 @@ const api = {
   },
   get barricades() {
     return barricades;
+  },
+  get view() {
+    return view;
   },
   barricade: (x: number, y: number) => toggleBarricade(x, y, level.doors.find((d) => d.x === x && d.y === y)?.name ?? 'Door'),
   get paused() {

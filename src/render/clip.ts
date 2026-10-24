@@ -27,10 +27,9 @@ interface Caption {
 
 const CAPTION_LIFE = 2.8;
 const INTRO = 1.6;
-const C1 = '#22E3FF';
-const C2 = '#FF2D9B';
-const C4 = '#FFB020';
-const LOOT = '#3DFFA2';
+const LOOT = '#FF7A1A';
+const INK = '#f2f1ee';
+const MUTE = '#8e8e8a';
 
 /**
  * The best video format this browser can record: H.264 MP4 where it can
@@ -123,29 +122,31 @@ export class ClipRecorder {
     const k = Math.max(CLIP_W / sw, CLIP_H / sh);
     const cw = CLIP_W / k;
     const ch = CLIP_H / k;
-    g.fillStyle = '#05080f';
+    g.fillStyle = '#070707';
     g.fillRect(0, 0, CLIP_W, CLIP_H);
     g.drawImage(this.source, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, CLIP_W, CLIP_H);
 
     // Top band: the mark, the job and where.
     const top = g.createLinearGradient(0, 0, 0, 420);
-    top.addColorStop(0, 'rgba(5,8,16,0.88)');
-    top.addColorStop(1, 'rgba(5,8,16,0)');
+    top.addColorStop(0, 'rgba(7,7,7,0.88)');
+    top.addColorStop(1, 'rgba(7,7,7,0)');
     g.fillStyle = top;
     g.fillRect(0, 0, CLIP_W, 420);
     this.mark(72, 150, 92);
     g.textAlign = 'left';
-    g.fillStyle = '#ffffff';
-    g.font = '700 54px Rajdhani, sans-serif';
-    g.fillText(this.info.title.toUpperCase(), 72, 262, CLIP_W - 144);
-    g.fillStyle = C4;
-    g.font = '600 30px Inter, sans-serif';
+    g.fillStyle = INK;
+    g.font = '300 58px Inter, sans-serif';
+    g.fillText(this.info.title, 72, 262, CLIP_W - 144);
+    g.fillStyle = MUTE;
+    g.font = '500 24px Inter, sans-serif';
+    g.letterSpacing = '6px';
     g.fillText(this.info.place.toUpperCase(), 72, 310, CLIP_W - 144);
+    g.letterSpacing = '0px';
 
     // Bottom band: what just happened.
     const bot = g.createLinearGradient(0, CLIP_H - 520, 0, CLIP_H);
-    bot.addColorStop(0, 'rgba(5,8,16,0)');
-    bot.addColorStop(1, 'rgba(5,8,16,0.85)');
+    bot.addColorStop(0, 'rgba(7,7,7,0)');
+    bot.addColorStop(1, 'rgba(7,7,7,0.85)');
     g.fillStyle = bot;
     g.fillRect(0, CLIP_H - 520, CLIP_W, 520);
     this.captions = this.captions.filter((c) => (c.t += dt) < CAPTION_LIFE);
@@ -158,34 +159,33 @@ export class ClipRecorder {
     // Opening: the job's name, large, for a moment.
     if (this.t < INTRO) {
       const a = Math.min(1, (INTRO - this.t) / 0.5);
-      g.fillStyle = `rgba(5,8,16,${0.55 * a})`;
+      g.fillStyle = `rgba(7,7,7,${0.55 * a})`;
       g.fillRect(0, 0, CLIP_W, CLIP_H);
       g.globalAlpha = a;
       g.textAlign = 'center';
-      g.fillStyle = '#ffffff';
-      g.font = '700 96px Rajdhani, sans-serif';
-      this.wrap(this.info.title.toUpperCase(), CLIP_W / 2, CLIP_H / 2 - 40, CLIP_W - 140, 96);
+      g.fillStyle = INK;
+      g.font = '300 96px Inter, sans-serif';
+      this.wrap(this.info.title, CLIP_W / 2, CLIP_H / 2 - 40, CLIP_W - 140, 104);
       g.globalAlpha = 1;
     }
 
     // Ending: what the crew banked.
     if (this.end) {
       const a = Math.min(1, this.endT / 0.5);
-      g.fillStyle = `rgba(5,8,16,${0.72 * a})`;
+      g.fillStyle = `rgba(7,7,7,${0.72 * a})`;
       g.fillRect(0, 0, CLIP_W, CLIP_H);
       g.globalAlpha = a;
       g.textAlign = 'center';
-      g.fillStyle = '#9fb0d4';
-      g.font = '600 34px Inter, sans-serif';
-      g.fillText(this.end.head ?? 'THE CREW BANKS', CLIP_W / 2, CLIP_H / 2 - 120);
+      g.fillStyle = MUTE;
+      g.font = '500 28px Inter, sans-serif';
+      g.letterSpacing = '8px';
+      g.fillText(this.end.head ?? 'THE CREW BANKS', CLIP_W / 2, CLIP_H / 2 - 130);
+      g.letterSpacing = '0px';
       g.fillStyle = LOOT;
-      g.font = '700 168px Rajdhani, sans-serif';
-      g.shadowColor = 'rgba(61,255,162,0.55)';
-      g.shadowBlur = 30;
+      g.font = '300 176px Inter, sans-serif';
       g.fillText(this.end.total, CLIP_W / 2, CLIP_H / 2 + 40, CLIP_W - 120);
-      g.shadowBlur = 0;
-      g.fillStyle = '#ffffff';
-      g.font = '600 38px Inter, sans-serif';
+      g.fillStyle = INK;
+      g.font = '400 36px Inter, sans-serif';
       g.fillText(this.end.line, CLIP_W / 2, CLIP_H / 2 + 120);
       this.mark(CLIP_W / 2, CLIP_H - 300, 110, true);
       g.globalAlpha = 1;
@@ -206,47 +206,31 @@ export class ClipRecorder {
     if (this.rec.state !== 'inactive') this.rec.stop();
   }
 
-  /** STICKUPKIDS with its underline, as on the title screen. */
+  /** STICKUPKIDS in the title screen's poster face. */
   private mark(x: number, y: number, size: number, centre = false) {
     const g = this.g;
-    g.font = `700 ${size}px Rajdhani, sans-serif`;
+    g.font = `400 ${size}px Anton, sans-serif`;
     g.textAlign = centre ? 'center' : 'left';
-    const w = g.measureText('STICKUPKIDS').width;
-    const left = centre ? x - w / 2 : x;
-    const bar = g.createLinearGradient(left, 0, left + w * 0.82, 0);
-    bar.addColorStop(0, C4);
-    bar.addColorStop(1, C2);
-    g.save();
-    g.fillStyle = bar;
-    g.translate(left + 4, y + size * 0.16);
-    g.transform(1, 0, -0.35, 1, 0, 0);
-    roundRect(g, 0, 0, w * 0.82, size * 0.1, size * 0.05);
-    g.fill();
-    g.restore();
-    g.fillStyle = '#ffffff';
-    g.shadowColor = 'rgba(0,0,0,0.5)';
-    g.shadowOffsetX = 3;
-    g.shadowOffsetY = 3;
+    g.fillStyle = INK;
     g.fillText('STICKUPKIDS', x, y);
-    g.shadowColor = 'transparent';
-    g.shadowOffsetX = 0;
-    g.shadowOffsetY = 0;
   }
 
   /** A caption panel with its bottom at `bottom`; returns its height. */
   private captionBox(c: Caption, bottom: number, alpha: number): number {
     const g = this.g;
-    g.font = '600 40px Inter, sans-serif';
+    g.font = '400 38px Inter, sans-serif';
     const lines = this.lines(c.text, CLIP_W - 220);
     const h = 36 + lines.length * 52;
     const top = bottom - h;
     g.globalAlpha = alpha;
-    g.fillStyle = 'rgba(11,18,32,0.82)';
-    roundRect(g, 72, top, CLIP_W - 144, h, 14);
-    g.fill();
+    g.fillStyle = 'rgba(7,7,7,0.84)';
+    g.fillRect(72, top, CLIP_W - 144, h);
+    g.strokeStyle = '#262626';
+    g.lineWidth = 2;
+    g.strokeRect(72, top, CLIP_W - 144, h);
     g.fillStyle = c.colour;
-    g.fillRect(72, top, 8, h);
-    g.fillStyle = '#ffffff';
+    g.fillRect(72, top, 4, h);
+    g.fillStyle = INK;
     g.textAlign = 'left';
     lines.forEach((l, i) => g.fillText(l, 108, top + 62 + i * 52));
     g.globalAlpha = 1;
@@ -271,16 +255,6 @@ export class ClipRecorder {
     const lines = this.lines(text, width);
     lines.forEach((l, i) => this.g.fillText(l, x, y + (i - (lines.length - 1) / 2) * lh));
   }
-}
-
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  g.beginPath();
-  g.moveTo(x + r, y);
-  g.arcTo(x + w, y, x + w, y + h, r);
-  g.arcTo(x + w, y + h, x, y + h, r);
-  g.arcTo(x, y + h, x, y, r);
-  g.arcTo(x, y, x + w, y, r);
-  g.closePath();
 }
 
 /** Hand a file to the viewer: through the page's host when it offers saving, else as a plain download. */

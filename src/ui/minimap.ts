@@ -1,5 +1,5 @@
 // The overview map for levels too big to see at once: the ground in
-// blueprint blues, lamps, loot, the crew, any of the opposition the crew
+// greys, lamps, loot, the crew, any of the opposition the crew
 // know about, and a frame round the part of the map in view. Click or drag
 // on it to move the camera.
 
@@ -7,17 +7,17 @@ import type { Level } from '../sim/level.ts';
 import type { Sim } from '../sim/sim.ts';
 
 const GROUND: Record<string, string> = {
-  g: '#10213d',
-  p: '#3e5f93',
-  r: '#22324f',
-  X: '#2e4272',
-  '=': '#7f9fe0',
-  '#': '#a8c2ff',
-  '.': '#1d3158',
-  D: '#a8c2ff',
-  O: '#1d3158',
-  b: '#16384a',
-  w: '#1f4f9a',
+  g: '#121212',
+  p: '#3a3a38',
+  r: '#202020',
+  X: '#2c2c2b',
+  '=': '#8a8a86',
+  '#': '#cfceca',
+  '.': '#1b1b1b',
+  D: '#cfceca',
+  O: '#1b1b1b',
+  b: '#161616',
+  w: '#0a0a0a',
 };
 
 type Rect = { x0: number; y0: number; x1: number; y1: number };
@@ -67,7 +67,7 @@ export class Minimap {
     const g = base.getContext('2d')!;
     for (let y = 0; y < level.h; y++) {
       for (let x = 0; x < level.w; x++) {
-        g.fillStyle = level.solid[y][x] ? '#173a52' : (GROUND[level.tiles[y][x]] ?? GROUND.g);
+        g.fillStyle = level.solid[y][x] ? '#2a2a29' : (GROUND[level.tiles[y][x]] ?? GROUND.g);
         g.fillRect(x, y, 1, 1);
       }
     }
@@ -90,18 +90,18 @@ export class Minimap {
       if (l.kind !== 'street') continue;
       const r = 5.5 * s;
       const grad = g.createRadialGradient(l.x * s, l.y * s, 0, l.x * s, l.y * s, r);
-      grad.addColorStop(0, 'rgba(220,232,255,0.35)');
-      grad.addColorStop(1, 'rgba(220,232,255,0)');
+      grad.addColorStop(0, 'rgba(255,170,90,0.3)');
+      grad.addColorStop(1, 'rgba(255,170,90,0)');
       g.fillStyle = grad;
       g.fillRect(l.x * s - r, l.y * s - r, r * 2, r * 2);
     }
     // The getaway.
     const ex = lv.exit;
-    g.strokeStyle = '#3dffa2';
+    g.strokeStyle = '#f2f1ee';
     g.lineWidth = Math.max(1, s * 0.6);
     g.strokeRect(ex.x0 * s, ex.y0 * s, (ex.x1 - ex.x0 + 1) * s, (ex.y1 - ex.y0 + 1) * s);
     // Loot still out there.
-    g.fillStyle = '#3dffa2';
+    g.fillStyle = '#ff7a1a';
     for (const l of sim.loot) {
       if (l.state !== 'placed') continue;
       g.fillRect(l.x * s - 2.5 * s, l.y * s - 2.5 * s, 5 * s, 5 * s);
@@ -113,17 +113,17 @@ export class Minimap {
       g.fill();
       if (ring) {
         g.lineWidth = Math.max(1, s * 0.5);
-        g.strokeStyle = '#05080f';
+        g.strokeStyle = '#070707';
         g.stroke();
       }
     };
     for (const e of sim.enemies) {
       if (!e.known || e.state === 'gone') continue;
-      dot(e.x, e.y, 2.2, e.state === 'down' || e.state === 'subdued' ? '#6b7690' : e.kind === 'civilian' ? '#e4ecff' : '#ff3b4e', true);
+      dot(e.x, e.y, 2.2, e.state === 'down' || e.state === 'subdued' ? '#5e5d59' : e.kind === 'civilian' ? '#e4ecff' : '#ff3b4e', true);
     }
     sim.crew.forEach((c, i) => {
       if (c.state === 'escaped') return;
-      dot(c.x, c.y, 2.8, c.state === 'down' ? '#6b7690' : colours[i], true);
+      dot(c.x, c.y, 2.8, c.state === 'down' ? '#5e5d59' : colours[i], true);
     });
     if (view) {
       g.strokeStyle = 'rgba(255,255,255,0.85)';

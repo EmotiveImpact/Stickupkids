@@ -1,12 +1,17 @@
-// HTML HUD laid over the canvas. Layout follows the master screens: crew
-// column left, clocks top centre, loot or noise top right, tool bar bottom
-// centre, Go bottom right.
+// HTML HUD laid over the canvas, in the pitch deck's look: near-black, a
+// hairline frame, small grey labels, Inter Light, and one accent (sodium
+// orange) for selections, key numbers and heat. Crew colours stay on the
+// routes, the rings and the line under each portrait.
+//
+// Planning: the crew down the right, the tools along the bottom, Go bottom
+// right. Raid and replay: a timeline across the top, the crew bottom left,
+// the controls bottom right.
 
-import type { GoCode, JobMode } from '../sim/level.ts';
+import type { GoCode, JobMode, Level } from '../sim/level.ts';
 import type { Job } from '../sim/jobs.ts';
 import { CREW, type Crew, type Outcome, type Sim, type Waypoint } from '../sim/sim.ts';
 import { BURGESS, MAP_H, MAP_W, PARKS, RIVER, ROADS, mapXY } from './cityMap.ts';
-import { ICONS, portrait } from './icons.ts';
+import { ICONS } from './icons.ts';
 
 export interface HudHandlers {
   selectCrew(slot: number): void;
@@ -21,6 +26,15 @@ export interface HudHandlers {
   pickJob(id: string): void;
   jobs(): void;
   replay(action: ReplayAction): void;
+  /** The HUD has moved: keep the map clear of it by this much on each side, in CSS pixels. */
+  layout(insets: Insets): void;
+}
+
+export interface Insets {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
 }
 
 export type ReplayAction = 'watch' | 'play' | 'restart' | 'speed' | 'follow' | 'clip' | 'back';
@@ -36,7 +50,7 @@ export interface ReplayInfo {
   clips: boolean;
 }
 
-/** Menu art, made with ChatGPT (2560 by 1440 masters in /mnt/project-files/menu-art/). */
+/** Menu art, made with ChatGPT (2560 by 1440 masters in /mnt/project-files/menu-art/), graded by art/grade_menu.py. */
 const TITLE_ART = 'menu/title-hero.jpg';
 /** The title screen's crew, from the pitch deck cover: the full frame, and the same frame with only the crew (for the layer in front of the name). */
 const TITLE_CREW = 'menu/title-crew.webp';
@@ -48,8 +62,20 @@ const JOB_ART: Record<string, string> = {
   burgess: 'menu/job-burgess-park.jpg',
   rideout: 'menu/job-burgess-park.jpg',
   slid: 'menu/job-harrow-road.jpg',
+  aylesbury: 'menu/job-aylesbury.jpg',
+  elephant: 'menu/job-elephant-arches.jpg',
+  brixton: 'menu/job-brixton-market.jpg',
+  peckham: 'menu/job-rye-lane.jpg',
+  brockwell: 'menu/job-brockwell-park.jpg',
 };
 const artFor = (id: string) => JOB_ART[id] ?? TITLE_ART;
+/** Behind the results: a wet estate at night, one for each kind of job. */
+const RESULT_ART: Record<JobMode, string> = {
+  stickup: 'menu/results.jpg',
+  rideout: 'menu/results-rideout.jpg',
+  slid: 'menu/results-slid.jpg',
+};
+const tileOf = (name: string) => `portraits/${name.toLowerCase()}-tile.jpg`;
 
 /** Where each job sits on the London map. */
 const PINS: Record<string, [number, number]> = {
@@ -95,63 +121,90 @@ const el = (html: string): HTMLElement => {
 };
 
 const money = (n: number) => '£' + n.toLocaleString('en-GB');
+/** £18,400 as £18.4K, for the board. */
+const short = (n: number) => (n >= 1000 ? `£${(Math.round(n / 100) / 10).toLocaleString('en-GB')}K` : money(n));
+
+/** "Mid-terrace, Harrow Road": the place is the name, what is there is the line under it. */
+function splitTitle(title: string): [what: string, where: string] {
+  const i = title.indexOf(',');
+  return i < 0 ? ['', title] : [title.slice(0, i).trim(), title.slice(i + 1).trim()];
+}
 
 const CUT: Record<string, number> = { Muscle: 30, Creeper: 26, Lookout: 20, Talker: 24 };
+
+const CONTROLS = `
+  <b>1 to 4</b><span>Pick a crew member (or click their picture)</span>
+  <b>Click / drag</b><span>Add waypoints to their route. Click a point to select it</span>
+  <b>Right click</b><span>Remove the selected point (Backspace also works)</span>
+  <b>A, B, C</b><span>Hold the selected point for that go code. In the raid, with no point picked: call the code</span>
+  <b>K</b><span>Kick locked doors after the selected point (loud but fast). Otherwise they get picked</span>
+  <b>Enter</b><span>Go</span>
+  <b>Space</b><span>Pause the raid. While paused, redraw a crew member's route, move points, add holds</span>
+  <b>Crew, then map</b><span>In the raid without pausing: click a crew member, then where they should go</span>
+  <b>F</b><span>Toggle speed</span>
+  <b>Wheel, arrows</b><span>Zoom and pan the camera (middle-drag pans too)</span>`;
+
+type Mode = 'planning' | 'raid' | 'results' | 'replay';
 
 export class Hud {
   private root: HTMLElement;
   private h: HudHandlers;
-  private cards: HTMLElement[] = [];
-  private topCentre: HTMLElement;
+  private frame: HTMLElement;
+  private crewCol: HTMLElement;
+  private tiles: HTMLElement[] = [];
+  private topLeft: HTMLElement;
+  private topBar: HTMLElement;
   private topRight: HTMLElement;
+  private strip: HTMLElement;
   private bar: HTMLElement;
   private goBtn: HTMLElement;
   private hint: HTMLElement;
   private banner: HTMLElement;
   private toasts: HTMLElement;
   private overlay: HTMLElement;
-  private mode = '';
+  private mode: Mode | '' = '';
   private lastHp: number[] = CREW.map(() => -1);
+  private jobId = '';
   private jobTitle = '';
   private jobMode: JobMode = 'stickup';
+  /** The level being planned, for the numbers on the job board. */
+  private level: Level | null = null;
   private stories: HTMLElement;
-  /** The job picked on the board, and the art behind the board now. */
-  private boardJob = '';
-  private boardArt = '';
+  /** The jobs on the board. */
+  private boardJobs: Job[] = [];
   /** A level too big for one screen: the hints say how to get about. */
   big = false;
 
   constructor(root: HTMLElement, handlers: HudHandlers) {
     this.root = root;
     this.h = handlers;
-    const col = el('<div class="crew-col"></div>');
+    this.frame = root.appendChild(el('<div class="hud-frame"></div>'));
+    this.crewCol = root.appendChild(el('<div class="crew-col"></div>'));
     for (const def of CREW) {
-      const card = el(`<div class="card panel" style="--col:${def.color}">
-        <span class="num" style="color:${def.color}">${def.slot}</span>
-        <div class="ring">${portrait(def.name)}</div>
-        <div class="info">
-          <span class="name">${def.name}</span>
-          <span class="role">${def.role}</span>
-          <span class="status"></span>
-          <span class="badges"></span>
-        </div>
+      const tile = el(`<div class="tile" style="--col:${def.color}">
+        <img class="ph" src="${tileOf(def.name)}" alt="${def.name}" draggable="false" />
+        <span class="num">${def.slot}</span>
+        <span class="badges"></span>
+        <div class="cap"><span class="name">${def.name}</span><span class="role">${def.role}</span><span class="status"></span></div>
         <div class="hp"><i style="width:100%"></i></div>
       </div>`);
-      card.addEventListener('click', () => this.h.selectCrew(def.slot));
-      col.appendChild(card);
-      this.cards.push(card);
+      tile.addEventListener('click', () => this.h.selectCrew(def.slot));
+      this.crewCol.appendChild(tile);
+      this.tiles.push(tile);
     }
-    root.appendChild(col);
-    this.topCentre = root.appendChild(el('<div class="top-centre"></div>'));
-    this.topRight = root.appendChild(el('<div class="top-right panel"></div>'));
-    this.bar = root.appendChild(el('<div class="bottom-bar panel"></div>'));
-    this.goBtn = root.appendChild(el(`<button class="go">${ICONS.play}<span>GO</span></button>`));
+    this.topLeft = root.appendChild(el('<div class="top-left"></div>'));
+    this.topBar = root.appendChild(el('<div class="topbar"></div>'));
+    this.topRight = root.appendChild(el('<div class="top-right"></div>'));
+    this.strip = root.appendChild(el('<div class="strip"></div>'));
+    this.bar = this.strip.appendChild(el('<div class="bar"></div>'));
+    this.hint = this.strip.appendChild(el('<div class="hint"></div>'));
+    this.goBtn = this.strip.appendChild(el(`<button class="go">${ICONS.play}<span>Go</span></button>`));
     this.goBtn.addEventListener('click', () => this.h.go());
-    this.hint = root.appendChild(el('<div class="hint"></div>'));
-    this.banner = root.appendChild(el('<div class="banner panel hidden"></div>'));
+    this.banner = root.appendChild(el('<div class="banner hidden"></div>'));
     this.stories = root.appendChild(el('<div class="stories panel hidden"></div>'));
     this.toasts = root.appendChild(el('<div class="toasts"></div>'));
     this.overlay = root.appendChild(el('<div class="overlay hidden"></div>'));
+    addEventListener('resize', () => this.layout());
   }
 
   // ------------------------------------------------------------- modes
@@ -198,111 +251,117 @@ export class Hud {
     Promise.all([pictures, level, document.fonts.ready]).then(() => requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('reveal'))));
   }
 
-  /** The job board: London, the jobs on it, and the one picked, over that job's art. */
+  /** The job board: London in greys with the jobs as orange pins and a list over its foot, the picked job on the right. */
   showTitle(jobs: Job[], current: string) {
     this.overlay.className = 'overlay board-screen';
-    this.boardArt = '';
+    this.boardJobs = jobs;
+    // Frame the pins, with the bottom two fifths left for the list.
+    const pts = jobs.map((j) => mapXY(...PINS[j.id]));
+    const x0 = Math.min(...pts.map((p) => p[0])) - 36;
+    const x1 = Math.max(...pts.map((p) => p[0])) + 36;
+    const y0 = Math.min(...pts.map((p) => p[1])) - 58;
+    const y1 = Math.max(...pts.map((p) => p[1])) + 24;
+    const vh = (y1 - y0) / 0.6;
     const pins = jobs
-      .map((j) => {
-        const [x, y] = mapXY(...PINS[j.id]);
-        return `<g class="pin" data-job="${j.id}" transform="translate(${x.toFixed(0)} ${y.toFixed(0)})">
-          <circle class="pulse" r="16"/><circle class="halo" r="9"/>
-          <path class="drop" d="M0 0 C-7 -10 -10 -14 -10 -20 A10 10 0 1 1 10 -20 C10 -14 7 -10 0 0Z"/>
-          <path class="house" d="M-5 -19 L0 -24 L5 -19 V-14 H-5Z"/>
-          <text y="-34">${j.title.split(',')[0]}</text>
+      .map((j, i) => {
+        const [x, y] = pts[i];
+        return `<g class="pin" data-job="${j.id}" transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">
+          <circle class="pulse" r="4"/><circle class="halo" r="6.5"/><circle class="dot" r="2.4"/>
+          <text x="8" y="2.2">${splitTitle(j.title)[1]}</text>
         </g>`;
       })
       .join('');
-    const cards = jobs
+    const rows = jobs
       .map(
-        (j) => `<button class="job panel mode-${j.mode ?? 'stickup'}" data-job="${j.id}">
-          <span class="jm">${MODE_TAG[j.mode ?? 'stickup']}</span>
-          <span class="jt">${j.title}</span>
-          <span class="jp">${j.place}</span>
-          <span class="jb">${j.brief}</span>
-          <span class="ji">${j.intel.map((t) => `<i>${t}</i>`).join('')}</span>
-          <span class="jh"><b>Heat</b><span class="segs">${Array.from({ length: 5 }, (_, i) => `<i class="${i < j.heat ? 'on' : ''}"></i>`).join('')}</span></span>
+        (j, i) => `<button class="jrow" data-job="${j.id}">
+          <span class="n">${String(i + 1).padStart(2, '0')}</span>
+          <span class="t">${j.title}</span>
+          <span class="m">${MODE_TAG[j.mode ?? 'stickup']}</span>
         </button>`,
       )
       .join('');
-    this.overlay.innerHTML = `<div class="art"></div><div class="art"></div>
+    this.overlay.innerHTML = `
     <div class="board">
-      <div class="board-left">
-        <div class="logo">STICKUPKIDS</div>
-        <div class="citymap panel">
-          <svg viewBox="0 0 ${MAP_W} ${MAP_H}" preserveAspectRatio="xMidYMid slice">
-            <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-            <rect width="${MAP_W}" height="${MAP_H}" class="sea"/>
-            <path class="parks" d="${PARKS}"/>
-            <path class="roads" d="${ROADS}"/>
-            <path class="river" d="${RIVER}"/>
-            <path class="river-in" d="${RIVER}"/>
-            <path class="burgess" d="${BURGESS}"/>
-            ${pins}
-          </svg>
-          <span class="credit">Map data © OpenStreetMap contributors</span>
-        </div>
+      <div class="board-map">
+        <svg class="citymap" viewBox="${x0.toFixed(0)} ${y0.toFixed(0)} ${(x1 - x0).toFixed(0)} ${vh.toFixed(0)}" preserveAspectRatio="xMidYMid meet">
+          <defs><linearGradient id="mapfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070707" stop-opacity="0"/><stop offset="1" stop-color="#070707"/></linearGradient></defs>
+          <rect class="land" width="${MAP_W}" height="${MAP_H}"/>
+          <path class="parks" d="${PARKS}"/>
+          <path class="river" d="${RIVER}"/>
+          <path class="roads" d="${ROADS}"/>
+          <path class="burgess" d="${BURGESS}"/>
+          <rect x="-40" y="${MAP_H - 60}" width="${MAP_W + 80}" height="61" fill="url(#mapfade)"/>
+          ${pins}
+        </svg>
+        <span class="lab corner">Stickupkids · Pick a job</span>
+        <div class="joblist">${rows}</div>
+        <span class="credit">Map data © OpenStreetMap contributors</span>
       </div>
-      <div class="board-right">
-        <div class="pick">Pick a job</div>
-        <div class="jobs">${cards}</div>
-        <div class="loading">Loading the job…</div>
-        <div class="menu">
-          <button data-a="plan">Plan the job</button>
-          <button data-a="sample">Load a sample plan</button>
-        </div>
-        <details class="controls-box"><summary>Controls</summary>
-        <div class="controls panel">
-          <b>1 to 4</b><span>Pick a crew member (or click their card)</span>
-          <b>Click / drag</b><span>Add waypoints to their route. Click a point to select it</span>
-          <b>Right click</b><span>Remove the selected point (Backspace also works)</span>
-          <b>A, B, C</b><span>Hold the selected point for that go code. In the raid, with no point picked: call the code</span>
-          <b>K</b><span>Kick locked doors after the selected point (loud but fast). Otherwise they get picked</span>
-          <b>Enter</b><span>Go</span>
-          <b>Space</b><span>Pause the raid. While paused, redraw a crew member's route, move points, add holds</span>
-          <b>Crew, then map</b><span>In the raid without pausing: click a crew member, then where they should go</span>
-          <b>F</b><span>Toggle speed</span>
-          <b>Wheel, arrows</b><span>Zoom and pan the camera (middle-drag pans too)</span>
-        </div></details>
-      </div>
+      <div class="jdetail"></div>
     </div>`;
-    this.overlay.querySelectorAll<HTMLElement>('.menu button').forEach((b) => b.addEventListener('click', () => this.h.start(b.dataset.a === 'sample')));
     this.overlay.querySelectorAll<HTMLElement | SVGElement>('[data-job]').forEach((b) => {
       const id = (b as HTMLElement).dataset.job!;
       b.addEventListener('click', () => this.h.pickJob(id));
-      // Hovering a job shows its art; leaving goes back to the picked job's.
-      b.addEventListener('pointerenter', () => this.showArt(artFor(id)));
-      b.addEventListener('pointerleave', () => this.showArt(artFor(this.boardJob)));
+      // Pointing at a row lights its pin.
+      if (b.classList.contains('jrow')) {
+        const pin = () => this.overlay.querySelector(`.pin[data-job="${id}"]`);
+        b.addEventListener('pointerenter', () => pin()?.classList.add('hot'));
+        b.addEventListener('pointerleave', () => pin()?.classList.remove('hot'));
+      }
     });
     this.selectJob(current);
   }
 
-  /** Mark the picked job on the board. */
+  /** Mark the picked job on the board and show it on the right. */
   selectJob(id: string) {
-    this.boardJob = id;
     this.overlay.querySelectorAll<HTMLElement | SVGElement>('[data-job]').forEach((b) => b.classList.toggle('sel', (b as HTMLElement).dataset.job === id));
-    // Jobs close together on the map: the picked one's pin sits on top, with its name.
+    // Pins close together overlap, so the picked one is drawn last, on top.
     const pin = this.overlay.querySelector(`.pin[data-job="${id}"]`);
     pin?.parentNode?.appendChild(pin);
-    this.showArt(artFor(id));
+    const d = this.overlay.querySelector('.jdetail');
+    const j = this.boardJobs.find((x) => x.id === id);
+    if (!d || !j) return;
+    const [what, where] = splitTitle(j.title);
+    d.innerHTML = `
+      <div class="photo" style="background-image:url(${artFor(id)})"></div>
+      <span class="lab">${MODE_TAG[j.mode ?? 'stickup']} · ${j.place}</span>
+      <div class="names"><div class="jt">${where}</div><div class="js">${what}</div></div>
+      <div class="stats">${this.statsOf(j)}</div>
+      <p class="brief">${j.brief}</p>
+      <div class="intel">${j.intel.map((t) => `<i>${t}</i>`).join('')}</div>
+      <div class="acts"><button class="btn main" data-a="plan">Plan the job</button><button class="btn alt" data-a="sample">Sample plan</button></div>
+      <div class="foot"><span class="loading lab">Loading the job…</span>
+        <details class="controls-box"><summary class="lab">Controls</summary><div class="controls panel">${CONTROLS}</div></details></div>`;
+    d.querySelectorAll<HTMLElement>('[data-a]').forEach((b) => b.addEventListener('click', () => this.h.start(b.dataset.a === 'sample')));
   }
 
-  /** Crossfade the board's background to another picture. */
-  private showArt(url: string) {
-    const [a, b] = this.overlay.querySelectorAll<HTMLElement>('.board-screen > .art');
-    if (!a || !b || url === this.boardArt) return;
-    this.boardArt = url;
-    const [front, back] = a.classList.contains('on') ? [b, a] : [a, b];
-    front.style.backgroundImage = `url(${url})`;
-    front.classList.add('on');
-    back.classList.remove('on');
+  /** The numbers under a job's name: what is in it for the crew (in orange), who is about, and the heat. */
+  private statsOf(j: Job): string {
+    const heat = `<span class="heat"><span class="lab">Heat</span><span class="segs">${Array.from({ length: 5 }, (_, i) => `<i class="${i < j.heat ? 'on' : ''}"></i>`).join('')}</span></span>`;
+    const lv = j.id === this.jobId ? this.level : null;
+    if (!lv) return heat;
+    const people = lv.enemies.filter((e) => e.kind !== 'dog' && e.kind !== 'civilian').length;
+    const loot = lv.loot.reduce((s, l) => s + l.value, 0);
+    if (j.mode === 'rideout') {
+      const targets = lv.enemies.filter((e) => e.target).length;
+      const more = people - targets;
+      return `<span>${targets} targets</span>${more > 0 ? `<span>${more} more about</span>` : ''}${heat}`;
+    }
+    if (j.mode === 'slid') {
+      const waves = lv.waves?.length ?? 0;
+      return `<span>${short(loot)} to hold</span><span>${waves} ${waves === 1 ? 'wave' : 'waves'}</span>${heat}`;
+    }
+    return `<span>${short(loot)}</span><span>${people} ${people === 1 ? 'person' : 'people'}</span>${heat}`;
   }
 
-  /** The job being planned, for the top of the screen. */
-  setJob(job: Job) {
+  /** The job being planned, and its level. Lays the planning HUD out at once, so the game can frame the level round it. */
+  setJob(job: Job, level: Level) {
+    this.jobId = job.id;
     this.jobTitle = job.title;
     this.jobMode = job.mode ?? 'stickup';
+    this.level = level;
     this.mode = '';
+    this.setMode('planning');
   }
 
   /** The level has loaded: drop the loading note. */
@@ -315,73 +374,72 @@ export class Hud {
     this.overlay.innerHTML = '';
   }
 
-  setMode(mode: 'planning' | 'raid' | 'results' | 'replay') {
+  setMode(mode: Mode) {
     if (mode === this.mode) return;
     this.mode = mode;
+    for (const m of ['planning', 'raid', 'results', 'replay']) this.root.classList.toggle(`m-${m}`, m === mode);
     this.goBtn.classList.toggle('hidden', mode !== 'planning');
     this.banner.classList.add('hidden');
+    const [what, where] = splitTitle(this.jobTitle);
+    const codes = (title: string) =>
+      (['A', 'B', 'C'] as const).map((c) => `<button class="tool code" data-c="${c}" title="${title} ${c}"><span>${c}</span></button>`).join('');
     if (mode === 'planning') {
-      this.topCentre.innerHTML = `<div class="job-now panel"><div class="t">${this.jobTitle}</div><div class="s">Planning. Time is frozen.</div></div>`;
+      this.topLeft.innerHTML = `<span class="lab">Planning · time is frozen</span><span class="t">${where}${what ? ` <span>${what}</span>` : ''}</span>`;
+      this.topBar.innerHTML = '';
       this.topRight.innerHTML =
         this.jobMode === 'slid'
-          ? `<span title="Barricades">${ICONS.lock}</span><div class="segs bars" style="--seg:var(--c1)"></div><span class="noise-lbl">Barricades</span>`
-          : `<span title="Noise estimate">${ICONS.noise}</span><div class="segs" style="--seg:var(--c1)">${'<i></i>'.repeat(8)}</div><span class="noise-lbl">Quiet</span><span class="sep"></span><span title="Getaway van parked">${ICONS.car}</span>`;
+          ? `<span class="lab">Barricades</span><div class="segs bars"></div><span class="val"></span>`
+          : `<span class="lab">Noise</span><div class="segs">${'<i></i>'.repeat(8)}</div><span class="val">Quiet</span>`;
       this.bar.innerHTML = `
         <button class="tool" data-t="kick" title="Kick locked doors after this point (K)">${ICONS.boot}<span class="k">K</span></button>
         <span class="sep"></span>
-        ${(['A', 'B', 'C'] as const).map((c) => `<button class="tool code diamond" data-c="${c}" title="Hold here until go code ${c}"><span><b>${c}</b></span></button>`).join('')}
+        ${codes('Hold here until go code')}
         <span class="sep"></span>
         <button class="tool" data-t="undo" title="Remove point (Backspace)">${ICONS.undo}</button>
         <button class="tool" data-t="clear" title="Clear this route">${ICONS.clear}</button>
         <span class="sep"></span>
         <button class="tool wide" data-t="sample" title="Load a sample plan">Sample plan</button>
-        <span class="sep"></span>
-        <button class="tool" data-j="jobs" title="Back to the job board">${ICONS.home}<span class="cap">Jobs</span></button>`;
+        <button class="tool" data-j="jobs" title="Back to the job board">${ICONS.home}</button>`;
     } else if (mode === 'raid') {
       const second = this.jobMode === 'slid' ? 'Next wave' : this.jobMode === 'rideout' ? 'Park wakes' : 'Backup';
-      this.topCentre.innerHTML = `
-        <div class="clock panel" data-k="police">${ringSvg('#FF3B4E')}<span class="ico">${ICONS.siren}</span><span class="lbl">Police</span></div>
-        <div class="clock panel" data-k="backup">${ringSvg('#ffffff')}<span class="ico">${this.jobMode === 'slid' ? ICONS.mask : ICONS.phone}</span><span class="lbl">${second}</span></div>`;
-      this.topRight.innerHTML =
-        this.jobMode === 'rideout'
-          ? `<span style="color:var(--c1)">${ICONS.mask}</span><div class="segs" style="--seg:var(--c1)"></div><span class="amt">0 / 0</span>`
-          : this.jobMode === 'slid'
-            ? `<span style="color:var(--loot)">${ICONS.bag}</span><div class="segs">${'<i></i>'.repeat(10)}</div><span class="amt">£0</span>`
-            : `<span style="color:var(--loot)">${ICONS.cash}</span><div class="segs">${'<i></i>'.repeat(10)}</div><span class="amt">£0</span>`;
+      const take = this.jobMode === 'rideout' ? 'Caught' : this.jobMode === 'slid' ? 'Kept' : 'Take';
+      this.topLeft.innerHTML = '';
+      this.topBar.innerHTML = `
+        <div class="l"><span class="lab job">${where}</span><span class="lab" data-k="second">${second}</span><div class="track" data-k="backup"><i></i></div></div>
+        <div class="clock">00:00</div>
+        <div class="r"><span class="lab">Heat</span><div class="track heat" data-k="police"><i></i></div>
+          <div class="take"><span class="lab">${take}</span><b>${this.jobMode === 'rideout' ? '0 of 0' : '£0'}</b></div></div>`;
+      this.topRight.innerHTML = '';
       this.bar.innerHTML = `
         <button class="tool" data-r="pause" title="Pause (Space)">${ICONS.pause}</button>
         <button class="tool" data-r="speed" title="Speed (F)">${ICONS.fast}<span class="k">1x</span></button>
         <span class="sep"></span>
-        ${(['A', 'B', 'C'] as const).map((c) => `<button class="tool code round" data-c="${c}" title="Call go code ${c}"><span>${c}</span></button>`).join('')}
-        ${this.jobMode === 'slid' ? '' : `<span class="sep"></span><button class="tool" data-r="drive" title="Drive off with whoever is at the van">${ICONS.car}<span class="cap">Leave</span></button>`}`;
+        ${codes('Call go code')}
+        ${this.jobMode === 'slid' ? '' : `<span class="sep"></span><button class="tool wide" data-r="drive" title="Drive off with whoever is at the van">Leave</button>`}`;
     } else if (mode === 'replay') {
-      this.topCentre.innerHTML = `<div class="job-now panel"><div class="t">${this.jobTitle}</div><div class="s">Replay</div></div>`;
+      this.topLeft.innerHTML = '';
+      this.topBar.innerHTML = `<div class="l"><span class="lab job">${where}</span><span class="lab">Replay</span></div><div class="clock">00:00</div><div class="r"></div>`;
       this.topRight.innerHTML = '';
       this.bar.innerHTML = `
         <button class="tool" data-p="play" title="Play or pause (Space)">${ICONS.pause}</button>
         <button class="tool" data-p="restart" title="From the start">${ICONS.replay}</button>
         <button class="tool" data-p="speed" title="Speed (F)">${ICONS.fast}<span class="k">1x</span></button>
-        <button class="tool on" data-p="follow" title="Camera follows the action">${ICONS.follow}<span class="cap">Follow</span></button>
+        <button class="tool on" data-p="follow" title="Camera follows the action">${ICONS.follow}</button>
         <span class="sep"></span>
-        <div class="track"><i></i></div><span class="clock-txt">0:00 / 0:00</span>
+        <div class="progress"><i></i></div><span class="clock-txt">0:00 / 0:00</span>
         <span class="sep"></span>
-        <button class="tool wide clip-btn" data-p="clip" title="Record a 9:16 clip for TikTok or Shorts">${ICONS.film}<span>Make a clip</span></button>
-        <button class="tool" data-p="back" title="Back to the results">${ICONS.undo}<span class="cap">Back</span></button>`;
+        <button class="tool wide clip-btn" data-p="clip" title="Record a 9:16 clip for TikTok or Shorts">Make a clip</button>
+        <button class="tool" data-p="back" title="Back to the results">${ICONS.undo}</button>`;
     } else {
-      this.topCentre.innerHTML = '';
+      this.topLeft.innerHTML = '';
+      this.topBar.innerHTML = '';
       this.topRight.innerHTML = '';
       this.bar.innerHTML = '';
     }
-    this.topRight.classList.toggle('hidden', mode === 'results' || mode === 'replay');
     this.stories.classList.toggle('hidden', this.jobMode !== 'rideout' || (mode !== 'planning' && mode !== 'raid'));
     this.bar.querySelectorAll<HTMLElement>('[data-p]').forEach((b) => b.addEventListener('click', () => this.h.replay(b.dataset.p as ReplayAction)));
-    this.bar.classList.toggle('hidden', mode === 'results');
-    this.bar.querySelectorAll<HTMLElement>('[data-t]').forEach((b) =>
-      b.addEventListener('click', () => this.h.tool(b.dataset.t as 'kick')),
-    );
-    this.bar.querySelectorAll<HTMLElement>('[data-c]').forEach((b) =>
-      b.addEventListener('click', () => this.h.code(b.dataset.c as GoCode)),
-    );
+    this.bar.querySelectorAll<HTMLElement>('[data-t]').forEach((b) => b.addEventListener('click', () => this.h.tool(b.dataset.t as 'kick')));
+    this.bar.querySelectorAll<HTMLElement>('[data-c]').forEach((b) => b.addEventListener('click', () => this.h.code(b.dataset.c as GoCode)));
     this.bar.querySelector('[data-j]')?.addEventListener('click', () => this.h.jobs());
     this.bar.querySelectorAll<HTMLElement>('[data-r]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -391,6 +449,26 @@ export class Hud {
         else this.h.driveOff();
       }),
     );
+    this.layout();
+  }
+
+  /** Tell the game how much of each edge the HUD takes, so the map is framed in what is left. */
+  layout() {
+    if (!this.mode || this.mode === 'results') return;
+    const W = innerWidth;
+    const H = innerHeight;
+    const box = (e: Element) => e.getBoundingClientRect();
+    const f = box(this.frame);
+    const i: Insets = { left: f.left + 6, right: W - f.right + 6, top: f.top + 6, bottom: H - f.bottom + 6 };
+    if (this.mode === 'planning') {
+      i.top = box(this.topLeft).bottom + 10;
+      i.bottom = H - box(this.strip).top + 8;
+      if (!this.stories.classList.contains('hidden')) i.left = box(this.stories).right + 10;
+    } else {
+      i.top = box(this.topBar).bottom + 6;
+      i.bottom = H - box(this.crewCol).top + 6;
+    }
+    this.h.layout(i);
   }
 
   // ----------------------------------------------------------- updates
@@ -398,28 +476,26 @@ export class Hud {
   updatePlanning(info: PlanningInfo, sim?: Sim) {
     this.setMode('planning');
     if (sim) this.updateStories(sim);
-    this.cards.forEach((card, i) => {
+    this.tiles.forEach((tile, i) => {
       const plan = info.plans[i];
-      card.classList.toggle('sel', info.selected === i + 1);
-      card.classList.remove('down');
+      tile.classList.toggle('sel', info.selected === i + 1);
+      tile.classList.remove('down');
       const holds = [...new Set(plan.filter((w) => w.hold).map((w) => w.hold))];
       const status = plan.length <= 1 ? 'No route yet' : `${plan.length - 1} point${plan.length > 2 ? 's' : ''}${holds.length ? ' · holds ' + holds.join(', ') : ''}`;
-      setText(card.querySelector('.status')!, status);
-      setHtml(card.querySelector('.badges')!, plan.some((w) => w.kick) ? `<span title="Kicks doors">${ICONS.boot}</span>` : '');
-      (card.querySelector('.hp i') as HTMLElement).style.width = '100%';
+      setText(tile.querySelector('.status')!, status);
+      setHtml(tile.querySelector('.badges')!, plan.some((w) => w.kick) ? `<span title="Kicks doors">${ICONS.boot}</span>` : '');
+      (tile.querySelector('.hp i') as HTMLElement).style.width = '100%';
     });
     const sel = info.plans[info.selected - 1];
     const wpIdx = info.selectedWp ?? sel.length - 1;
     const wp = sel[wpIdx];
-    const col = CREW[info.selected - 1].color;
-    this.bar.style.setProperty('--selcol', col);
     this.bar.querySelector('[data-t="kick"]')?.classList.toggle('on', !!wp?.kick);
     this.bar.querySelectorAll<HTMLElement>('[data-c]').forEach((b) => b.classList.toggle('on', wp?.hold === b.dataset.c));
     const name = CREW[info.selected - 1].name;
     if (this.jobMode === 'slid') {
       const bars = this.topRight.querySelector('.segs.bars') as HTMLElement;
       setHtml(bars, Array.from({ length: info.maxBarricades }, (_, i) => `<i class="${i < info.barricades ? 'on' : ''}"></i>`).join(''));
-      setText(this.topRight.querySelector('.noise-lbl')!, `Barricades ${info.barricades} of ${info.maxBarricades}`);
+      setText(this.topRight.querySelector('.val')!, `${info.barricades} of ${info.maxBarricades}`);
       setText(
         this.hint,
         info.selectedWp !== null
@@ -432,8 +508,8 @@ export class Hud {
     const segs = this.topRight.querySelectorAll('.segs i');
     const lit = Math.min(segs.length, 1 + info.picks + loud * 3);
     segs.forEach((s, i) => s.classList.toggle('on', i < lit));
-    (this.topRight.querySelector('.segs') as HTMLElement).style.setProperty('--seg', loud ? 'var(--c4)' : 'var(--c1)');
-    setText(this.topRight.querySelector('.noise-lbl')!, loud ? (loud > 1 ? 'Very loud' : 'Loud') : 'Quiet');
+    this.topRight.classList.toggle('loud', loud > 0);
+    setText(this.topRight.querySelector('.val')!, loud ? (loud > 1 ? 'Very loud' : 'Loud') : 'Quiet');
     const lead =
       this.jobMode === 'rideout' && info.selectedWp === null
         ? `The red pins are where they last posted from, and they move about. Click the map to add waypoints for ${name}.`
@@ -444,7 +520,7 @@ export class Hud {
         (info.selectedWp !== null
           ? `Point ${info.selectedWp} of ${name}'s route selected. A, B or C to hold here for a go code, K to kick doors after it.`
           : `Click the map to add waypoints for ${name}. Drag to draw. Click a point to select it. Right click removes a point.`)) +
-        (this.big ? '\nTwo fingers or the arrow keys to look round, pinch to zoom, or click the map bottom left. Click a crew card twice to find them.' : ''),
+        (this.big ? '\nTwo fingers or the arrow keys to look round, pinch to zoom, or click the overview map. Click a crew picture twice to find them.' : ''),
     );
   }
 
@@ -476,39 +552,38 @@ export class Hud {
   ) {
     this.setMode('raid');
     this.updateCards(sim, selected);
-    const setRing = (k: string, v: number) => {
-      const c = this.topCentre.querySelector(`[data-k="${k}"] circle.fg`) as SVGCircleElement | null;
-      if (c) c.style.strokeDashoffset = String(201 * (1 - Math.max(0, Math.min(1, v))));
+    const setTrack = (k: string, v: number) => {
+      const i = this.topBar.querySelector(`[data-k="${k}"] i`) as HTMLElement | null;
+      if (i) i.style.width = `${(100 * Math.max(0, Math.min(1, v))).toFixed(1)}%`;
     };
-    setRing('police', sim.police);
-    setRing('backup', this.jobMode === 'slid' ? sim.waveProgress : sim.backupProgress);
+    setTrack('police', sim.police);
+    setTrack('backup', this.jobMode === 'slid' ? sim.waveProgress : sim.backupProgress);
+    setText(this.topBar.querySelector('.clock')!, fmtClock(sim.time));
     if (this.jobMode === 'slid') {
       const waves = sim.level.waves?.length ?? 0;
-      setText(this.topCentre.querySelector('[data-k="backup"] .lbl')!, sim.waves >= waves ? (sim.backingOff ? 'Backing off' : 'Last wave') : `Wave ${sim.waves + 1} of ${waves}`);
+      setText(this.topBar.querySelector('[data-k="second"]')!, sim.waves >= waves ? (sim.backingOff ? 'Backing off' : 'Last wave') : `Wave ${sim.waves + 1} of ${waves}`);
     }
     this.updateStories(sim);
+    const take = this.topBar.querySelector('.take b')!;
     if (this.jobMode === 'rideout') {
       const targets = sim.enemies.filter((e) => e.def.target);
-      const caught = targets.filter((e) => e.caught).length;
-      const segsBox = this.topRight.querySelector('.segs') as HTMLElement;
-      setHtml(segsBox, targets.map((_, i) => `<i class="${i < caught ? 'on' : ''}"></i>`).join(''));
-      setText(this.topRight.querySelector('.amt')!, `${caught} / ${targets.length}`);
+      setText(take, `${targets.filter((e) => e.caught).length} of ${targets.length}`);
     } else {
-      const { total, kept } = sim.stashKept;
-      const got = this.jobMode === 'slid' ? kept : sim.loot.filter((l) => l.state === 'carried' || l.state === 'secured').reduce((s, l) => s + l.def.value, 0);
-      const segs = this.topRight.querySelectorAll('.segs i');
-      segs.forEach((s, i) => s.classList.toggle('on', total > 0 && i < Math.round((got / total) * segs.length)));
-      setText(this.topRight.querySelector('.amt')!, money(got));
+      const got =
+        this.jobMode === 'slid'
+          ? sim.stashKept.kept
+          : sim.loot.filter((l) => l.state === 'carried' || l.state === 'secured').reduce((s, l) => s + l.def.value, 0);
+      setText(take, money(got));
     }
     const pauseBtn = this.bar.querySelector('[data-r="pause"]');
     if (pauseBtn) setHtml(pauseBtn as HTMLElement, paused ? ICONS.play : ICONS.pause);
+    pauseBtn?.classList.toggle('on', paused);
     const sp = this.bar.querySelector('[data-r="speed"] .k');
     if (sp) setText(sp as HTMLElement, `${speed}x`);
     this.bar.querySelectorAll<HTMLElement>('[data-c]').forEach((b) => {
       b.classList.toggle('fired', sim.codes.has(b.dataset.c as GoCode));
       b.classList.toggle('on', orders.hold === b.dataset.c);
     });
-    this.bar.style.setProperty('--selcol', CREW[selected - 1].color);
     this.banner.classList.toggle('hidden', !paused);
     setText(this.banner, 'Paused');
     const name = CREW[selected - 1].name;
@@ -528,22 +603,22 @@ export class Hud {
     );
   }
 
-  /** The crew cards: state, badges and health. */
+  /** The crew pictures: state, badges and health. */
   private updateCards(sim: Sim, selected: number) {
     sim.crew.forEach((c, i) => {
-      const card = this.cards[i];
-      card.classList.toggle('sel', selected === i + 1);
-      card.classList.toggle('down', c.state === 'down');
-      setText(card.querySelector('.status')!, crewStatus(c, sim));
+      const tile = this.tiles[i];
+      tile.classList.toggle('sel', selected === i + 1);
+      tile.classList.toggle('down', c.state === 'down');
+      setText(tile.querySelector('.status')!, crewStatus(c, sim));
       const badges = [];
       if (c.carrying.length) badges.push(`<span class="bag" title="Carrying loot">${ICONS.bag}</span>`);
       if (c.action?.kind === 'pick') badges.push(`<span title="Picking a lock">${ICONS.lock}</span>`);
-      setHtml(card.querySelector('.badges')!, badges.join(''));
-      (card.querySelector('.hp i') as HTMLElement).style.width = `${(100 * c.hp) / c.maxHp}%`;
+      setHtml(tile.querySelector('.badges')!, badges.join(''));
+      (tile.querySelector('.hp i') as HTMLElement).style.width = `${(100 * c.hp) / c.maxHp}%`;
       if (this.lastHp[i] >= 0 && c.hp < this.lastHp[i]) {
-        card.classList.remove('hit');
-        void card.offsetWidth;
-        card.classList.add('hit');
+        tile.classList.remove('hit');
+        void tile.offsetWidth;
+        tile.classList.add('hit');
       }
       this.lastHp[i] = c.hp;
     });
@@ -558,9 +633,10 @@ export class Hud {
     const sp = this.bar.querySelector('[data-p="speed"] .k');
     if (sp) setText(sp as HTMLElement, `${info.speed}x`);
     this.bar.querySelector('[data-p="follow"]')?.classList.toggle('on', info.follow);
-    const fill = this.bar.querySelector('.track i') as HTMLElement | null;
+    const fill = this.bar.querySelector('.progress i') as HTMLElement | null;
     if (fill) fill.style.width = `${(100 * Math.min(1, info.time / Math.max(0.001, info.total))).toFixed(1)}%`;
     setText(this.bar.querySelector('.clock-txt')!, `${fmtTime(info.time)} / ${fmtTime(info.total)}`);
+    setText(this.topBar.querySelector('.clock')!, fmtClock(info.time));
     (this.bar.querySelector('[data-p="clip"]') as HTMLButtonElement | null)?.toggleAttribute('disabled', !info.clips);
     setText(
       this.hint,
@@ -593,9 +669,10 @@ export class Hud {
       el(`<div class="clip-ready"><div class="clip-card panel">
         <video src="${url}" autoplay loop muted playsinline></video>
         <div class="clip-side">
+          <span class="lab">Clip</span>
           <b>Your clip is ready</b>
           <span>${fmtTime(info.seconds)} of vertical video, ${info.mb.toFixed(1)} MB, ${info.ext.toUpperCase()}. Made for TikTok, Shorts and Reels.</span>
-          <div class="menu"><button data-c="save">Save the clip</button><button data-c="close">Back to the replay</button></div>
+          <div class="acts"><button class="btn" data-c="save">Save the clip</button><button class="btn" data-c="close">Back to the replay</button></div>
           <span class="clip-msg"></span>
         </div></div></div>`),
     );
@@ -610,152 +687,108 @@ export class Hud {
     });
   }
 
-  toast(text: string, color = '#ffffff') {
-    const t = el(`<div class="toast panel" style="--tc:${color}"></div>`);
+  toast(text: string, color = '#f2f1ee') {
+    const t = el(`<div class="toast" style="--tc:${color}"></div>`);
     t.textContent = text;
     this.toasts.appendChild(t);
     setTimeout(() => t.remove(), 3300);
-    while (this.toasts.children.length > 5) this.toasts.firstElementChild?.remove();
+    while (this.toasts.children.length > 4) this.toasts.firstElementChild?.remove();
   }
 
+  /**
+   * The results, as the deck has them: the number that matters huge in
+   * orange with what it means stacked under it, fading, the small print
+   * below that, and the crew on the right with their cut.
+   */
   showResults(o: Outcome, sim: Sim) {
     this.setMode('results');
     this.hint.textContent = '';
-    if (o.mode === 'rideout' || o.mode === 'slid') return this.showModeResults(o, sim);
-    const reason = REASON[o.reason];
-    const items = sim.loot
-      .map((l) => {
-        const got = o.secured.includes(l.def.id);
-        const icon = l.def.id === 'bag' ? ICONS.bag : l.def.id === 'product' ? productIcon() : ICONS.cash;
-        return `<div class="item ${got ? '' : 'lost'}">${icon}<span>${l.def.value.toLocaleString('en-GB')}</span><small>${l.def.id === 'bag' ? 'Stash bag' : l.def.id === 'product' ? 'Product' : 'Cash'}</small></div>`;
-      })
-      .join('');
-    const shares = sim.crew.map((c) => (o.escaped.includes(c.def.slot) ? CUT[c.def.role] : 0));
-    const sum = shares.reduce((a, b) => a + b, 0) || 1;
-    const cuts = sim.crew
-      .map((c, i) => {
-        const pct = Math.round((shares[i] / sum) * 100);
-        const tag = o.down.includes(c.def.slot) ? 'Down' : o.left.includes(c.def.slot) ? 'Left behind' : '';
-        return `<div class="cut" style="--col:${c.def.color}"><div class="ring">${portrait(c.def.name)}</div>
-          <div><div class="bar"><i style="width:${pct}%"></i></div>${tag ? `<span class="tag">${tag}</span>` : ''}</div>
-          <span class="pct">${o.take ? pct : 0}%</span></div>`;
-      })
-      .join('');
-    const bar = (v: number, col: string) =>
-      `<div class="segs">${Array.from({ length: 10 }, (_, i) => `<i class="${i < v ? 'on' : ''}" style="--seg:${col}"></i>`).join('')}</div>`;
-    const stars = Math.max(0, Math.min(5, Math.round(o.rep / 6)));
-    this.overlay.className = 'overlay';
-    this.overlay.innerHTML = `
-      <div class="results">
-        <div class="res-left panel">
-          <div class="take">${money(o.payout.total)}</div>
-          <div class="reason">${reason} · ${fmtTime(o.time)}</div>
-          <div class="items">${items}</div>
-          ${cuts}
-        </div>
-        <div class="res-right panel">
-          <div class="payout">
-            <span class="head">What Auntie Pat pays</span>
-            <span>Loot carried out</span><span>${money(o.take)}</span>
-            ${o.payout.lines.map((l) => `<span>${l.label}</span><span class="${l.pct >= 0 ? 'plus' : 'minus'}">${l.pct >= 0 ? '+' : '−'}${Math.round(Math.abs(l.pct) * 100)}%</span>`).join('')}
-            <span class="sum">The crew banks</span><span class="total">${money(o.payout.total)}</span>
-          </div>
-          <div class="fall"><span>${ICONS.siren}</span>${bar(Math.round(o.policeHeat / 6), '#22E3FF')}<span class="lbl">Police heat +${o.policeHeat}</span></div>
-          <div class="fall"><span style="color:var(--enemy)">${ICONS.mask}</span>${bar(Math.round(o.rivalHeat / 5), '#FF3B4E')}<span class="lbl">Rival crew heat +${o.rivalHeat} · Revenge risk ${o.revengeRisk}%</span></div>
-          <div class="fall"><span>${ICONS.crew}</span><div class="stars">${Array.from({ length: 5 }, (_, i) => (i < stars ? ICONS.starFill : ICONS.star)).join('')}</div><span class="lbl">Reputation ${o.rep >= 0 ? '+' : ''}${o.rep}</span></div>
-          <div class="fall" style="border:0"><span></span><div style="font:400 13px/1.5 var(--body);color:#b8c6e6">
-            ${o.shots ? `${o.shots} shots fired. ` : 'No shots fired. '}${o.enemiesSubdued} held up, ${o.bodies} ${o.bodies === 1 ? 'body' : 'bodies'}${o.dogsDown ? `, ${o.dogsDown} ${o.dogsDown === 1 ? 'dog' : 'dogs'} down` : ''}.${o.civiliansHurt ? ` ${o.civiliansHurt} civilian${o.civiliansHurt === 1 ? '' : 's'} hurt.` : ''}${o.policeCalled ? ' A neighbour rang 999.' : ''}</div></div>
-        </div>
-      </div>
-      <div class="res-buttons">
-        <button data-a="replay">${ICONS.replay}Watch the replay</button>
-        <button data-a="replan">${ICONS.redo}Replan this job</button>
-        <button data-a="fresh">${ICONS.clear}Start over</button>
-        <button data-a="jobs">${ICONS.home}Pick another job</button>
-      </div>`;
-    this.overlay.querySelectorAll<HTMLElement>('[data-a]').forEach((b) =>
-      b.addEventListener('click', () => {
-        const a = b.dataset.a;
-        if (a === 'jobs') this.h.jobs();
-        else if (a === 'replay') this.h.replay('watch');
-        else this.h.replan(a === 'fresh');
-      }),
-    );
-  }
-
-  /** Results for a ride out or a defence: no money changes hands, so the board is about people and heat. */
-  private showModeResults(o: Outcome, sim: Sim) {
-    const ride = o.mode === 'rideout';
-    const bar = (v: number, col: string) =>
-      `<div class="segs">${Array.from({ length: 10 }, (_, i) => `<i class="${i < v ? 'on' : ''}" style="--seg:${col}"></i>`).join('')}</div>`;
-    const stars = Math.max(0, Math.min(5, Math.round(o.rep / 6)));
+    const where = splitTitle(this.jobTitle)[1];
+    const bodies = `${o.bodies} ${o.bodies === 1 ? 'body' : 'bodies'}`;
+    const heat = [
+      ['Police heat', `+${o.policeHeat}`],
+      ['Rival heat', `+${o.rivalHeat}`],
+      ['Revenge risk', `${o.revengeRisk}%`],
+      ['Reputation', `${o.rep >= 0 ? '+' : '−'}${Math.abs(o.rep)}`],
+    ];
+    const shots = `${o.shots ? `${o.shots} shots fired.` : 'No shots fired.'}${o.civiliansHurt ? ` ${o.civiliansHurt} civilian${o.civiliansHurt === 1 ? '' : 's'} hurt.` : ''}${o.policeCalled ? ' Someone rang 999.' : ''}`;
     let big: string;
-    let rows: string;
-    let head: string;
-    let lines: string;
-    if (ride) {
-      big = `${o.caught} <small>of ${o.targets} caught</small>`;
-      rows = sim.enemies
-        .filter((e) => e.def.target)
-        .map((e) => {
-          const tag = e.state === 'down' ? 'Down' : e.caught ? 'Caught' : e.state === 'gone' ? 'Got away' : 'Missed';
-          return `<div class="item ${e.caught ? '' : 'lost'}">${ICONS.mask}<span>${tag}</span><small>${e.def.name}</small></div>`;
-        })
-        .join('');
-      head = 'What it means on road';
-      lines = `<span>Caught</span><span class="plus">${o.caught} of ${o.targets}</span>
-        <span>Bodies</span><span class="${o.bodies ? 'minus' : 'plus'}">${o.bodies}</span>
-        <span class="sum">They're coming back for you</span><span class="total risk">${o.revengeRisk}%</span>`;
+    let mid: string;
+    let low: string;
+    let lines: string[][];
+    let note: string;
+    let value: (c: Crew) => string;
+    let replan = 'Replan this job';
+    if (o.mode === 'rideout') {
+      big = `${o.caught} of ${o.targets}`;
+      mid = 'caught';
+      low = bodies;
+      lines = [['Revenge risk', `${o.revengeRisk}%`, 'acc'], ...heat.filter((l) => l[0] !== 'Revenge risk')];
+      note = `${REASON[o.reason]} in ${fmtTime(o.time)}. ${shots}${o.caught ? ' Every one you touched, their side will remember.' : ''}`;
+      value = (c) => `${Math.round((100 * c.hp) / c.maxHp)}%`;
+      replan = 'Replan the ride out';
+    } else if (o.mode === 'slid') {
+      big = money(o.kept);
+      mid = o.reason === 'robbed' ? 'they took the lot' : o.reason === 'police' ? 'the boydem came' : 'held it down';
+      low = `${o.raidersDown} of ${o.raiders} put down`;
+      lines = [
+        ['Stash', money(o.stash)],
+        ['Kept', money(o.kept), 'acc'],
+        ['Taken', String(sim.loot.filter((l) => l.state === 'lost').length)],
+        ...heat,
+      ];
+      note = `${REASON[o.reason]} in ${fmtTime(o.time)}. ${shots}`;
+      value = (c) => `${Math.round((100 * c.hp) / c.maxHp)}%`;
+      replan = 'Replan the defence';
     } else {
-      big = `£${o.kept.toLocaleString('en-GB')} <small>of £${o.stash.toLocaleString('en-GB')} kept</small>`;
-      rows = sim.loot
-        .map((l) => {
-          const kept = l.state !== 'lost';
-          const icon = l.def.id === 'bag' ? ICONS.bag : l.def.id === 'product' ? productIcon() : ICONS.cash;
-          return `<div class="item ${kept ? '' : 'lost'}">${icon}<span>${l.def.value.toLocaleString('en-GB')}</span><small>${kept ? 'Kept' : 'Taken'}</small></div>`;
-        })
-        .join('');
-      head = "Marlowe's lot";
-      lines = `<span>Came through the doors</span><span>${o.raiders}</span>
-        <span>Put down or held</span><span class="plus">${o.raidersDown}</span>
-        <span>Got away with something</span><span class="${o.stash - o.kept ? 'minus' : 'plus'}">${sim.loot.filter((l) => l.state === 'lost').length}</span>
-        <span class="sum">${o.reason === 'robbed' ? 'They took the lot' : o.reason === 'police' ? 'The boydem turned up' : 'They backed off'}</span><span class="total ${o.reason === 'robbed' ? 'lost' : ''}">${o.reason === 'robbed' ? 'Robbed' : 'Held'}</span>`;
+      big = money(o.payout.total);
+      if (o.take > 0) {
+        const pct = Math.round((o.payout.total / o.take - 1) * 100);
+        mid = `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}% ${o.bodies ? 'hot' : 'clean'}`;
+      } else mid = REASON[o.reason].toLowerCase();
+      low = bodies;
+      lines = [
+        ['Loot carried out', money(o.take)],
+        ...o.payout.lines.map((l) => [l.label, `${l.pct >= 0 ? '+' : '−'}${Math.round(Math.abs(l.pct) * 100)}%`]),
+        ['The crew banks', money(o.payout.total), 'acc'],
+        ...heat,
+      ];
+      note = `${REASON[o.reason]} in ${fmtTime(o.time)}. ${shots} ${o.enemiesSubdued} held up${o.dogsDown ? `, ${o.dogsDown} ${o.dogsDown === 1 ? 'dog' : 'dogs'} down` : ''}.`;
+      // What Auntie Pat pays, split by role between those who got out.
+      const shares = sim.crew.map((c) => (o.escaped.includes(c.def.slot) ? CUT[c.def.role] : 0));
+      const sum = shares.reduce((a, b) => a + b, 0) || 1;
+      value = (c) => money(Math.round((o.payout.total * shares[c.def.slot - 1]) / sum / 10) * 10);
     }
-    const cuts = sim.crew
+    const crew = sim.crew
       .map((c) => {
-        const tag = o.down.includes(c.def.slot) ? 'Down' : o.left.includes(c.def.slot) ? 'Left behind' : '';
-        const hp = Math.round((100 * c.hp) / c.maxHp);
-        return `<div class="cut" style="--col:${c.def.color}"><div class="ring">${portrait(c.def.name)}</div>
-          <div><div class="bar"><i style="width:${hp}%"></i></div>${tag ? `<span class="tag">${tag}</span>` : ''}</div>
-          <span class="pct">${hp}%</span></div>`;
+        const out = o.down.includes(c.def.slot) || o.left.includes(c.def.slot);
+        const tag = o.down.includes(c.def.slot) ? 'Down' : o.left.includes(c.def.slot) ? 'Left behind' : c.def.role;
+        return `<div class="crow ${out ? 'out' : ''}" style="--col:${c.def.color}">
+          <div class="ph"><img src="${tileOf(c.def.name)}" alt="${c.def.name}" draggable="false" /></div>
+          <div class="v"><span class="lab">${c.def.name} · ${tag}</span><b>${value(c)}</b></div></div>`;
       })
       .join('');
-    this.overlay.className = 'overlay';
+    this.overlay.className = `overlay results-screen mode-${o.mode}`;
     this.overlay.innerHTML = `
-      <div class="results mode-${o.mode}">
-        <div class="res-left panel">
-          <div class="take">${big}</div>
-          <div class="reason">${REASON[o.reason]} · ${fmtTime(o.time)}</div>
-          <div class="items">${rows}</div>
-          ${cuts}
+      <div class="art on" style="background-image:url(${RESULT_ART[o.mode]})"></div>
+      <div class="res">
+        <div class="res-l">
+          <div class="head"><span class="lab">Job results · ${where}</span></div>
+          <div class="big">${big}</div>
+          <div class="mid">${mid}</div>
+          <div class="low">${low}</div>
+          <div class="details">${lines.map(([k, v, c]) => `<span>${k}</span><span class="${c ?? ''}">${v}</span>`).join('')}</div>
+          <p class="note">${note}</p>
         </div>
-        <div class="res-right panel">
-          <div class="payout">
-            <span class="head">${head}</span>
-            ${lines}
+        <div class="res-r">
+          ${crew}
+          <div class="res-buttons">
+            <button class="btn" data-a="replay">Watch the replay</button>
+            <button class="btn" data-a="replan">${replan}</button>
+            <button class="btn" data-a="fresh">Start over</button>
+            <button class="btn" data-a="jobs">Pick another job</button>
           </div>
-          <div class="fall"><span>${ICONS.siren}</span>${bar(Math.round(o.policeHeat / 6), '#22E3FF')}<span class="lbl">Police heat +${o.policeHeat}</span></div>
-          <div class="fall"><span style="color:var(--enemy)">${ICONS.mask}</span>${bar(Math.round(o.rivalHeat / 5), '#FF3B4E')}<span class="lbl">Rival crew heat +${o.rivalHeat} · Revenge risk ${o.revengeRisk}%</span></div>
-          <div class="fall"><span>${ICONS.crew}</span><div class="stars">${Array.from({ length: 5 }, (_, i) => (i < stars ? ICONS.starFill : ICONS.star)).join('')}</div><span class="lbl">Reputation ${o.rep >= 0 ? '+' : ''}${o.rep}</span></div>
-          <div class="fall" style="border:0"><span></span><div style="font:400 13px/1.5 var(--body);color:#b8c6e6">
-            ${o.shots ? `${o.shots} shots fired. ` : 'No shots fired. '}${o.bodies} ${o.bodies === 1 ? 'body' : 'bodies'}.${o.civiliansHurt ? ` ${o.civiliansHurt} civilian${o.civiliansHurt === 1 ? '' : 's'} hurt.` : ''}${o.policeCalled ? ' Someone rang 999.' : ''}${ride && o.caught ? ' Every one you touched, their side will remember.' : ''}</div></div>
         </div>
-      </div>
-      <div class="res-buttons">
-        <button data-a="replay">${ICONS.replay}Watch the replay</button>
-        <button data-a="replan">${ICONS.redo}${ride ? 'Replan the ride out' : 'Replan the defence'}</button>
-        <button data-a="fresh">${ICONS.clear}Start over</button>
-        <button data-a="jobs">${ICONS.home}Pick another job</button>
       </div>`;
     this.overlay.querySelectorAll<HTMLElement>('[data-a]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -774,18 +807,15 @@ function postAge(s: number): string {
   return `${Math.floor(s / 60)} min ago`;
 }
 
-function ringSvg(color: string) {
-  return `<svg class="ringsvg" viewBox="0 0 74 74"><circle cx="37" cy="37" r="32" stroke="rgba(255,255,255,0.12)" stroke-width="5" fill="none"/><circle class="fg" cx="37" cy="37" r="32" stroke="${color}" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" style="transition:stroke-dashoffset .2s;filter:drop-shadow(0 0 4px ${color})"/></svg>`;
-}
-
-function productIcon() {
-  return `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 8v8l9 4 9-4V8"/><path d="M12 12v8"/></svg>`;
-}
-
 function fmtTime(t: number) {
   const m = Math.floor(t / 60);
   const s = Math.floor(t % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** The raid clock: 02:14. */
+function fmtClock(t: number) {
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 }
 
 function setText(e: Element, s: string) {

@@ -60,16 +60,16 @@ void main(void) {
   float lx = dot(texture2D(textureSampler, vUV + vec2(px.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
   float ly = dot(texture2D(textureSampler, vUV + vec2(0.0, px.y)).rgb, vec3(0.299, 0.587, 0.114));
   float edge = clamp((abs(l - lx) + abs(l - ly)) * 6.0, 0.0, 1.0);
-  vec3 deep = vec3(0.035, 0.11, 0.24);
-  vec3 wash = vec3(0.118, 0.31, 0.56);
-  vec3 bright = vec3(0.62, 0.82, 1.0);
+  vec3 deep = vec3(0.012);
+  vec3 wash = vec3(0.075);
+  vec3 bright = vec3(0.93, 0.925, 0.91);
   float k = clamp(pow(l * 2.2, 0.75), 0.0, 1.0);
   vec3 bp = mix(deep, wash, k);
-  bp = mix(bp, bright, clamp(k - 0.7, 0.0, 1.0) * 1.5);
-  bp = mix(bp, bright, edge * 0.85);
-  vec2 g = mod(gl_FragCoord.xy, 28.0);
+  bp = mix(bp, bright, clamp(k - 0.75, 0.0, 1.0) * 1.2);
+  bp = mix(bp, bright, edge * 0.8);
+  vec2 g = mod(gl_FragCoord.xy, 32.0);
   float grid = (g.x < 1.0 || g.y < 1.0) ? 1.0 : 0.0;
-  bp += vec3(0.05, 0.11, 0.2) * grid;
+  bp += vec3(0.022) * grid;
   gl_FragColor = vec4(mix(c.rgb, bp, amount), 1.0);
 }
 `;
@@ -119,6 +119,8 @@ const MESHY_SPEEDS = { Walk: 0.35, Run: 1.83, CrouchWalk: 1.36 };
 
 /** Enemies who are held up or down drop their red: grey reads as out of the fight. */
 const NEUTRAL = '#aab4c8';
+/** The deck's one accent: go codes and loot. */
+const ACCENT = '#FF7A1A';
 /** Enemies are red; civilians are never red. */
 const colourOf = (kind: string) => (kind === 'civilian' ? PALETTE.civilian : PALETTE.enemy);
 
@@ -184,6 +186,12 @@ export class View {
   /** They Slid: where the waves will come from, until they have. */
   private waveMarks: { mesh: Mesh; tex: DynamicTexture; north: boolean; waves: number[]; key: string }[] = [];
   private hoverMesh: Mesh;
+  private readonly flatIP = (() => {
+    const ip = new ImageProcessingConfiguration();
+    ip.isEnabled = false;
+    ip.applyByPostProcess = false;
+    return ip;
+  })();
   private insets = { left: 250, right: 10, top: 30, bottom: 70 };
   private time = 0;
   private zoom = 1;
@@ -384,11 +392,13 @@ export class View {
   }
 
   private toOverlay(m: AbstractMesh) {
-    m.layerMask = OVERLAY;
-    m.isPickable = false;
-    for (const c of m.getChildMeshes()) {
+    for (const c of [m, ...m.getChildMeshes()]) {
       c.layerMask = OVERLAY;
       c.isPickable = false;
+      // The overlay camera has no post-process, so its materials must not hand
+      // their colour over in linear space for one to finish: that turned the
+      // orange markers red and every crew colour darker.
+      if (c.material instanceof StandardMaterial) c.material.imageProcessingConfiguration = this.flatIP;
     }
   }
 
@@ -615,7 +625,8 @@ export class View {
     ring.parent = root;
     ring.position.y = 0.04;
     this.toOverlay(ring);
-    const cone = this.makeCone(color, 0.18);
+    // Torch light, not team colour: the crew colour lives on the ring and the route.
+    const cone = this.makeCone('#eef3ff', 0.1);
     return { root, body, light: char.light, char, ring, cone, bag, torch, last: null, speed: 0 };
   }
 
@@ -807,14 +818,14 @@ export class View {
       const tex = new DynamicTexture('fog', { width: w * 64, height: h * 64 }, this.scene, true);
       tex.hasAlpha = true;
       const g = tex.getContext() as unknown as CanvasRenderingContext2D;
-      g.fillStyle = 'rgba(5,10,24,0.94)';
+      g.fillStyle = 'rgba(7,7,7,0.94)';
       g.fillRect(0, 0, w * 64, h * 64);
       g.setLineDash([18, 12]);
-      g.strokeStyle = 'rgba(255,255,255,0.85)';
-      g.lineWidth = 5;
+      g.strokeStyle = 'rgba(242,241,238,0.7)';
+      g.lineWidth = 4;
       g.strokeRect(6, 6, w * 64 - 12, h * 64 - 12);
-      g.fillStyle = 'rgba(160,190,255,0.75)';
-      g.font = '700 120px Rajdhani, sans-serif';
+      g.fillStyle = 'rgba(242,241,238,0.55)';
+      g.font = '300 120px Inter, sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText('?', (w * 64) / 2, (h * 64) / 2 + 6);
@@ -851,7 +862,7 @@ export class View {
       const room = lv.rooms.find((r) => Math.floor(l.x) >= r.x0 && Math.floor(l.x) <= r.x1 && Math.floor(l.y) >= r.y0 && Math.floor(l.y) <= r.y1);
       if (room && lv.unscouted.includes(room.id)) continue;
       const p = this.iconPlane(0.8, (g2, s) => {
-        g2.fillStyle = 'rgba(8,30,22,0.85)';
+        g2.fillStyle = 'rgba(7,7,7,0.88)';
         g2.strokeStyle = PALETTE.loot;
         g2.lineWidth = s * 0.06;
         g2.beginPath();
@@ -859,7 +870,7 @@ export class View {
         g2.fill();
         g2.stroke();
         g2.fillStyle = PALETTE.loot;
-        g2.font = `700 ${s * 0.55}px Rajdhani, sans-serif`;
+        g2.font = `400 ${s * 0.5}px Inter, sans-serif`;
         g2.textAlign = 'center';
         g2.textBaseline = 'middle';
         g2.fillText('£', s / 2, s / 2 + s * 0.03);
@@ -879,14 +890,14 @@ export class View {
     const tex = new DynamicTexture('exit', { width: ew * 64, height: eh * 64 }, this.scene, true);
     tex.hasAlpha = true;
     const g = tex.getContext() as unknown as CanvasRenderingContext2D;
-    g.fillStyle = 'rgba(61,255,162,0.10)';
+    g.fillStyle = 'rgba(242,241,238,0.06)';
     g.fillRect(0, 0, ew * 64, eh * 64);
     g.setLineDash([16, 10]);
-    g.strokeStyle = PALETTE.loot;
-    g.lineWidth = 5;
+    g.strokeStyle = 'rgba(242,241,238,0.8)';
+    g.lineWidth = 4;
     g.strokeRect(4, 4, ew * 64 - 8, eh * 64 - 8);
-    g.fillStyle = PALETTE.loot;
-    g.font = '700 44px Rajdhani, sans-serif';
+    g.fillStyle = '#f2f1ee';
+    g.font = '500 34px Inter, sans-serif';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText('GETAWAY', (ew * 64) / 2, (eh * 64) / 2 + 2);
@@ -1039,8 +1050,8 @@ export class View {
       const uy = (b.y - a.y) / len;
       let t = 0;
       while (t < len) {
-        const on = phase.d % 0.42 < 0.26;
-        const step = Math.min(len - t, on ? 0.26 - (phase.d % 0.42) : 0.42 - (phase.d % 0.42));
+        const on = phase.d % 0.34 < 0.11;
+        const step = Math.min(len - t, on ? 0.11 - (phase.d % 0.34) : 0.34 - (phase.d % 0.34));
         if (on) {
           const x0 = a.x + ux * t;
           const y0 = a.y + uy * t;
@@ -1085,12 +1096,12 @@ export class View {
         }
       }
       for (let k = 1; k < pts.length; k++) dash(pts[k - 1], pts[k], col, phase, 0.055);
-      // Waypoint dots and go-code diamonds.
+      // Waypoint dots and go-code circles.
       wps.forEach((w, k) => {
         if (this.mode === 'raid' && k < startIdx) return;
         const sel = plan && plan.selected === i + 1 && plan.selectedWp === k;
         if (w.hold) {
-          const d = this.iconPlane(0.78, (g, s) => drawDiamond(g, s, colours[i], w.hold!, !!sel));
+          const d = this.iconPlane(0.95, (g, s) => drawCode(g, s, w.hold!, !!sel), 128);
           d.rotation.x = Math.PI / 2;
           d.position.set(this.co.X(w.x), 0.12, this.co.Z(w.y));
           d.parent = this.markers;
@@ -1185,7 +1196,7 @@ export class View {
       if (ev.type === 'noise' && ev.r >= 2.5) {
         const ring = MeshBuilder.CreateTorus('noise', { diameter: 2, thickness: 0.04, tessellation: 48 }, this.scene);
         const enemyNoise = ev.label === 'Barking' || ev.label === 'Shouting' || ev.label === 'Ramming';
-        ring.material = mat(this.scene, '#ffffff', { emissive: enemyNoise ? PALETTE.enemy : '#d8e6ff', alpha: 0.6, unlit: true });
+        ring.material = mat(this.scene, '#ffffff', { emissive: enemyNoise ? PALETTE.enemy : '#ecebe7', alpha: 0.6, unlit: true });
         ring.position.set(this.co.X(ev.x), 0.07, this.co.Z(ev.y));
         this.toOverlay(ring);
         this.fx.push({ mesh: ring, t: 0, life: 0.7, kind: 'ring', r: ev.r });
@@ -1500,7 +1511,7 @@ export class View {
       this.animate(a, e.state === 'hostile' || (e.state === 'standoff' && e.leader) ? 'aim' : 'move');
       const fan = sim.grid.visionFan(e.x, e.y, e.facing, e.fov, e.range, 36);
       this.setCone(a.cone, fan, e.x, e.y, 0.05);
-      (a.cone.material as StandardMaterial).alpha = e.state === 'hostile' ? 0.32 : e.state === 'calm' ? 0.18 : 0.27;
+      (a.cone.material as StandardMaterial).alpha = e.state === 'hostile' ? 0.24 : e.state === 'calm' ? 0.12 : 0.19;
     }
     // Status icon above the head.
     if (a.icon) {
@@ -1544,25 +1555,25 @@ function drawLock(g: CanvasRenderingContext2D, s: number) {
   g.fillRect(s * 0.33, s * 0.42, s * 0.34, s * 0.26);
 }
 
-function drawDiamond(g: CanvasRenderingContext2D, s: number, color: string, code: string, sel: boolean) {
-  g.save();
-  g.translate(s / 2, s / 2);
-  g.rotate(Math.PI / 4);
-  g.fillStyle = 'rgba(8,16,34,0.92)';
-  g.fillRect(-s * 0.3, -s * 0.3, s * 0.6, s * 0.6);
-  g.strokeStyle = sel ? '#ffffff' : color;
-  g.lineWidth = s * 0.06;
-  g.strokeRect(-s * 0.3, -s * 0.3, s * 0.6, s * 0.6);
-  g.restore();
-  g.fillStyle = '#ffffff';
-  g.font = `700 ${s * 0.42}px Rajdhani, sans-serif`;
+/** A go code on the map: an orange circle with its letter, as in the deck. */
+function drawCode(g: CanvasRenderingContext2D, s: number, code: string, sel: boolean) {
+  g.beginPath();
+  g.arc(s / 2, s / 2, s * 0.4, 0, Math.PI * 2);
+  g.fillStyle = sel ? ACCENT : 'rgba(7,7,7,0.92)';
+  g.fill();
+  // Drawn heavy: the marker is only twenty-odd pixels on screen, and thin strokes vanish when the texture shrinks.
+  g.strokeStyle = ACCENT;
+  g.lineWidth = s * 0.1;
+  g.stroke();
+  g.fillStyle = sel ? '#070707' : ACCENT;
+  g.font = `600 ${s * 0.5}px Inter, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(code, s / 2, s / 2 + s * 0.03);
+  g.fillText(code, s / 2, s / 2 + s * 0.02);
 }
 
 function drawKick(g: CanvasRenderingContext2D, s: number, color: string) {
-  g.fillStyle = 'rgba(8,16,34,0.9)';
+  g.fillStyle = 'rgba(7,7,7,0.9)';
   g.strokeStyle = color;
   g.lineWidth = s * 0.06;
   g.beginPath();
@@ -1570,7 +1581,7 @@ function drawKick(g: CanvasRenderingContext2D, s: number, color: string) {
   g.fill();
   g.stroke();
   g.fillStyle = '#ffffff';
-  g.font = `700 ${s * 0.3}px Rajdhani, sans-serif`;
+  g.font = `500 ${s * 0.24}px Inter, sans-serif`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillText('KICK', s / 2, s / 2 + s * 0.02);
