@@ -29,6 +29,8 @@
 html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; color: var(--ink); font-family: var(--body); -webkit-font-smoothing: antialiased; }
 #game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; outline: none; touch-action: none; }
 #hud { position: fixed; inset: 0; pointer-events: none; user-select: none; }
+/* The plan draws white lines everywhere; a soft black band keeps the title readable over them. */
+#hud.m-planning::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 150px; background: linear-gradient(rgba(5, 5, 5, 0.85), rgba(5, 5, 5, 0)); }
 #hud .panel, #hud button, #hud .tile, #hud .minimap { pointer-events: auto; }
 
 .panel { background: var(--panel); border: 1px solid var(--line); }

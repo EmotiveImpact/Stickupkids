@@ -31,6 +31,7 @@ import {
   VertexBuffer,
   VertexData,
   type AbstractMesh,
+  type DepthRenderer,
 } from './babylon.ts';
 import type { Level, Vec } from '../sim/level.ts';
 import { BARRICADE_TIME, CALL_TIME, TALK_TIME, planSegments, type Crew, type Enemy, type Sim, type SimEvent, type Waypoint } from '../sim/sim.ts';
@@ -78,6 +79,8 @@ varying vec2 vUV;
 uniform sampler2D textureSampler;
 uniform float amount;
 uniform vec2 screenSize;
+uniform sampler2D depthSampler;
+uniform float depthRange;
 // The deck's grade: a cold, wet night. Blues and violets wash out to a dark
 // teal-grey; sodium and orange keep their colour; blacks sit just off black.
 vec3 grade(vec3 c) {
@@ -90,25 +93,36 @@ vec3 grade(vec3 c) {
   g = g * g * (3.0 - 2.0 * g) * 0.35 + g * 0.65;
   return max(g - 0.006, 0.0) + vec3(0.004, 0.008, 0.009);
 }
+float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+// Depth in metres from the camera, from the depth renderer's linear depth.
+float depthAt(vec2 uv) { return texture2D(depthSampler, uv).r * depthRange; }
 void main(void) {
   vec4 c = texture2D(textureSampler, vUV);
   c.rgb = grade(clamp(c.rgb, 0.0, 1.0));
   if (amount <= 0.001) { gl_FragColor = c; return; }
+  // The plan: the real scene, lifted and cooled to a monochrome you can read,
+  // with the building drawn in white lines where the geometry steps (walls,
+  // doors, kerbs, furniture), not where a texture happens to be busy.
   vec2 px = 1.0 / screenSize;
-  float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-  float lx = dot(texture2D(textureSampler, vUV + vec2(px.x, 0.0)).rgb, vec3(0.299, 0.587, 0.114));
-  float ly = dot(texture2D(textureSampler, vUV + vec2(0.0, px.y)).rgb, vec3(0.299, 0.587, 0.114));
-  float edge = clamp((abs(l - lx) + abs(l - ly)) * 6.0, 0.0, 1.0);
-  vec3 deep = vec3(0.012);
-  vec3 wash = vec3(0.075);
-  vec3 bright = vec3(0.93, 0.925, 0.91);
-  float k = clamp(pow(l * 2.2, 0.75), 0.0, 1.0);
-  vec3 bp = mix(deep, wash, k);
-  bp = mix(bp, bright, clamp(k - 0.75, 0.0, 1.0) * 1.2);
-  bp = mix(bp, bright, edge * 0.8);
+  float d = depthAt(vUV);
+  float dl = depthAt(vUV - vec2(px.x, 0.0));
+  float dr = depthAt(vUV + vec2(px.x, 0.0));
+  float du = depthAt(vUV - vec2(0.0, px.y));
+  float dd = depthAt(vUV + vec2(0.0, px.y));
+  // Second differences ignore the steady slope of the floor under a tilted camera.
+  float step2 = max(abs(dl + dr - 2.0 * d), abs(du + dd - 2.0 * d));
+  // Big steps are walls and roofs; small ones are furniture and kerbs, drawn softer.
+  float edge = smoothstep(0.05, 0.22, step2) * mix(0.55, 1.0, smoothstep(0.3, 1.2, step2));
+  vec3 raw = clamp(texture2D(textureSampler, vUV).rgb, 0.0, 1.0);
+  float l = luma(raw);
+  // Lift the dark end hard so rooms read even where no lamp reaches.
+  float lit = clamp(pow(l, 0.5) * 0.62 + 0.05, 0.0, 0.62);
+  vec3 tone = mix(vec3(lit) * vec3(0.93, 0.97, 1.0), raw * 1.6, 0.18);
+  vec3 bright = vec3(0.95, 0.945, 0.93);
+  vec3 bp = mix(tone, bright, edge * 0.92);
   vec2 g = mod(gl_FragCoord.xy, 32.0);
   float grid = (g.x < 1.0 || g.y < 1.0) ? 1.0 : 0.0;
-  bp += vec3(0.022) * grid;
+  bp += vec3(0.03) * grid * (1.0 - edge);
   gl_FragColor = vec4(mix(c.rgb, bp, amount), 1.0);
 }
 `;
@@ -203,6 +217,7 @@ export class View {
   private ocam: FreeCamera;
   private pipeline: DefaultRenderingPipeline;
   private bp: PostProcess;
+  private depth: DepthRenderer;
   private bpAmount = 1;
   private bpTarget = 1;
   private estate: Estate | null = null;
@@ -316,10 +331,14 @@ export class View {
     pp.sharpenEnabled = true;
     pp.sharpen.edgeAmount = 0.2;
 
-    this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize'], null, 1, this.cam);
+    // Depth for the plan's line drawing; only rendered while the plan shows.
+    const depth = (this.depth = scene.enableDepthRenderer(this.cam, false, true));
+    this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange'], ['depthSampler'], 1, this.cam);
     this.bp.onApply = (e) => {
       e.setFloat('amount', this.bpAmount);
       e.setFloat2('screenSize', this.bp.width, this.bp.height);
+      e.setTexture('depthSampler', depth.getDepthMap());
+      e.setFloat('depthRange', this.cam.maxZ);
     };
 
     this.markers = new TransformNode('markers', scene);
@@ -708,7 +727,7 @@ export class View {
     const { root, body, light } = char;
     for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
     const s = CHAR_SCALE;
-    const ring = MeshBuilder.CreateTorus('ring', { diameter: (kind === 'dog' ? 0.66 : 0.6) / s, thickness: 0.035 / s, tessellation: 32 }, scene);
+    const ring = MeshBuilder.CreateTorus('ring', { diameter: (kind === 'dog' ? 0.7 : 0.64) / s, thickness: 0.06 / s, tessellation: 32 }, scene);
     ring.material = mat(scene, col, { emissive: col, unlit: true });
     ring.parent = root;
     ring.position.y = 0.04;
@@ -1319,6 +1338,10 @@ export class View {
     // Blueprint wash eases in and out.
     this.bpAmount += (this.bpTarget - this.bpAmount) * Math.min(1, dt * 5);
     if (Math.abs(this.bpTarget - this.bpAmount) < 0.002) this.bpAmount = this.bpTarget;
+    this.depth.enabled = this.bpAmount > 0 || this.bpTarget > 0;
+    // Film grain and fringing belong to the night, not the plan.
+    this.pipeline.grain.intensity = 7 * (1 - this.bpAmount);
+    this.pipeline.chromaticAberration.aberrationAmount = 10 * (1 - this.bpAmount);
     const est = this.estate;
     if (!est) {
       this.scene.render();

@@ -3,6 +3,7 @@
 import '@babylonjs/core/Culling/ray';
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Layers/effectLayerSceneComponent';
+import '@babylonjs/core/Rendering/depthRendererSceneComponent';
 import '@babylonjs/core/Animations/animatable';
 import '@babylonjs/core/Particles/particleSystemComponent';
 import '@babylonjs/loaders/glTF/glTFFileLoader';
@@ -39,6 +40,7 @@ export { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPi
 export { ParticleSystem } from '@babylonjs/core/Particles/particleSystem';
 export { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase';
 export { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
+export type { DepthRenderer } from '@babylonjs/core/Rendering/depthRenderer';
 export type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 export type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 export type { AssetContainer } from '@babylonjs/core/assetContainer';
