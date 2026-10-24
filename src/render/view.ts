@@ -37,7 +37,7 @@ import { BARRICADE_TIME, CALL_TIME, TALK_TIME, planSegments, type Crew, type Ene
 import { PALETTE, WALL_H } from './palette.ts';
 import { Coords, mat } from './world.ts';
 import { loadEstate, type Estate } from './estate.ts';
-import { CHAR_SCALE, CharacterKit, type Character } from './characters.ts';
+import { CHAR_SCALE, CharacterKit, type Character, type Weapon } from './characters.ts';
 import { Atmosphere, dotTexture, glowTexture } from './atmosphere.ts';
 import { Constants } from '@babylonjs/core/Engines/constants';
 
@@ -154,7 +154,9 @@ const modelFor = (e: { kind: string; model?: string }) => (e.model && MODELS.has
 /** Each crew member's own model, by slot (Meshy, readied by scripts/import-meshy-crew.mjs). */
 const CREW_MODELS = ['crew-dex', 'crew-kemi', 'crew-jojo', 'crew-taz'];
 /** How fast the Meshy clips cover the ground at 1x, in metres a second. */
-const MESHY_SPEEDS = { Walk: 0.35, Run: 1.83, CrouchWalk: 1.36 };
+const MESHY_SPEEDS = { Walk: 0.34, Run: 1.83, CrouchWalk: 1.36, PistolWalk: 0.81, PistolRun: 6.13 };
+/** What each of the crew carries: Dex the long gun, the rest handguns. */
+const CREW_WEAPONS: Weapon[] = ['rifle', 'pistol', 'pistol', 'pistol'];
 
 /** Enemies who are held up or down drop their red: grey reads as out of the fight. */
 const NEUTRAL = '#aab4c8';
@@ -407,7 +409,7 @@ export class View {
     dust.manualEmitCount = 0;
     dust.start();
 
-    this.crewColours().forEach((colour, i) => this.crew.push(this.makeCrewActor(CREW_MODELS[i], colour)));
+    this.crewColours().forEach((colour, i) => this.crew.push(this.makeCrewActor(CREW_MODELS[i], colour, CREW_WEAPONS[i])));
     for (const e of this.level.enemies) this.enemies.set(e.id, this.makeEnemyActor(e.kind, modelFor(e)));
     this.refreshKey();
     this.atmosphere = new Atmosphere(scene, this.co, this.level, estate, WORLD, 1 / Math.tan(TILT));
@@ -663,9 +665,9 @@ export class View {
 
   // ------------------------------------------------------------ actors
 
-  private makeCrewActor(model: string, color: string): Actor {
+  private makeCrewActor(model: string, color: string, weapon: Weapon): Actor {
     const scene = this.scene;
-    const char = this.kits.get(model)!.spawn(scene, 'crew', { slot: color });
+    const char = this.kits.get(model)!.spawn(scene, 'crew', { slot: color, weapon });
     const { root, body } = char;
     for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
     const bag = MeshBuilder.CreateCapsule('bag', { height: 0.62, radius: 0.17, orientation: new Vector3(1, 0, 0) }, scene);

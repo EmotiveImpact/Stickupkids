@@ -9,10 +9,17 @@
 // - Meshy poses the arms for a rifle but sends no gun, so a plain rifle is
 //   built on the right hand bone, pointing at the left hand as it is while
 //   running and shooting (the clip with a true two-handed grip, and the one
-//   the crew move with most).
+//   the crew move with most);
+// - the armed models (crew-photoreal/armed) bring their own guns, skinned to
+//   the right hand (Weapon_Pistol, _Rifle, _Shotgun, _SMG; the game shows
+//   one), and pistol clips, which take the names PistolWalk, PistolRun,
+//   PistolAim and PistolFire; their textures are cut down to what a figure
+//   seen from above needs.
 // Run: node scripts/import-meshy-crew.mjs <meshy.glb> <out.glb>
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { textureCompress } from '@gltf-transform/functions';
+import sharp from 'sharp';
 import { statSync } from 'node:fs';
 
 const [src, out] = process.argv.slice(2);
@@ -23,13 +30,17 @@ const RENAME = {
   Run_and_Shoot: 'Run',
   Cautious_Crouch_Walk_Forward: 'CrouchWalk',
   Shot_and_Fall_Backward: 'Down',
+  Pistol_Walk_Aim: 'PistolWalk',
+  Pistol_Run: 'PistolRun',
+  Pistol_Aim_Idle: 'PistolAim',
+  Pistol_Fire: 'PistolFire',
 };
 /** Held poses: name, and the clip whose first frame they hold. Meshy's Combat_Stance holds the hands too far apart for a rifle. */
 const HELD = { Aim: 'Walk_Forward_While_Shooting', CrouchIdle: 'Cautious_Crouch_Walk_Forward' };
 /** Clips calmed down, and the share of their movement they keep. */
 const CALM = { Idle: 0.25 };
 /** Clips that travel; Down keeps its fall. */
-const MOVING = ['Walk_Forward_While_Shooting', 'Run_and_Shoot', 'Rifle_Charge', 'Cautious_Crouch_Walk_Forward', 'Sneaky_Walk'];
+const MOVING = ['Walk_Forward_While_Shooting', 'Run_and_Shoot', 'Rifle_Charge', 'Cautious_Crouch_Walk_Forward', 'Sneaky_Walk', 'Pistol_Walk_Aim', 'Pistol_Run'];
 
 // ------------------------------------------------------------ small maths
 
@@ -138,6 +149,7 @@ for (const name of MOVING) {
 
 // ----------------------------------------------------- a rifle in the hand
 
+const armed = root.listNodes().some((n) => n.getName().startsWith('Weapon_'));
 const stance = pose(anim('Run_and_Shoot'), 0);
 const hand = stance(node('RightHand'));
 const fore = stance(node('RightForeArm')).t;
@@ -194,7 +206,9 @@ const prim = doc
   .setMaterial(metal);
 // Faces wind one way in rifle space; a mirrored basis would turn them inside out.
 if (dot(cross(R, U), D) < 0) for (let i = 0; i < indices.length; i += 3) [indices[i + 1], indices[i + 2]] = [indices[i + 2], indices[i + 1]];
-node('RightHand').addChild(doc.createNode('Weapon').setMesh(doc.createMesh('Weapon').addPrimitive(prim)));
+if (!armed) node('RightHand').addChild(doc.createNode('Weapon').setMesh(doc.createMesh('Weapon').addPrimitive(prim)));
+else for (const a of [prim.getAttribute('POSITION'), prim.getAttribute('NORMAL'), prim.getIndices()]) a.dispose();
+if (armed) metal.dispose();
 
 // ------------------------------------------------------------ held poses
 
@@ -232,6 +246,17 @@ for (const [name, keep] of Object.entries(CALM)) {
 }
 
 for (const a of root.listAnimations()) if (RENAME[a.getName()]) a.setName(RENAME[a.getName()]);
+
+// The figure is under a hundred pixels tall on screen: 1K maps for the body, small ones for the guns.
+if (armed) {
+  const gun = new Set(root.listMeshes().filter((m) => m.getName().startsWith('Weapon_') || root.listNodes().some((n) => n.getMesh() === m && n.getName().startsWith('Weapon_'))).flatMap((m) => m.listPrimitives().map((p) => p.getMaterial())));
+  const gunTex = new Set([...gun].flatMap((m) => m ? [m.getBaseColorTexture(), m.getNormalTexture(), m.getMetallicRoughnessTexture()] : []).filter(Boolean));
+  for (const [i, t] of root.listTextures().entries()) t.setName(gunTex.has(t) ? `gun-${i}` : `body-${i}`);
+  await doc.transform(
+    textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [256, 256], pattern: /^gun-/, quality: 82 }),
+    textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [1024, 1024], pattern: /^body-/, quality: 86 }),
+  );
+}
 
 await io.write(out, doc);
 const grip = Math.hypot(...sub(left, palm));

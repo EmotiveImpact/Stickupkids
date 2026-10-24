@@ -24,12 +24,19 @@ import { MAX_LIGHTS, loadModel } from './estate.ts';
 export const CHAR_SCALE = 1.12;
 const FADE = 0.18;
 
+export type Weapon = 'pistol' | 'rifle' | 'shotgun' | 'smg';
+
 export interface Look {
   /** The identifying colour: crew colour or enemy red. */
   slot: string;
   /** Clothing tint. */
   cloth?: string;
+  /** Which of the model's guns to show, when it brings several (the armed crew do). */
+  weapon?: Weapon;
 }
+
+/** Guns held in one hand play the model's Pistol clips where it has them; long guns play the plain ones. */
+const CLIPS_FOR: Record<Weapon, string> = { pistol: 'Pistol', rifle: '', shotgun: '', smg: '' };
 
 /**
  * A fresnel rim in the character's own colour, so a dark figure in a dark
@@ -110,6 +117,11 @@ export class CharacterKit {
     body.parent = root;
     for (const n of inst.rootNodes) n.parent = body;
     const meshes = inst.rootNodes.flatMap((n) => n.getChildMeshes(false));
+    // One gun in the hand, the rest put away; and Meshy's stray icosphere, if it came along.
+    for (const m of meshes) {
+      const gun = /Weapon_(\w+)/.exec(m.name)?.[1]?.toLowerCase();
+      if ((gun && gun !== (look.weapon ?? 'rifle')) || /icosphere/i.test(m.name)) m.setEnabled(false);
+    }
     const slots: PBRMaterial[] = [];
     const rims: RimPlugin[] = [];
     const seen = new Set<PBRMaterial>();
@@ -137,7 +149,7 @@ export class CharacterKit {
     const light = new HemisphericLight(`${id}:light`, Vector3.Up(), scene);
     light.specular = Color3.Black();
     light.includedOnlyMeshes = meshes;
-    const c = new Character(root, body, meshes, groups, light, slots, rims, this.speeds);
+    const c = new Character(root, body, meshes, groups, light, slots, rims, this.speeds, CLIPS_FOR[look.weapon ?? 'rifle']);
     c.setTint(look.slot);
     return c;
   }
@@ -153,6 +165,8 @@ export class Character {
   private readonly slots: PBRMaterial[];
   private readonly rims: RimPlugin[];
   private readonly speeds: Record<string, number>;
+  /** Prefix of the clips for the gun in hand (Pistol), tried before the plain clip. */
+  private readonly hold: string;
   private cur: AnimationGroup | null = null;
   private fading: AnimationGroup[] = [];
   private frozen = false;
@@ -166,6 +180,7 @@ export class Character {
     slots: PBRMaterial[],
     rims: RimPlugin[],
     speeds: Record<string, number>,
+    hold = '',
   ) {
     this.root = root;
     this.body = body;
@@ -175,11 +190,17 @@ export class Character {
     this.slots = slots;
     this.rims = rims;
     this.speeds = speeds;
+    this.hold = hold;
+  }
+
+  /** The clip actually played for `clip`: its version for the gun in hand, if the model has one. */
+  private clipFor(clip: string): string {
+    return this.hold && this.groups.has(this.hold + clip) ? this.hold + clip : clip;
   }
 
   /** Ground speed of a moving clip at 1x, in metres a second, if the model says. */
   natural(clip: string): number | undefined {
-    return this.speeds[clip];
+    return this.speeds[this.clipFor(clip)];
   }
 
   /** Recolour the trim and rim: the slot colour, or grey once an enemy is out of it. */
@@ -193,12 +214,12 @@ export class Character {
   }
 
   has(clip: string) {
-    return this.groups.has(clip);
+    return this.groups.has(this.clipFor(clip));
   }
 
   /** Crossfade to a clip. A clip that does not loop holds its last frame (Down). */
   play(clip: string, speed = 1, loop = true) {
-    const g = this.groups.get(clip) ?? this.groups.get('Idle');
+    const g = this.groups.get(this.clipFor(clip)) ?? this.groups.get('Idle');
     if (!g) return;
     if (this.frozen) {
       this.frozen = false;
