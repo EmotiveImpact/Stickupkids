@@ -1,0 +1,557 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { buildEstateHouse } from '../src/sim/level.ts';
+import { Grid } from '../src/sim/grid.ts';
+import { Sim, planSegments, TALK_TIME, type Enemy, type Waypoint } from '../src/sim/sim.ts';
+import { payoutFor, revengeRisk } from '../src/sim/payout.ts';
+import { Replay, record } from '../src/sim/replay.ts';
+import { inRect, type EnemyDef, type Level, type Vec } from '../src/sim/level.ts';
+import { samplePlans } from '../src/sim/samplePlan.ts';
+import { buildBurgessPark } from '../src/sim/burgess.ts';
+import { JOBS } from '../src/sim/jobs.ts';
+import { buildRideOut } from '../src/sim/rideout.ts';
+import { buildTrap } from '../src/sim/trap.ts';
+import { rideOutPlans, trapBarricades, trapPlans } from '../src/sim/samplePlan.ts';
+import { rideOutRisk } from '../src/sim/payout.ts';
+
+/** The jobs where the crew rob somewhere and get back to the van. */
+const STICKUPS = JOBS.filter((j) => (j.mode ?? 'stickup') === 'stickup');
+
+test('walls block sight, windows do not', () => {
+  const g = new Grid(buildEstateHouse());
+  // Through the kitchen side window from the side passage.
+  assert.equal(g.lineOfSight(27.5, 10.5, 22.5, 10.5), true);
+  // Through the wall between the kitchen and the hall.
+  assert.equal(g.lineOfSight(16.5, 11.5, 12.5, 11.5), false);
+  // Closed door blocks sight until opened.
+  assert.equal(g.lineOfSight(12.5, 16.5, 9.5, 16.5), false);
+  g.setDoor(11, 16, 'open');
+  assert.equal(g.lineOfSight(12.5, 16.5, 9.5, 16.5), true);
+});
+
+test('dogs cannot path through shut doors, crew can', () => {
+  const g = new Grid(buildEstateHouse());
+  assert.ok(g.findPath(19.5, 5.5, 19.5, 9.5, 'crew'));
+  assert.equal(g.findPath(19.5, 5.5, 19.5, 9.5, 'dog'), null);
+});
+
+test('every sample plan segment is reachable', () => {
+  const level = buildEstateHouse();
+  const g = new Grid(level);
+  for (const plan of samplePlans()) {
+    for (const seg of planSegments(g, plan)) assert.ok(seg.length > 0);
+  }
+});
+
+function run(sim: Sim, codes: [number, 'A' | 'B' | 'C'][], maxT = 240) {
+  const dt = 1 / 60;
+  const log: string[] = [];
+  while (!sim.outcome && sim.time < maxT) {
+    for (const [t, c] of codes) if (sim.time < t && sim.time + dt >= t) sim.callCode(c);
+    sim.step(dt);
+    for (const e of sim.events) if (e.type !== 'noise' && e.type !== 'shot') log.push(`${sim.time.toFixed(1)} ${JSON.stringify(e)}`);
+    sim.events = [];
+  }
+  return log;
+}
+
+test('the sample plan gets the crew out with the loot', () => {
+  const sim = new Sim(buildEstateHouse(), samplePlans());
+  const log = run(sim, [[5, 'A'], [20, 'B']]);
+  if (process.env.SIM_LOG) console.log(log.join('\n'), sim.outcome, sim.crew.map((c) => [c.def.name, c.state, c.hp, c.x.toFixed(1), c.y.toFixed(1)]));
+  assert.ok(sim.outcome, 'job should end');
+  assert.equal(sim.outcome!.reason, 'escaped');
+  assert.ok(sim.outcome!.take >= 15000, `take was ${sim.outcome!.take}`);
+});
+
+test('kicking the front door is loud and starts the police clock', () => {
+  const plans = samplePlans();
+  plans[1][1].kick = true;
+  const sim = new Sim(buildEstateHouse(), plans);
+  run(sim, [[5, 'A'], [20, 'B']], 15);
+  assert.ok(sim.police > 0.05);
+});
+
+test('with no plan nobody moves and driving off ends the job', () => {
+  const level = buildEstateHouse();
+  const sim = new Sim(level, []);
+  for (let i = 0; i < 120; i++) sim.step(1 / 60);
+  assert.equal(sim.outcome, null);
+  sim.driveOff();
+  assert.equal(sim.outcome!.reason, 'droveOff');
+  assert.equal(sim.outcome!.take, 0);
+});
+
+test('a reckless plan through the front door turns into a firefight', () => {
+  const level = buildEstateHouse();
+  const kickIn = (sx: number, sy: number): Waypoint[] => [
+    { x: sx, y: sy, hold: null, kick: true },
+    { x: 12.5, y: 18.5, hold: null, kick: true },
+    { x: 17.5, y: 11.5, hold: null, kick: true },
+    { x: 3.5, y: 22.5, hold: null, kick: false },
+  ];
+  const sim = new Sim(level, level.crewStarts.map((s) => kickIn(s.x, s.y)));
+  run(sim, [], 120);
+  assert.ok(sim.shots > 0, 'shots should be fired');
+  assert.ok(sim.police > 0.2, 'police clock should be well under way');
+});
+
+test('every job has a plan that gets out quietly with the money', () => {
+  for (const job of STICKUPS) {
+    const level = job.build();
+    const g = new Grid(level);
+    for (const plan of job.samplePlans()) for (const seg of planSegments(g, plan)) assert.ok(seg.length > 0, `${job.id} plan reachable`);
+    const sim = new Sim(level, job.samplePlans());
+    run(sim, job.sampleCodes, 400);
+    assert.equal(sim.outcome?.reason, 'escaped', job.id);
+    assert.ok(sim.outcome!.take >= 15000, `${job.id} take was ${sim.outcome!.take}`);
+  }
+});
+
+test('in the park, lamplight decides how far off they see you', () => {
+  const sim = new Sim(buildBurgessPark(), []);
+  // Under the lamp by the picnic table, and out on the dark grass.
+  assert.ok(sim.visibility({ x: 100.5, y: 121.5 }) > 0.95);
+  assert.ok(sim.visibility({ x: 150.5, y: 60.5 }) < 0.6);
+  // The estate is lit all over.
+  assert.equal(new Sim(buildEstateHouse(), []).visibility({ x: 2.5, y: 4.5 }), 1);
+});
+
+test('shrubs block sight and movement, water blocks movement only', () => {
+  const level = buildBurgessPark();
+  const g = new Grid(level);
+  assert.equal(g.passable(102, 128, 'crew'), false);
+  assert.equal(g.lineOfSight(99.5, 128.5, 105.5, 128.5), false);
+  level.tiles[0][0] = 'w';
+  assert.equal(new Grid(level).passable(0, 0, 'crew'), false);
+  assert.equal(new Grid(level).blocksSight(0, 0), false);
+});
+
+test('rewriting everyone as orders from where they stand changes nothing', () => {
+  for (const job of JOBS) {
+    const plain = new Sim(job.build(), job.samplePlans(), 7, job.sampleBarricades);
+    run(plain, job.sampleCodes, 400);
+    // The same raid, paused every few seconds (pausing rewrites each plan as orders).
+    const paused = new Sim(job.build(), job.samplePlans(), 7, job.sampleBarricades);
+    const dt = 1 / 60;
+    let next = 0;
+    while (!paused.outcome && paused.time < 400) {
+      if (paused.time >= next) {
+        next += 3;
+        for (const c of paused.crew) if (c.state !== 'down' && c.state !== 'escaped') paused.setOrders(c.def.slot, paused.orders(c.def.slot));
+      }
+      for (const [t, c] of job.sampleCodes) if (paused.time < t && paused.time + dt >= t) paused.callCode(c);
+      paused.step(dt);
+      paused.events = [];
+    }
+    assert.equal(paused.outcome?.reason, plain.outcome?.reason, job.id);
+    assert.equal(paused.outcome?.take, plain.outcome?.take, job.id);
+    assert.equal(paused.time.toFixed(2), plain.time.toFixed(2), job.id);
+  }
+});
+
+test('mid-raid orders: a new route, a hold for a go code, and a lock still being picked', () => {
+  const level = buildEstateHouse();
+  const sim = new Sim(level, []);
+  const start = sim.orders(1);
+  assert.equal(start.length, 1);
+  // Send Dex two cells along the street and on, holding at the first for C.
+  const s = start[0];
+  const hold = { x: s.x + 2, y: s.y, hold: 'C' as const, kick: false };
+  const on = { x: s.x + 4, y: s.y, hold: null, kick: false };
+  sim.setOrders(1, [...start, hold, on]);
+  for (let i = 0; i < 60 * 10; i++) sim.step(1 / 60);
+  const dex = sim.crew[0];
+  assert.equal(dex.state, 'hold');
+  assert.ok(Math.hypot(dex.x - hold.x, dex.y - hold.y) < 0.05);
+  // While held, his orders start where he stands, with the hold.
+  assert.equal(sim.orders(1)[0].hold, 'C');
+  sim.callCode('C');
+  for (let i = 0; i < 60 * 10; i++) sim.step(1 / 60);
+  assert.ok(Math.hypot(dex.x - on.x, dex.y - on.y) < 0.05);
+
+  // Adding a point further on does not stop someone part way through a lock.
+  const raid = new Sim(level, samplePlans());
+  let picker = null;
+  for (let i = 0; i < 60 * 120 && !picker; i++) {
+    raid.step(1 / 60);
+    picker = raid.crew.find((c) => c.action?.kind === 'pick' && c.action.t > 0.5) ?? null;
+  }
+  assert.ok(picker, 'someone picks a lock in the sample plan');
+  const act = picker!.action;
+  const o = raid.orders(picker!.def.slot);
+  o.push({ ...o[o.length - 1] });
+  raid.setOrders(picker!.def.slot, o);
+  assert.equal(picker!.action, act);
+  assert.equal(picker!.state, 'pick');
+});
+
+// ------------------------------------------------------------ personalities
+
+/** The crew stand where they are put and do nothing; anyone not placed waits near the van (outside the getaway zone, or they would count as away). */
+function standing(level: Level, spots: (Vec | null)[]): Waypoint[][] {
+  return level.crewStarts.map((s, i) => {
+    const at = spots[i] ?? (inRect(level.exit, s.x, s.y) ? { x: level.exit.x0 - 8.5 - i, y: s.y } : s);
+    return [{ ...at, hold: null, kick: false }];
+  });
+}
+
+function steps(sim: Sim, seconds: number, log?: string[]) {
+  const end = sim.time + seconds;
+  while (!sim.outcome && sim.time < end) {
+    sim.step(1 / 60);
+    if (log) for (const e of sim.events) log.push(e.type === 'say' ? `say:${e.text}` : e.type);
+    sim.events = [];
+  }
+}
+
+const enemy = (sim: Sim, id: string) => sim.enemies.find((e) => e.id === id) as Enemy;
+
+/** Burgess Park with only the people named (plus any extra placed by hand). */
+function parkWith(ids: string[], extra: EnemyDef[] = []): Level {
+  const level = buildBurgessPark();
+  level.enemies = [...level.enemies.filter((e) => ids.includes(e.id)), ...extra];
+  return level;
+}
+
+const man: EnemyDef = { id: 'man', kind: 'soldier', name: 'Man', x: 103.5, y: 124.5, facing: 0, patrol: [] };
+
+test('the old head talks before he shoots, then his men go with him', () => {
+  // Dex walks up in front of the Elder by the lamp at the count. A gun alone will not move him.
+  const level = parkWith(['elder'], [man]);
+  const sim = new Sim(level, standing(level, [{ x: 96.5, y: 124.5 }]));
+  const log: string[] = [];
+  steps(sim, 2, log);
+  assert.equal(enemy(sim, 'elder').state, 'standoff');
+  assert.equal(enemy(sim, 'man').state, 'standoff', 'his man waits on his word');
+  assert.ok(log.includes('say:WHO SENT YOU?'));
+  assert.equal(sim.shots, 0);
+  steps(sim, TALK_TIME, log);
+  assert.ok(log.includes('say:WRONG ANSWER'), 'nobody talked him down');
+  assert.ok(['hostile', 'down'].includes(enemy(sim, 'elder').state));
+  assert.ok(['hostile', 'down'].includes(enemy(sim, 'man').state), 'and his man goes with him');
+});
+
+test('Taz talks the old head down, and his men stand down with him', () => {
+  const level = parkWith(['elder'], [man]);
+  const sim = new Sim(level, standing(level, [{ x: 96.5, y: 124.5 }, null, null, { x: 96.5, y: 125.5 }]));
+  const log: string[] = [];
+  steps(sim, 8, log);
+  assert.equal(enemy(sim, 'elder').state, 'subdued');
+  assert.equal(enemy(sim, 'man').state, 'subdued', 'he tells his man to leave it');
+  assert.equal(sim.shots, 0);
+  assert.ok(!log.includes('alert'), 'nobody went hostile');
+});
+
+test('a nervous dealer grabs the stash and runs; held up, he drops it; away, it is lost', () => {
+  const level = parkWith(['tally']);
+  let sim = new Sim(level, standing(level, []));
+  const tally = () => enemy(sim, 'tally');
+  const cash = () => sim.loot.find((l) => l.def.id === 'cash')!;
+  // Something spooks him (as a shout or a gunshot would).
+  (sim as unknown as { becomeHostile(e: Enemy, t: Vec): void }).becomeHostile(tally(), { x: 110, y: 124 });
+  assert.equal(tally().state, 'fleeing');
+  steps(sim, 3);
+  assert.equal(cash().state, 'snatched');
+  // Kemi steps out in front of him: he gives up and the money hits the floor.
+  const k = sim.crew[1];
+  k.x = tally().x - 2;
+  k.y = tally().y;
+  k.facing = 0;
+  steps(sim, 2);
+  assert.equal(tally().state, 'subdued');
+  assert.equal(cash().state, 'placed');
+  // Left alone, he gets away with it.
+  sim = new Sim(level, standing(level, []));
+  (sim as unknown as { becomeHostile(e: Enemy, t: Vec): void }).becomeHostile(tally(), { x: 110, y: 124 });
+  steps(sim, 120);
+  assert.equal(tally().state, 'gone');
+  assert.equal(cash().state, 'lost');
+});
+
+test('a neighbour who sees the crew rings 999 unless someone gets to them first', () => {
+  const level = buildEstateHouse();
+  level.enemies = level.enemies.filter((e) => e.id === 'neighbour');
+  // Dex in the front gardens, seven metres off: in sight, too far to hold them up.
+  const sim = new Sim(level, standing(level, [{ x: 21.5, y: 20.5 }]));
+  const log: string[] = [];
+  steps(sim, 10, log);
+  assert.ok(sim.policeCalled);
+  assert.ok(log.includes('police'));
+  assert.ok(sim.police >= 0.25 && sim.policeActive);
+  // The estate's sample plan has Jojo get to them mid-call.
+  const quiet = new Sim(buildEstateHouse(), samplePlans());
+  run(quiet, [[5, 'A'], [20, 'B']]);
+  assert.equal(quiet.outcome!.policeCalled, false);
+  assert.equal(enemy(quiet, 'neighbour').state, 'subdued');
+});
+
+test('a younger runs for help shouting, nobody shoots him in the back, and he brings the backup sooner', () => {
+  const level = parkWith(['younger']);
+  const sim = new Sim(level, standing(level, []));
+  const younger = enemy(sim, 'younger');
+  const log: string[] = [];
+  (sim as unknown as { becomeHostile(e: Enemy, t: Vec): void }).becomeHostile(younger, { x: 110, y: 128 });
+  steps(sim, 4, log);
+  assert.equal(younger.state, 'fleeing');
+  assert.ok(log.includes('say:OPPS! OPPS!'));
+  assert.ok(log.filter((t) => t === 'noise').length >= 2, 'he keeps shouting as he goes');
+  // Kemi right behind him: a gun on him, not a bullet in him.
+  const k = sim.crew[1];
+  k.x = younger.x + 2;
+  k.y = younger.y;
+  k.facing = Math.PI;
+  steps(sim, 0.5);
+  assert.equal(sim.shots, 0);
+  assert.ok(younger.surrender > 0);
+  k.x = 230.5;
+  k.y = 120.5;
+  steps(sim, 120, log);
+  assert.equal(younger.state, 'gone');
+  assert.ok(sim.backupT === -2 || sim.backupT <= 15, 'backup on its way sooner');
+});
+
+test("a dog's barking brings the others, but not the neighbour; muscle holds his post", () => {
+  const level = parkWith(['dog', 'driver', 'neighbour']);
+  const sim = new Sim(level, standing(level, []));
+  const log: string[] = [];
+  (sim as unknown as { becomeHostile(e: Enemy, t: Vec): void }).becomeHostile(enemy(sim, 'dog'), { x: 70.5, y: 30.5 });
+  steps(sim, 6, log);
+  assert.equal(enemy(sim, 'driver').state, 'hostile');
+  assert.ok(log.includes('say:COME THEN'));
+  assert.notEqual(enemy(sim, 'neighbour').state, 'calling', 'a barking dog is nothing new');
+  const d = enemy(sim, 'driver');
+  assert.ok(Math.hypot(d.x - d.home.x, d.y - d.home.y) < 0.5, 'the driver stays by the car');
+});
+
+test('clean jobs pay better', () => {
+  assert.equal(payoutFor(20000, 0, 3, 0).total, 28000);
+  assert.equal(payoutFor(20000, 0, 9, 0).multiplier, 1.45, 'hold-ups count up to +20%');
+  assert.equal(payoutFor(20000, 2, 0, 0).total, 14000);
+  assert.equal(payoutFor(20000, 0, 0, 1).total, 19000);
+  assert.equal(payoutFor(10000, 6, 0, 2).multiplier, 0.3, 'never below 30%');
+  assert.equal(payoutFor(0, 0, 4, 0).lines.length, 0, 'no take, no bonus');
+  assert.equal(revengeRisk(0, 18), 0);
+  assert.equal(revengeRisk(2, 34), 43);
+  for (const job of STICKUPS) {
+    const sim = new Sim(job.build(), job.samplePlans());
+    run(sim, job.sampleCodes, 400);
+    const o = sim.outcome!;
+    assert.equal(o.bodies, 0, job.id);
+    assert.ok(o.payout.total > o.take, `${job.id}: a quiet plan earns the clean bonus`);
+  }
+});
+
+test('a replay plays the raid back step for step, orders and all', () => {
+  const dt = 1 / 60;
+  /** Where everyone is, to a millimetre. */
+  const trace = (sim: Sim) => [...sim.crew, ...sim.enemies].map((a) => `${a.x.toFixed(3)},${a.y.toFixed(3)}`).join(' ');
+  for (const job of JOBS) {
+    const sim = new Sim(job.build(), job.samplePlans(), 123457, job.sampleBarricades);
+    const seen: string[] = [];
+    let redirected = false;
+    while (!sim.outcome && sim.time < 400) {
+      for (const [t, c] of job.sampleCodes) if (sim.time < t && sim.time + dt >= t) sim.callCode(c);
+      // A pause rewrite at 4 s, and a new route for Jojo at 8 s: a few cells back the way he came.
+      if (sim.ticks === 240) for (const c of sim.crew) sim.setOrders(c.def.slot, sim.orders(c.def.slot));
+      if (sim.ticks === 480 && !redirected) {
+        redirected = true;
+        const o = sim.orders(3);
+        const back = sim.crew[2].plan[0];
+        sim.setOrders(3, [o[0], { ...back, hold: null, kick: false }, ...o.slice(1)]);
+      }
+      sim.step(dt);
+      sim.events = [];
+      seen.push(trace(sim));
+    }
+    const replay = new Replay(job.build(), record(sim, dt));
+    let k = 0;
+    while (!replay.done) {
+      replay.step();
+      replay.sim.events = [];
+      if (k < seen.length && replay.sim.ticks === k + 1) assert.equal(trace(replay.sim), seen[k++], `${job.id} step ${k}`);
+    }
+    assert.equal(k, seen.length, job.id);
+    assert.deepEqual(replay.sim.outcome, sim.outcome, job.id);
+  }
+});
+
+test('a replay of a raid ended by driving off ends the same way', () => {
+  const dt = 1 / 60;
+  const sim = new Sim(buildEstateHouse(), samplePlans(), 99);
+  while (sim.time < 3) sim.step(dt);
+  sim.driveOff();
+  const replay = new Replay(buildEstateHouse(), record(sim, dt));
+  while (!replay.done) replay.step();
+  assert.equal(replay.sim.outcome?.reason, 'droveOff');
+  assert.equal(replay.sim.ticks, sim.ticks);
+});
+
+// ------------------------------------------------------------- ride out
+
+test('ride out: the people they came for are known only from their posts, until seen', () => {
+  const sim = new Sim(buildRideOut(), rideOutPlans());
+  const targets = sim.enemies.filter((e) => e.def.target);
+  assert.equal(targets.length, 5);
+  for (const e of targets) {
+    assert.equal(e.known, false, e.id);
+    assert.ok(e.post && e.post.t < 0, `${e.id} has a post from before the job`);
+  }
+  // The woman at the bus stop is not who they came for, and is seen on the plan.
+  assert.equal(sim.enemies.find((e) => e.id === 'busStop')!.known, true);
+  // While Jojo is up the posts keep coming, from where they are now.
+  const posts: string[] = [];
+  const dt = 1 / 60;
+  while (sim.time < 30) {
+    sim.step(dt);
+    for (const ev of sim.events) if (ev.type === 'post') posts.push(ev.id);
+    sim.events = [];
+  }
+  assert.ok(posts.length >= 2, `posts: ${posts.join(', ')}`);
+  const posted = sim.enemies.find((e) => e.id === posts[0])!;
+  assert.ok(posted.post!.t > 0);
+});
+
+test('ride out: the sample plan catches them and gets back to the whip before the park wakes up', () => {
+  for (const seed of [7, 11, 23]) {
+    const sim = new Sim(buildRideOut(), rideOutPlans(), seed);
+    const log = run(sim, [], 200);
+    const o = sim.outcome!;
+    assert.equal(o.reason, 'escaped', `seed ${seed}`);
+    assert.equal(o.mode, 'rideout');
+    assert.ok(o.caught >= 4, `seed ${seed}: caught ${o.caught} of ${o.targets}`);
+    assert.equal(o.payout.total, 0, 'nobody touched the food');
+    assert.equal(o.revengeRisk, rideOutRisk(o.caught, o.bodies));
+    assert.ok(o.revengeRisk >= 60, 'they are coming back for you');
+    // The park woke up 25 seconds after the first alarm.
+    const first = log.find((l) => l.includes('"alert"') || l.includes('"caught"'))!;
+    const wake = log.find((l) => l.includes('"backup"'))!;
+    assert.ok(Math.abs(parseFloat(wake) - parseFloat(first) - 25) < 0.6, `${first} / ${wake}`);
+  }
+});
+
+test('ride out: touched, they run, and nobody shoots them in the back', () => {
+  const level = buildRideOut();
+  // Just the walker, and Dex stood on his path in the dark.
+  level.enemies = level.enemies.filter((e) => e.id === 'walker');
+  const dex = { x: 209.5, y: 118.5 };
+  const sim = new Sim(level, [[{ ...dex, hold: null, kick: false }], [{ x: 237.5, y: 128.5, hold: null, kick: false }], [], []]);
+  sim.crew[0].facing = Math.atan2(121.5 - dex.y, 203.5 - dex.x);
+  const dt = 1 / 60;
+  const walker = sim.enemies[0];
+  while (!walker.caught && sim.time < 30) {
+    sim.step(dt);
+    sim.events = [];
+  }
+  assert.ok(walker.caught, 'Dex should catch him');
+  assert.ok(walker.hp > 0);
+  sim.step(dt);
+  assert.equal(walker.state, 'fleeing');
+  const shots = sim.shots;
+  for (let i = 0; i < 120; i++) sim.step(dt);
+  assert.equal(sim.shots, shots, 'no shots at a man running away');
+});
+
+// ----------------------------------------------------------- they slid
+
+test('a barricade stops the crew and the guards, but not someone breaking in', () => {
+  const level = buildTrap();
+  const sim = new Sim(level, trapPlans(), 7, trapBarricades);
+  const g = sim.grid;
+  assert.equal(g.door(12, 19), 'barricaded');
+  assert.equal(g.door(19, 7), 'barricaded');
+  assert.equal(g.passable(12, 19, 'crew'), false);
+  assert.equal(g.passable(12, 19, 'plan'), false);
+  assert.equal(g.passable(12, 19, 'guard'), false);
+  assert.equal(g.passable(12, 19, 'raider'), true);
+  assert.equal(g.lineOfSight(12.5, 17.5, 12.5, 21.5), false);
+  // With the front barricaded and the back open, they go round the side.
+  const one = new Grid(level);
+  one.setDoor(12, 19, 'barricaded');
+  const path = one.findPath(12.5, 24.5, 21.5, 10.5, 'raider')!;
+  assert.ok(!path.some((p) => Math.floor(p.x) === 12 && Math.floor(p.y) === 19), 'round, not through the barricade');
+});
+
+test('they slid: ramming a barricade is slow and loud, then it gives', () => {
+  const level = buildTrap();
+  level.waves = [level.waves![0]];
+  // The crew upstairs out of it: in the back bedroom.
+  const sim = new Sim(level, level.crewStarts.map(() => [{ x: 9.5, y: 9.5, hold: null, kick: false }]), 7, [{ x: 12, y: 19 }]);
+  const dt = 1 / 60;
+  let ramming = -1;
+  let broken = -1;
+  let bangs = 0;
+  while (sim.time < 30 && broken < 0) {
+    sim.step(dt);
+    for (const ev of sim.events) {
+      if (ev.type === 'ramming') ramming = sim.time;
+      if (ev.type === 'noise' && ev.label === 'Ramming') bangs++;
+      if (ev.type === 'door' && ev.x === 12 && ev.y === 19 && ev.state === 'broken') broken = sim.time;
+    }
+    sim.events = [];
+  }
+  assert.ok(ramming > 0 && broken > 0);
+  assert.ok(Math.abs(broken - ramming - 7) < 0.3, `took ${(broken - ramming).toFixed(1)} s`);
+  assert.ok(bangs >= 5);
+});
+
+test('they slid: the sample defence holds the trap', () => {
+  for (const seed of [7, 11, 23]) {
+    const sim = new Sim(buildTrap(), trapPlans(), seed, trapBarricades);
+    const log = run(sim, [], 200);
+    const o = sim.outcome!;
+    assert.ok(o.reason === 'heldIt' || o.reason === 'police', `seed ${seed}: ${o.reason}`);
+    assert.equal(o.mode, 'slid');
+    assert.ok(o.kept >= 16000, `seed ${seed}: kept ${o.kept} of ${o.stash}`);
+    assert.ok(o.down.length <= 2, `seed ${seed}: ${o.down.length} down`);
+    assert.equal(o.left.length, 0, 'at home nobody is left behind');
+    assert.equal(log.filter((l) => l.includes('"wave"')).length, 3);
+  }
+});
+
+test('they slid: with nobody to stop them, they take the lot and go', () => {
+  const level = buildTrap();
+  level.waves = [level.waves![0]];
+  // Everyone hiding in the shed at the bottom of the garden.
+  const sim = new Sim(level, level.crewStarts.map(() => [{ x: 1.5, y: 2.5, hold: null, kick: false }]), 7);
+  const log = run(sim, [], 120);
+  assert.equal(sim.outcome?.reason, 'robbed', log.join('\n'));
+  assert.equal(sim.outcome!.kept, 0);
+  assert.equal(log.filter((l) => l.includes('"lost"')).length, 3);
+});
+
+test('they slid: standing still at home is cover', () => {
+  const sim = new Sim(buildTrap(), trapPlans(), 7);
+  const dex = sim.crew[0];
+  assert.equal(sim.inCover(dex), false);
+  for (let i = 0; i < 150; i++) sim.step(1 / 60);
+  assert.ok(sim.inCover(dex), 'set after a second still');
+  // On a stick-up there is no such thing.
+  const job = new Sim(buildEstateHouse(), []);
+  for (let i = 0; i < 150; i++) job.step(1 / 60);
+  assert.equal(job.inCover(job.crew[0]), false);
+});
+
+test('they slid: the crew turn to face a door being rammed', () => {
+  const level = buildTrap();
+  const sim = new Sim(level, trapPlans(), 7, trapBarricades);
+  const dex = sim.crew[0];
+  while (sim.time < 12) {
+    sim.step(1 / 60);
+    sim.events = [];
+  }
+  // Facing down the hall towards the front door, give or take.
+  const want = Math.atan2(19.5 - dex.y, 12.5 - dex.x);
+  assert.ok(Math.abs(Math.atan2(Math.sin(dex.facing - want), Math.cos(dex.facing - want))) < 0.3, `facing ${dex.facing.toFixed(2)}`);
+});
+
+test('a replay of they slid keeps its barricades', () => {
+  const dt = 1 / 60;
+  const sim = new Sim(buildTrap(), trapPlans(), 4242, trapBarricades);
+  run(sim, [], 200);
+  const rec = record(sim, dt);
+  assert.deepEqual(rec.barricades, trapBarricades);
+  const replay = new Replay(buildTrap(), rec);
+  while (!replay.done) replay.step();
+  assert.deepEqual(replay.sim.outcome, sim.outcome);
+});

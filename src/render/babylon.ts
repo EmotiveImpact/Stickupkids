@@ -1,0 +1,47 @@
+// The slice of Babylon.js the game uses, imported by path so the bundle only
+// carries what it needs. Side-effect imports register scene components.
+import '@babylonjs/core/Culling/ray';
+import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
+import '@babylonjs/core/Layers/effectLayerSceneComponent';
+import '@babylonjs/core/Animations/animatable';
+import '@babylonjs/core/Particles/particleSystemComponent';
+import '@babylonjs/loaders/glTF/glTFFileLoader';
+import '@babylonjs/loaders/glTF/2.0';
+
+export { Engine } from '@babylonjs/core/Engines/engine';
+export { Scene } from '@babylonjs/core/scene';
+export { Camera } from '@babylonjs/core/Cameras/camera';
+export { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
+export { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
+export { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
+export { Light } from '@babylonjs/core/Lights/light';
+export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
+export { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+export { PointLight } from '@babylonjs/core/Lights/pointLight';
+export { SpotLight } from '@babylonjs/core/Lights/spotLight';
+export { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
+export { GlowLayer } from '@babylonjs/core/Layers/glowLayer';
+export { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+export { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
+export { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
+export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
+export { Texture } from '@babylonjs/core/Materials/Textures/texture';
+export { MirrorTexture } from '@babylonjs/core/Materials/Textures/mirrorTexture';
+export { Plane } from '@babylonjs/core/Maths/math.plane';
+export { Effect } from '@babylonjs/core/Materials/effect';
+export { Mesh } from '@babylonjs/core/Meshes/mesh';
+export { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
+export { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
+export { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+export { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+export { PostProcess } from '@babylonjs/core/PostProcesses/postProcess';
+export { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
+export { ParticleSystem } from '@babylonjs/core/Particles/particleSystem';
+export { MaterialPluginBase } from '@babylonjs/core/Materials/materialPluginBase';
+export { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';
+export type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+export type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
+export type { AssetContainer } from '@babylonjs/core/assetContainer';
+export type { Material } from '@babylonjs/core/Materials/material';
+export type { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer';
+export type { MaterialDefines } from '@babylonjs/core/Materials/materialDefines';
