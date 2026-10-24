@@ -26,6 +26,11 @@ export interface HudHandlers {
 const PINS: Record<string, [number, number]> = {
   estate: [51.5245, -0.2005],
   burgess: [51.4822, -0.088],
+  aylesbury: [51.4866, -0.0852],
+  elephant: [51.4926, -0.0989],
+  brixton: [51.4618, -0.1146],
+  peckham: [51.4708, -0.0672],
+  brockwell: [51.4530, -0.1063],
 };
 
 export interface PlanningInfo {
@@ -172,6 +177,9 @@ export class Hud {
   /** Mark the picked job on the board. */
   selectJob(id: string) {
     this.overlay.querySelectorAll<HTMLElement | SVGElement>('[data-job]').forEach((b) => b.classList.toggle('sel', (b as HTMLElement).dataset.job === id));
+    // Pins close together overlap, so the picked one is drawn last, on top.
+    const pin = this.overlay.querySelector(`.pin[data-job="${id}"]`);
+    pin?.parentNode?.appendChild(pin);
   }
 
   /** The job being planned, for the top of the screen. */
