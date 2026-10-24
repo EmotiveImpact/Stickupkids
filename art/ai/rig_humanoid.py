@@ -44,6 +44,7 @@ def import_glb(path):
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
+    names = [o.name for o in new]
     meshes = [o for o in new if o.type == "MESH"]
     bpy.ops.object.select_all(action="DESELECT")
     for o in meshes:
@@ -53,9 +54,12 @@ def import_glb(path):
     if len(meshes) > 1:
         bpy.ops.object.join()
     o = bpy.context.object
-    for x in new:
-        if x is not o:
+    for n in names:  # joined meshes are already gone, so look up by name
+        x = bpy.data.objects.get(n)
+        if x is not None and x is not o:
             bpy.data.objects.remove(x)
+    for m in list(o.modifiers):
+        o.modifiers.remove(m)
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     return o
 
@@ -119,6 +123,29 @@ if A.slot:
             if s_ > 0.45 and val > 0.35 and min(abs(h - th), 1 - abs(h - th)) < 0.06:
                 p.material_index = idx; hits += 1
         print("slot faces:", hits)
+    elif body.data.color_attributes:
+        # vertex-coloured meshes (TripoSR): same test on each face's corner colours,
+        # and the slot faces are painted white so the game's tint shows true
+        ca = body.data.color_attributes.active_color or body.data.color_attributes[0]
+        if ca.domain != "CORNER":
+            bpy.context.view_layer.objects.active = body
+            body.data.color_attributes.active_color = ca
+            bpy.ops.geometry.color_attribute_convert(domain="CORNER", data_type="BYTE_COLOR")
+            ca = body.data.color_attributes.active_color
+        th = colorsys.rgb_to_hsv(*[int(A.slot[i:i + 2], 16) / 255 for i in (0, 2, 4)])[0]
+        mat.name = "Cloth"
+        slot = mat.copy(); slot.name = "Slot"
+        body.data.materials.append(slot)
+        idx = len(body.data.materials) - 1
+        hits = 0
+        for p in body.data.polygons:
+            c = [sum(ca.data[l].color[k] for l in p.loop_indices) / p.loop_total for k in range(3)]
+            h, s_, val = colorsys.rgb_to_hsv(*c)
+            if s_ > 0.35 and val > 0.2 and min(abs(h - th), 1 - abs(h - th)) < 0.07:
+                p.material_index = idx; hits += 1
+                for l in p.loop_indices:
+                    ca.data[l].color = (0.9, 0.9, 0.9, 1)
+        print("slot faces (vertex colour):", hits)
 
 # ---------------------------------------------------------------- landmarks
 V = [v.co.copy() for v in body.data.vertices]
@@ -152,7 +179,9 @@ def arm_end(side):
     cand = [v for v in V if side * v.x > sh_x + 0.04 and 0.3 * H < v.z < 0.86 * H]
     if not cand:
         return sh + Vector((side * 0.05, 0, -0.55))
-    far = max(cand, key=lambda v: (v - sh).length)
+    # in an A- or T-pose the hand is the outermost point; scoring by distance
+    # from the shoulder alone can pick a baggy trouser leg instead
+    far = max(cand, key=lambda v: side * v.x + 0.25 * (v - sh).length)
     # average the tip so one stray vertex does not decide it
     tip = [v for v in cand if (v - far).length < 0.06]
     return sum(tip, Vector()) / len(tip)
@@ -574,6 +603,11 @@ make_action("Down", 40, down, loop=False)
 make_action("Sit", 90, sit)
 reset()
 bpy.ops.object.mode_set(mode="OBJECT")
+
+for im in bpy.data.images:  # game budget: textures at most 1024 px
+    if im.size[0] > 1024 or im.size[1] > 1024:
+        k = 1024 / max(im.size)
+        im.scale(max(1, int(im.size[0] * k)), max(1, int(im.size[1] * k)))
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.export_scene.gltf(

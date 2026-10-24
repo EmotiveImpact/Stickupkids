@@ -10,6 +10,7 @@ script can be re-run after a ZeroGPU quota pause. Set HF_TOKEN to use your
 own quota (free accounts get a few minutes of GPU a day).
 """
 import os, sys, shutil, time
+from PIL import Image
 from gradio_client import Client, handle_file
 
 IMAGE_SPACE = "mcp-tools/Qwen-Image"
@@ -46,23 +47,24 @@ ASSETS = {
 def image(cli, prompt, path):
     tall = not any(k in prompt for k in ("Single game prop", "Side view of a"))
     res = cli.predict(prompt=prompt, seed=7, randomize_seed=False,
-                      width=768 if tall else 1024, height=1024 if tall else 768,
-                      api_name="/infer")
+                      aspect_ratio="3:4" if tall else "4:3",
+                      api_name="/generate_image")
     src = res[0] if isinstance(res, (list, tuple)) else res
     src = src.get("path", src) if isinstance(src, dict) else src
-    shutil.copy(src, path)
+    Image.open(src).convert("RGB").save(path)
 
 def mesh(cli, img, path):
     try:
         cli.predict(api_name="/start_session")
     except Exception:
         pass
-    res = cli.predict(
+    job = cli.submit(
         image=handle_file(img), multiimages=[], seed=0,
         ss_guidance_strength=7.5, ss_sampling_steps=12,
         slat_guidance_strength=3, slat_sampling_steps=12,
         multiimage_algo="stochastic", mesh_simplify=0.95, texture_size=1024,
         api_name="/generate_and_extract_glb")
+    res = job.result(timeout=900)
     glb = next(r for r in res if isinstance(r, str) and r.endswith(".glb"))
     shutil.copy(glb, path)
 
@@ -71,8 +73,8 @@ def main():
     names = sys.argv[2:] or list(ASSETS)
     os.makedirs(out, exist_ok=True)
     tok = os.environ.get("HF_TOKEN")
-    icli = Client(IMAGE_SPACE, hf_token=tok)
-    mcli = Client(MESH_SPACE, hf_token=tok)
+    icli = Client(IMAGE_SPACE, token=tok)
+    mcli = Client(MESH_SPACE, token=tok)
     for n in names:
         png, glb = os.path.join(out, n + ".png"), os.path.join(out, n + ".glb")
         if os.path.exists(glb):
