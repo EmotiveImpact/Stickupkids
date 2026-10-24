@@ -22,6 +22,11 @@ export interface HudHandlers {
   jobs(): void;
 }
 
+/** Menu art, made with ChatGPT (2560 by 1440 masters in /mnt/project-files/menu-art/). */
+const TITLE_ART = 'menu/title-hero.jpg';
+const JOB_ART: Record<string, string> = { estate: 'menu/job-harrow-road.jpg', burgess: 'menu/job-burgess-park.jpg' };
+const artFor = (id: string) => JOB_ART[id] ?? TITLE_ART;
+
 /** Where each job sits on the London map. */
 const PINS: Record<string, [number, number]> = {
   estate: [51.5245, -0.2005],
@@ -61,6 +66,9 @@ export class Hud {
   private mode = '';
   private lastHp: number[] = CREW.map(() => -1);
   private jobTitle = '';
+  /** The job picked on the board, and the art behind the board now. */
+  private boardJob = '';
+  private boardArt = '';
   /** A level too big for one screen: the hints say how to get about. */
   big = false;
 
@@ -98,9 +106,33 @@ export class Hud {
 
   // ------------------------------------------------------------- modes
 
-  /** The job board: London, the jobs on it, and the one picked. */
+  /** The title screen: the crew out on a wet street. A click or any key goes on to the job board. */
+  showSplash(jobs: Job[], current: string) {
+    this.overlay.className = 'overlay splash';
+    this.overlay.innerHTML = `<div class="art on" style="background-image:url(${TITLE_ART})"></div>
+      <div class="splash-left">
+        <div class="logo">STICKUPKIDS</div>
+        <div class="tagline">Plan it on paper. Run it for real.</div>
+        <div class="menu"><button data-a="start">Start</button></div>
+        <div class="press">Press any key</div>
+      </div>`;
+    const go = () => {
+      removeEventListener('keydown', key);
+      if (this.overlay.classList.contains('splash')) this.showTitle(jobs, current);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.repeat || e.metaKey || e.ctrlKey) return;
+      e.preventDefault();
+      go();
+    };
+    addEventListener('keydown', key);
+    this.overlay.querySelector('button')!.addEventListener('click', go);
+  }
+
+  /** The job board: London, the jobs on it, and the one picked, over that job's art. */
   showTitle(jobs: Job[], current: string) {
     this.overlay.className = 'overlay board-screen';
+    this.boardArt = '';
     const pins = jobs
       .map((j) => {
         const [x, y] = mapXY(...PINS[j.id]);
@@ -123,7 +155,8 @@ export class Hud {
         </button>`,
       )
       .join('');
-    this.overlay.innerHTML = `<div class="board">
+    this.overlay.innerHTML = `<div class="art"></div><div class="art"></div>
+    <div class="board">
       <div class="board-left">
         <div class="logo">STICKUPKIDS</div>
         <div class="citymap panel">
@@ -164,15 +197,32 @@ export class Hud {
       </div>
     </div>`;
     this.overlay.querySelectorAll<HTMLElement>('.menu button').forEach((b) => b.addEventListener('click', () => this.h.start(b.dataset.a === 'sample')));
-    this.overlay.querySelectorAll<HTMLElement | SVGElement>('[data-job]').forEach((b) =>
-      b.addEventListener('click', () => this.h.pickJob((b as HTMLElement).dataset.job!)),
-    );
+    this.overlay.querySelectorAll<HTMLElement | SVGElement>('[data-job]').forEach((b) => {
+      const id = (b as HTMLElement).dataset.job!;
+      b.addEventListener('click', () => this.h.pickJob(id));
+      // Hovering a job shows its art; leaving goes back to the picked job's.
+      b.addEventListener('pointerenter', () => this.showArt(artFor(id)));
+      b.addEventListener('pointerleave', () => this.showArt(artFor(this.boardJob)));
+    });
     this.selectJob(current);
   }
 
   /** Mark the picked job on the board. */
   selectJob(id: string) {
+    this.boardJob = id;
     this.overlay.querySelectorAll<HTMLElement | SVGElement>('[data-job]').forEach((b) => b.classList.toggle('sel', (b as HTMLElement).dataset.job === id));
+    this.showArt(artFor(id));
+  }
+
+  /** Crossfade the board's background to another picture. */
+  private showArt(url: string) {
+    const [a, b] = this.overlay.querySelectorAll<HTMLElement>('.board-screen > .art');
+    if (!a || !b || url === this.boardArt) return;
+    this.boardArt = url;
+    const [front, back] = a.classList.contains('on') ? [b, a] : [a, b];
+    front.style.backgroundImage = `url(${url})`;
+    front.classList.add('on');
+    back.classList.remove('on');
   }
 
   /** The job being planned, for the top of the screen. */

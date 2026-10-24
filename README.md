@@ -73,4 +73,6 @@ The smoke test drives the game with a real mouse and keyboard in headless Chromi
 
 Colours and HUD layout follow the project style guide: night base `#0B1220`, moonlight `#3A6FD8`, sodium streetlights `#FF9A2E`, blueprint wash `#1E4F8F`, crew slots cyan `#22E3FF`, magenta `#FF2D9B`, lime `#A6FF2E` and amber `#FFB020`, red `#FF3B4E` for enemies only, and `#3DFFA2` for loot.
 
-The crew are four rigged and animated models from Meshy, one per slot, in `public/models/ai/crew-*.glb`. `node scripts/import-meshy-crew.mjs <meshy.glb> <out.glb>` readies a new export: it makes the moving clips walk on the spot and prints how fast each covers the ground, gives the clips the game's names, makes the held Aim and CrouchIdle poses, and builds a plain rifle on the right hand.
+The crew are four rigged and animated models from Meshy, one per slot, in `public/models/ai/crew-*.glb`. `node scripts/import-meshy-crew.mjs <meshy.glb> <out.glb>` readies a new export: it makes the moving clips walk on the spot and prints how fast each covers the ground, gives the clips the game's names, makes the held Aim and CrouchIdle poses, calms the idle to a quarter of its movement (Meshy's looks all round and sways), and builds a plain rifle on the right hand.
+
+The title screen and the job board sit over painted menu art (made with ChatGPT; web copies in `public/menu/`, 2560 by 1440 masters in the project files under `menu-art/`). The board crossfades to the art for whichever job is hovered or picked.

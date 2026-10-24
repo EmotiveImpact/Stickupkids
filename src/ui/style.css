@@ -106,9 +106,25 @@ button { font-family: var(--head); font-weight: 700; color: #fff; background: no
 .menu { display: flex; flex-direction: column; gap: 10px; }
 .menu button { text-align: left; font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; padding: 10px 22px; border-radius: 8px; border: 1px solid var(--edge); background: var(--glass); min-width: 320px; }
 .menu button:hover { border-color: var(--c1); box-shadow: 0 0 16px rgba(34, 227, 255, 0.35); }
-/* The job board: London on the left, the jobs on the right, over a blurred game. */
-.overlay.board-screen { background: radial-gradient(ellipse at 30% 50%, rgba(11, 18, 32, 0.78), rgba(5, 8, 16, 0.95)); backdrop-filter: blur(8px); }
-.board { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 28px; width: min(1360px, 94vw); align-items: start; }
+/* Full-bleed art behind the title screen and the job board. */
+.overlay .art { position: absolute; inset: 0; background: #05080f center / cover no-repeat; opacity: 0; transition: opacity 0.6s ease; }
+.overlay .art.on { opacity: 1; }
+.overlay .art::after { content: ''; position: absolute; inset: 0; }
+/* The title screen: the crew stand on the right, the way in sits on the dark left. */
+.overlay.splash { place-items: center start; background: #05080f; }
+/* On a narrow screen keep the crew in view rather than the middle of the street. */
+.splash .art { background-position: 78% center; }
+.splash .art::after { background: linear-gradient(90deg, rgba(5, 8, 16, 0.9) 0%, rgba(5, 8, 16, 0.6) 32%, rgba(5, 8, 16, 0) 58%), linear-gradient(0deg, rgba(5, 8, 16, 0.55), rgba(5, 8, 16, 0) 28%); }
+.splash-left { position: relative; display: flex; flex-direction: column; gap: 26px; align-items: flex-start; margin-left: clamp(24px, 7vw, 128px); }
+.splash .tagline { margin-top: 18px; font-size: 18px; }
+.splash .menu button { min-width: 260px; }
+.splash .press { font: 600 12px/1 var(--body); letter-spacing: 0.22em; text-transform: uppercase; color: #8fb4ff; animation: press 1.8s ease-in-out infinite; }
+@keyframes press { 50% { opacity: 0.35; } }
+/* The job board: London on the left, the jobs on the right, over the picked job's art. */
+.overlay.board-screen { background: #05080f; }
+.board-screen .art { filter: brightness(0.42); }
+.board-screen .art::after { background: radial-gradient(ellipse at 30% 50%, rgba(11, 18, 32, 0.2), rgba(5, 8, 16, 0.75)); }
+.board { position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 28px; width: min(1360px, 94vw); align-items: start; }
 .board-left { display: flex; flex-direction: column; gap: 34px; min-width: 0; }
 .board-right { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; }
 .citymap { position: relative; overflow: hidden; aspect-ratio: 720 / 439; padding: 0; border-color: rgba(34, 227, 255, 0.45); }

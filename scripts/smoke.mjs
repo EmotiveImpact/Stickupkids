@@ -13,6 +13,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 await page.goto(base);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 60000 });
+await page.getByRole('button', { name: 'Start' }).click();
 await page.getByText('Plan the job').click();
 
 const clickMap = async (x, y, button = 'left') => {

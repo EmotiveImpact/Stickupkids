@@ -576,7 +576,9 @@ engine.runRenderLoop(() => {
 });
 
 hud.setJob(job);
-hud.showTitle(JOBS, job.id);
+// The title screen first, unless a job was asked for by name.
+if (q.has('job')) hud.showTitle(JOBS, job.id);
+else hud.showSplash(JOBS, job.id);
 view.setMode('planning');
 frameLevel();
 watchLoading();
