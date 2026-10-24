@@ -31,7 +31,7 @@ import {
   type AbstractMesh,
 } from './babylon.ts';
 import type { Level, Vec } from '../sim/level.ts';
-import { CALL_TIME, TALK_TIME, planSegments, type Crew, type Enemy, type Sim, type SimEvent, type Waypoint } from '../sim/sim.ts';
+import { BARRICADE_TIME, CALL_TIME, TALK_TIME, planSegments, type Crew, type Enemy, type Sim, type SimEvent, type Waypoint } from '../sim/sim.ts';
 import { PALETTE, WALL_H } from './palette.ts';
 import { Coords, mat } from './world.ts';
 import { loadEstate, type Estate } from './estate.ts';
@@ -128,6 +128,22 @@ interface Flash {
   power: number;
 }
 
+/** They Slid: the planks on a braced door, and the marker over it. */
+interface Brace {
+  planks: TransformNode;
+  icon: Mesh;
+  tex: DynamicTexture;
+  key: string;
+}
+
+/** Ride Out: where a target last posted from, and how long ago. */
+interface Pin {
+  tag: Mesh;
+  tex: DynamicTexture;
+  ring: Mesh;
+  key: string;
+}
+
 export function createEngine(canvas: HTMLCanvasElement): Engine {
   return new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true }, true);
 }
@@ -163,6 +179,10 @@ export class View {
   private pathT = 0;
   private fog = new Map<string, Mesh>();
   private lockIcons = new Map<string, Mesh>();
+  private braces = new Map<string, Brace>();
+  private pins = new Map<string, Pin>();
+  /** They Slid: where the waves will come from, until they have. */
+  private waveMarks: { mesh: Mesh; tex: DynamicTexture; north: boolean; waves: number[]; key: string }[] = [];
   private hoverMesh: Mesh;
   private insets = { left: 250, right: 10, top: 30, bottom: 70 };
   private time = 0;
@@ -267,14 +287,18 @@ export class View {
   private async load() {
     const scene = this.scene;
     // One rigged model per kind, from the AI character pipeline (art in /mnt/project-files/ai-models).
-    // Backup always comes as soldiers.
-    const kinds = [...new Set([...CREW_MODELS, 'soldier', ...this.level.enemies.map(modelFor)])];
+    // Backup comes as soldiers, in the models the level names for it; waves likewise.
+    const lv = this.level;
+    const later = [...(lv.backup.models ?? []), ...(lv.waves ?? []).flatMap((w) => w.enemies.map(modelFor))].filter((m) => MODELS.has(m));
+    const kinds = [...new Set([...CREW_MODELS, 'soldier', ...lv.enemies.map(modelFor), ...later])];
     const [estate, ...kits] = await Promise.all([
       loadEstate(scene, this.assets),
       ...kinds.map((k) => CharacterKit.load(scene, `models/ai/${k}`, CREW_MODELS.includes(k) ? MESHY_SPEEDS : {})),
     ]);
     this.estate = estate;
     kinds.forEach((k, i) => this.kits.set(k, kits[i]));
+    // A bake shared between jobs holds loot this job does not have.
+    for (const [id, node] of estate.loot) if (!lv.loot.some((l) => l.id === id)) node.setEnabled(false);
     this.shadowLight.includedOnlyMeshes = estate.receivers;
 
     // A soft moon key so characters keep their shape between pools of light.
@@ -598,7 +622,7 @@ export class View {
   private makeEnemyActor(kind: string, model = kind): Actor {
     const scene = this.scene;
     const col = colourOf(kind);
-    const char = this.kits.get(model)!.spawn(scene, kind, { slot: col });
+    const char = (this.kits.get(model) ?? this.kits.get(kind) ?? this.kits.get('soldier')!).spawn(scene, kind, { slot: col });
     const { root, body, light } = char;
     for (const m of char.meshes) this.shadows.addShadowCaster(m, false);
     const s = CHAR_SCALE;
@@ -707,6 +731,15 @@ export class View {
     this.fx.push({ mesh: plane, t: 0, life: 1.8, kind: 'popup' });
   }
 
+  /** A ring that spreads from a spot: a new post going up. */
+  private ping(x: number, y: number, colour: string, r: number) {
+    const ring = MeshBuilder.CreateTorus('ping', { diameter: 2, thickness: 0.05, tessellation: 48 }, this.scene);
+    ring.material = mat(this.scene, '#ffffff', { emissive: colour, alpha: 0.7, unlit: true });
+    ring.position.set(this.co.X(x), 0.08, this.co.Z(y));
+    this.toOverlay(ring);
+    this.fx.push({ mesh: ring, t: 0, life: 1.1, kind: 'ring', r });
+  }
+
   private makeCone(color: string, alpha: number): Mesh {
     const rays = 36;
     const m = new Mesh('cone', this.scene);
@@ -798,35 +831,12 @@ export class View {
       this.toOverlay(p);
       this.fog.set(id, p);
     }
-    // Getaway zone.
-    const ex = lv.exit;
-    const ew = ex.x1 - ex.x0 + 1;
-    const eh = ex.y1 - ex.y0 + 1;
-    const tex = new DynamicTexture('exit', { width: ew * 64, height: eh * 64 }, this.scene, true);
-    tex.hasAlpha = true;
-    const g = tex.getContext() as unknown as CanvasRenderingContext2D;
-    g.fillStyle = 'rgba(61,255,162,0.10)';
-    g.fillRect(0, 0, ew * 64, eh * 64);
-    g.setLineDash([16, 10]);
-    g.strokeStyle = PALETTE.loot;
-    g.lineWidth = 5;
-    g.strokeRect(4, 4, ew * 64 - 8, eh * 64 - 8);
-    g.fillStyle = PALETTE.loot;
-    g.font = '700 44px Rajdhani, sans-serif';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText('GETAWAY', (ew * 64) / 2, (eh * 64) / 2 + 2);
-    tex.update();
-    const ez = MeshBuilder.CreateGround('exit', { width: ew, height: eh }, this.scene);
-    ez.position.set(this.co.X(ex.x0 + ew / 2), 0.03, this.co.Z(ex.y0 + eh / 2));
-    const em = new StandardMaterial('exitMat', this.scene);
-    em.diffuseTexture = tex;
-    em.emissiveTexture = tex;
-    em.useAlphaFromDiffuseTexture = true;
-    em.disableLighting = true;
-    em.disableDepthWrite = true;
-    ez.material = em;
-    this.toOverlay(ez);
+    // Getaway zone. Nobody is getting away from their own trap.
+    if (lv.mode !== 'slid') this.buildExit();
+
+    this.buildBraces();
+    this.buildPins();
+    this.buildWaveMarks();
 
     // Lock icons on locked doors (planning only).
     for (const d of lv.doors) {
@@ -858,6 +868,159 @@ export class View {
       p.position.set(this.co.X(l.x), 1.3, this.co.Z(l.y));
       p.metadata = { planningOnly: true, loot: l.id };
       this.lockIcons.set(`loot-${l.id}`, p);
+    }
+  }
+
+  private buildExit() {
+    const lv = this.level;
+    const ex = lv.exit;
+    const ew = ex.x1 - ex.x0 + 1;
+    const eh = ex.y1 - ex.y0 + 1;
+    const tex = new DynamicTexture('exit', { width: ew * 64, height: eh * 64 }, this.scene, true);
+    tex.hasAlpha = true;
+    const g = tex.getContext() as unknown as CanvasRenderingContext2D;
+    g.fillStyle = 'rgba(61,255,162,0.10)';
+    g.fillRect(0, 0, ew * 64, eh * 64);
+    g.setLineDash([16, 10]);
+    g.strokeStyle = PALETTE.loot;
+    g.lineWidth = 5;
+    g.strokeRect(4, 4, ew * 64 - 8, eh * 64 - 8);
+    g.fillStyle = PALETTE.loot;
+    g.font = '700 44px Rajdhani, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('GETAWAY', (ew * 64) / 2, (eh * 64) / 2 + 2);
+    tex.update();
+    const ez = MeshBuilder.CreateGround('exit', { width: ew, height: eh }, this.scene);
+    ez.position.set(this.co.X(ex.x0 + ew / 2), 0.03, this.co.Z(ex.y0 + eh / 2));
+    const em = new StandardMaterial('exitMat', this.scene);
+    em.diffuseTexture = tex;
+    em.emissiveTexture = tex;
+    em.useAlphaFromDiffuseTexture = true;
+    em.disableLighting = true;
+    em.disableDepthWrite = true;
+    ez.material = em;
+    this.toOverlay(ez);
+  }
+
+  /** They Slid: planks for every door that can be braced, shown once it is, and a marker over it. */
+  private buildBraces() {
+    const lv = this.level;
+    if (!lv.barricades) return;
+    const board = mat(this.scene, '#1b2130', { emissive: '#141a26', spec: 0.02 });
+    const strap = mat(this.scene, '#596273', { emissive: '#2c3240', spec: 0.3 });
+    for (const d of lv.doors) {
+      const planks = new TransformNode('brace', this.scene);
+      planks.position.set(this.co.X(d.x + 0.5), 0, this.co.Z(d.y + 0.5));
+      // Planks run along the wall the door sits in.
+      planks.rotation.y = d.axis === 'h' ? 0 : Math.PI / 2;
+      for (const side of [-0.13, 0.13]) {
+        [
+          [0.36, 0.07],
+          [0.8, -0.05],
+          [1.22, 0.09],
+        ].forEach(([h, tilt], k) => {
+          const b = MeshBuilder.CreateBox('plank', { width: 1.18, height: 0.15, depth: 0.05 }, this.scene);
+          b.position.set(k === 1 ? 0.03 : -0.02, h, side);
+          b.rotation.z = tilt;
+          b.material = board;
+          b.parent = planks;
+          this.shadows.addShadowCaster(b, false);
+        });
+        const brace = MeshBuilder.CreateBox('plank', { width: 1.32, height: 0.12, depth: 0.04 }, this.scene);
+        brace.position.set(0, 0.78, side * 1.3);
+        brace.rotation.z = 0.82;
+        brace.material = board;
+        brace.parent = planks;
+        for (const x of [-0.42, 0.42]) {
+          const s2 = MeshBuilder.CreateBox('strap', { width: 0.06, height: 1.2, depth: 0.03 }, this.scene);
+          s2.position.set(x, 0.78, side * 1.45);
+          s2.material = strap;
+          s2.parent = planks;
+        }
+      }
+      for (const m of planks.getChildMeshes()) {
+        m.layerMask = WORLD;
+        m.isPickable = false;
+      }
+      planks.setEnabled(false);
+      const tex = new DynamicTexture('brace', { width: 256, height: 256 }, this.scene, true);
+      tex.hasAlpha = true;
+      const icon = MeshBuilder.CreatePlane('braceIcon', { size: 0.95 }, this.scene);
+      const im = new StandardMaterial('braceMat', this.scene);
+      im.diffuseTexture = tex;
+      im.emissiveTexture = tex;
+      im.useAlphaFromDiffuseTexture = true;
+      im.disableLighting = true;
+      im.backFaceCulling = false;
+      im.disableDepthWrite = true;
+      icon.material = im;
+      icon.billboardMode = Mesh.BILLBOARDMODE_ALL;
+      icon.position.set(this.co.X(d.x + 0.5), 2.05, this.co.Z(d.y + 0.5));
+      this.toOverlay(icon);
+      icon.setEnabled(false);
+      this.braces.set(`${d.x},${d.y}`, { planks, icon, tex, key: '' });
+    }
+  }
+
+  /** Ride Out: a tag where each target last posted from. */
+  private buildPins() {
+    for (const e of this.level.enemies) {
+      if (!e.target) continue;
+      const tex = new DynamicTexture('pin', { width: 512, height: 256 }, this.scene, true);
+      tex.hasAlpha = true;
+      const tag = MeshBuilder.CreatePlane('pin', { width: 2.6, height: 1.3 }, this.scene);
+      const m = new StandardMaterial('pinMat', this.scene);
+      m.diffuseTexture = tex;
+      m.emissiveTexture = tex;
+      m.useAlphaFromDiffuseTexture = true;
+      m.disableLighting = true;
+      m.backFaceCulling = false;
+      m.disableDepthWrite = true;
+      tag.material = m;
+      tag.billboardMode = Mesh.BILLBOARDMODE_ALL;
+      this.toOverlay(tag);
+      const ring = MeshBuilder.CreateTorus('pinRing', { diameter: 1.5, thickness: 0.05, tessellation: 40 }, this.scene);
+      ring.material = mat(this.scene, PALETTE.enemy, { emissive: PALETTE.enemy, alpha: 0.75, unlit: true });
+      this.toOverlay(ring);
+      tag.setEnabled(false);
+      ring.setEnabled(false);
+      this.pins.set(e.id, { tag, tex, ring, key: '' });
+    }
+  }
+
+  /** They Slid: an arrow at each end the waves come in from, with which wave and when. */
+  private buildWaveMarks() {
+    const lv = this.level;
+    const ends = new Map<string, { pts: Vec[]; waves: number[] }>();
+    (lv.waves ?? []).forEach((w, n) => {
+      for (const e of w.enemies) {
+        const k = e.y < lv.h / 2 ? 'n' : 's';
+        const end = ends.get(k) ?? { pts: [], waves: [] };
+        end.pts.push({ x: e.x, y: e.y });
+        if (!end.waves.includes(n)) end.waves.push(n);
+        ends.set(k, end);
+      }
+    });
+    for (const [k, end] of ends) {
+      const x = end.pts.reduce((a, p) => a + p.x, 0) / end.pts.length;
+      const y = end.pts.reduce((a, p) => a + p.y, 0) / end.pts.length;
+      const tex = new DynamicTexture('wave', { width: 512, height: 512 }, this.scene, true);
+      tex.hasAlpha = true;
+      const mesh = MeshBuilder.CreatePlane('wave', { size: 1 }, this.scene);
+      const m = new StandardMaterial('waveMat', this.scene);
+      m.diffuseTexture = tex;
+      m.emissiveTexture = tex;
+      m.useAlphaFromDiffuseTexture = true;
+      m.disableLighting = true;
+      m.backFaceCulling = false;
+      m.disableDepthWrite = true;
+      mesh.material = m;
+      mesh.rotation.x = Math.PI / 2;
+      // A little way in from where they appear, so it sits on the map.
+      mesh.position.set(this.co.X(x), 0.14, this.co.Z(y + (k === 'n' ? 3.5 : -2.5)));
+      this.toOverlay(mesh);
+      this.waveMarks.push({ mesh, tex, north: k === 'n', waves: end.waves, key: '' });
     }
   }
 
@@ -987,6 +1150,20 @@ export class View {
           this.dust.manualEmitCount = 45;
         }
       }
+      if (ev.type === 'caught') {
+        const e = this.lastSim?.enemies.find((q) => q.id === ev.id);
+        if (e && e.state !== 'down') this.popup(e.x, e.y, 'CAUGHT', '#ffffff');
+      } else if (ev.type === 'post') {
+        const e = this.lastSim?.enemies.find((q) => q.id === ev.id);
+        if (e?.post) this.ping(e.post.x, e.post.y, PALETTE.enemy, 3);
+      }
+      if (ev.type === 'noise' && ev.label === 'Ramming') {
+        this.shake = Math.max(this.shake, 0.06);
+        if (this.dust) {
+          (this.dust.emitter as Vector3).set(this.co.X(ev.x), 0, this.co.Z(ev.y));
+          this.dust.manualEmitCount = 14;
+        }
+      }
       if (ev.type === 'surrender') {
         const e = this.lastSim?.enemies.find((q) => q.id === ev.id);
         if (e) this.popup(e.x, e.y, 'HANDS UP', '#ffffff');
@@ -1007,7 +1184,7 @@ export class View {
       }
       if (ev.type === 'noise' && ev.r >= 2.5) {
         const ring = MeshBuilder.CreateTorus('noise', { diameter: 2, thickness: 0.04, tessellation: 48 }, this.scene);
-        const enemyNoise = ev.label === 'Barking' || ev.label === 'Shouting';
+        const enemyNoise = ev.label === 'Barking' || ev.label === 'Shouting' || ev.label === 'Ramming';
         ring.material = mat(this.scene, '#ffffff', { emissive: enemyNoise ? PALETTE.enemy : '#d8e6ff', alpha: 0.6, unlit: true });
         ring.position.set(this.co.X(ev.x), 0.07, this.co.Z(ev.y));
         this.toOverlay(ring);
@@ -1089,6 +1266,9 @@ export class View {
         icon.setEnabled(st === 'locked');
       }
     }
+    this.updateBraces(sim, planning);
+    this.updatePins(sim);
+    this.updateWaveMarks(sim);
 
     // Crew.
     sim.crew.forEach((c, i) => this.updateCrew(this.crew[i], c, plan, i, dt));
@@ -1096,7 +1276,7 @@ export class View {
     for (const e of sim.enemies) {
       let a = this.enemies.get(e.id);
       if (!a) {
-        a = this.makeEnemyActor(e.kind);
+        a = this.makeEnemyActor(e.kind, modelFor(e.def));
         this.enemies.set(e.id, a);
         this.refreshKey();
       }
@@ -1169,6 +1349,87 @@ export class View {
       return true;
     });
     this.scene.render();
+  }
+
+  /** Planks up on braced doors; while one is rammed, how near it is to going. */
+  private updateBraces(sim: Sim, planning: boolean) {
+    for (const [key, b] of this.braces) {
+      const [x, y] = key.split(',').map(Number);
+      const braced = sim.grid.door(x, y) === 'barricaded';
+      b.planks.setEnabled(braced);
+      let k = '';
+      if (braced) {
+        const left = sim.enemies.reduce((t, e) => (e.breach && e.breach.x === x && e.breach.y === y ? Math.min(t, e.breach.t) : t), Infinity);
+        if (left < Infinity) k = `r${Math.round((1 - left / BARRICADE_TIME) * 24)}`;
+        else if (planning) k = 'b';
+      }
+      if (k !== b.key) {
+        b.key = k;
+        const g = b.tex.getContext() as unknown as CanvasRenderingContext2D;
+        g.clearRect(0, 0, 256, 256);
+        if (k) drawBrace(g, 256, k === 'b' ? null : Number(k.slice(1)) / 24);
+        b.tex.update();
+      }
+      b.icon.setEnabled(!!k);
+    }
+  }
+
+  /** CSS pixels a metre takes on screen just now. */
+  private get ppm(): number {
+    return this.fitScale * this.zoom;
+  }
+
+  /** Labels on the map are kept smaller on a phone. */
+  private get narrow(): boolean {
+    return (this.engine.getRenderingCanvas()?.clientWidth ?? 1600) < 900;
+  }
+
+  private updateWaveMarks(sim: Sim) {
+    const waves = this.level.waves ?? [];
+    const k = Math.min(14, Math.max(2.2, (this.narrow ? 150 : 210) / this.ppm));
+    for (const w of this.waveMarks) {
+      const next = w.waves.filter((n) => sim.waves <= n);
+      w.mesh.setEnabled(next.length > 0);
+      if (!next.length) continue;
+      const key = next.join(',');
+      if (key !== w.key) {
+        w.key = key;
+        const g = w.tex.getContext() as unknown as CanvasRenderingContext2D;
+        g.clearRect(0, 0, 512, 512);
+        drawWave(g, 512, next.map((n) => ({ n: n + 1, t: waves[n].t })), w.north);
+        w.tex.update();
+      }
+      w.mesh.scaling.set(k, k, 1);
+      w.mesh.visibility = 0.82 + Math.sin(this.time * 3) * 0.18;
+    }
+  }
+
+  /** Story pins: where each target last posted, until someone has eyes on them. */
+  private updatePins(sim: Sim) {
+    for (const [id, p] of this.pins) {
+      const e = sim.enemies.find((q) => q.id === id);
+      const post = e?.post;
+      const show = !!e && !!post && !e.caught && !e.seen && e.state !== 'down' && e.state !== 'gone' && e.state !== 'subdued';
+      p.tag.setEnabled(show);
+      p.ring.setEnabled(show);
+      if (!show) continue;
+      const age = ageLabel(sim.time - post!.t);
+      const key = `${post!.x},${post!.y}:${age}`;
+      if (key !== p.key) {
+        p.key = key;
+        const g = p.tex.getContext() as unknown as CanvasRenderingContext2D;
+        g.clearRect(0, 0, 512, 256);
+        drawPin(g, e!.def.name, age);
+        p.tex.update();
+        p.ring.position.set(this.co.X(post!.x), 0.07, this.co.Z(post!.y));
+      }
+      // The same size on screen however far out the camera is.
+      const k = Math.min(12, Math.max(0.8, (this.narrow ? 130 : 190) / (2.6 * this.ppm)));
+      p.tag.scaling.setAll(k);
+      p.tag.position.set(this.co.X(post!.x), 0.2 + 0.9 * k, this.co.Z(post!.y));
+      const r = Math.max(1, 56 / (1.5 * this.ppm)) * (1 + Math.sin(this.time * 3) * 0.12);
+      p.ring.scaling.set(r, 1, r);
+    }
   }
 
   private updateCrew(a: Actor, c: Crew, plan: PlanOverlay | null, i: number, dt: number) {
@@ -1252,6 +1513,7 @@ export class View {
       else if (e.state === 'suspicious') key = `?${Math.round(e.alert * 10)}`;
       else if (e.surrender > 0.02) key = `s${Math.round(e.surrender * 10)}`;
       else if (e.alert > 0.05) key = `?${Math.round(e.alert * 10)}`;
+      else if (this.level.mode === 'rideout' && e.def.target && !e.caught) key = 'target';
       if (key !== a.icon.key) {
         a.icon.key = key;
         const g = a.icon.tex.getContext() as unknown as CanvasRenderingContext2D;
@@ -1355,6 +1617,29 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
     g.fillText(key === 'run' ? '»' : key === 'wait' ? '…' : '!', s / 2, s * 0.6);
     return;
   }
+  if (key === 'target') {
+    // Who the crew came for: a reticle.
+    const c = s / 2;
+    g.strokeStyle = 'rgba(10,18,36,0.85)';
+    g.lineWidth = s * 0.14;
+    g.beginPath();
+    g.arc(c, c, s * 0.28, 0, Math.PI * 2);
+    g.stroke();
+    g.strokeStyle = red;
+    g.lineWidth = s * 0.07;
+    g.stroke();
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+      g.beginPath();
+      g.moveTo(c + dx * s * 0.16, c + dy * s * 0.16);
+      g.lineTo(c + dx * s * 0.42, c + dy * s * 0.42);
+      g.stroke();
+    }
+    g.fillStyle = red;
+    g.beginPath();
+    g.arc(c, c, s * 0.05, 0, Math.PI * 2);
+    g.fill();
+    return;
+  }
   if (key === 'hands') {
     // A "held" tag: they have given up and stay put.
     g.fillStyle = 'rgba(10,18,36,0.9)';
@@ -1388,4 +1673,139 @@ function drawStatus(g: CanvasRenderingContext2D, s: number, key: string, e: Enem
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillText(surrender ? '✋' : '?', s / 2, s / 2 + s * 0.03);
+}
+
+function ageLabel(s: number): string {
+  if (s < 10) return 'JUST NOW';
+  if (s < 60) return `${Math.floor(s / 10) * 10}S AGO`;
+  return `${Math.floor(s / 60)} MIN AGO`;
+}
+
+/** A story pin: who posted, and how long ago, over a pointer to the spot. */
+function drawPin(g: CanvasRenderingContext2D, name: string, age: string) {
+  const red = PALETTE.enemy;
+  g.fillStyle = 'rgba(10,14,26,0.92)';
+  g.strokeStyle = red;
+  g.lineWidth = 6;
+  g.beginPath();
+  g.roundRect(16, 14, 480, 150, 22);
+  g.fill();
+  g.stroke();
+  g.beginPath();
+  g.moveTo(226, 164);
+  g.lineTo(256, 210);
+  g.lineTo(286, 164);
+  g.closePath();
+  g.fillStyle = red;
+  g.fill();
+  // A phone, for where the intel came from.
+  g.strokeStyle = red;
+  g.lineWidth = 7;
+  g.beginPath();
+  g.roundRect(44, 44, 54, 92, 10);
+  g.stroke();
+  g.beginPath();
+  g.arc(71, 50, 0.5, 0, Math.PI * 2);
+  g.stroke();
+  g.fillStyle = red;
+  g.beginPath();
+  g.arc(71, 118, 6, 0, Math.PI * 2);
+  g.fill();
+  g.textAlign = 'left';
+  g.textBaseline = 'middle';
+  g.fillStyle = '#ffffff';
+  g.font = '700 54px Rajdhani, sans-serif';
+  g.fillText(name.toUpperCase(), 122, 66, 360);
+  g.fillStyle = red;
+  g.font = '700 44px Rajdhani, sans-serif';
+  g.fillText(`POSTED ${age}`, 122, 120, 360);
+}
+
+/** A braced door: planks in a ring, with a red arc while they ram it. */
+function drawBrace(g: CanvasRenderingContext2D, s: number, rammed: number | null) {
+  const c = s / 2;
+  g.fillStyle = 'rgba(10,18,36,0.88)';
+  g.beginPath();
+  g.arc(c, c, s * 0.4, 0, Math.PI * 2);
+  g.fill();
+  g.lineCap = 'round';
+  if (rammed === null) {
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = s * 0.04;
+    g.stroke();
+  } else {
+    g.strokeStyle = 'rgba(255,255,255,0.18)';
+    g.lineWidth = s * 0.08;
+    g.stroke();
+    g.strokeStyle = PALETTE.enemy;
+    g.beginPath();
+    g.arc(c, c, s * 0.4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, rammed));
+    g.stroke();
+  }
+  // A doorway with two boards nailed across it.
+  g.strokeStyle = 'rgba(255,255,255,0.55)';
+  g.lineWidth = s * 0.03;
+  g.strokeRect(c - s * 0.15, c - s * 0.22, s * 0.3, s * 0.44);
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = s * 0.075;
+  g.lineCap = 'round';
+  for (const d of [1, -1]) {
+    g.beginPath();
+    g.moveTo(c - s * 0.2, c - d * s * 0.17);
+    g.lineTo(c + s * 0.2, c + d * s * 0.17);
+    g.stroke();
+  }
+}
+
+/** Where waves come in: arrows the way they will move, the next wave and when, and any after it from the same side. */
+function drawWave(g: CanvasRenderingContext2D, s: number, waves: { n: number; t: number }[], fromNorth: boolean) {
+  const red = PALETTE.enemy;
+  const c = s / 2;
+  const when = (t: number) => `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`;
+  // Arrows on the side they come from, pointing in.
+  g.save();
+  g.translate(c, fromNorth ? s * 0.16 : s * 0.84);
+  if (!fromNorth) g.rotate(Math.PI);
+  g.fillStyle = red;
+  for (const y of [-0.12, 0.02]) {
+    g.beginPath();
+    g.moveTo(-s * 0.17, y * s);
+    g.lineTo(0, (y + 0.09) * s);
+    g.lineTo(s * 0.17, y * s);
+    g.lineTo(s * 0.17, (y + 0.055) * s);
+    g.lineTo(0, (y + 0.145) * s);
+    g.lineTo(-s * 0.17, (y + 0.055) * s);
+    g.closePath();
+    g.fill();
+  }
+  g.restore();
+  // The panel: which wave, when, and what follows it.
+  const h = waves[1] ? s * 0.3 : s * 0.2;
+  const top = fromNorth ? s * 0.36 : s * 0.64 - h;
+  g.fillStyle = 'rgba(10,14,26,0.92)';
+  g.strokeStyle = red;
+  g.lineWidth = s * 0.012;
+  g.beginPath();
+  g.roundRect(s * 0.08, top, s * 0.84, h, s * 0.04);
+  g.fill();
+  g.stroke();
+  g.textBaseline = 'middle';
+  g.font = `700 ${s * 0.12}px Rajdhani, sans-serif`;
+  const label = `WAVE ${waves[0].n}`;
+  const time = when(waves[0].t);
+  const gap = s * 0.05;
+  const lw = g.measureText(label).width;
+  const tw = g.measureText(time).width;
+  const x0 = c - (lw + gap + tw) / 2;
+  g.textAlign = 'left';
+  g.fillStyle = '#ffffff';
+  g.fillText(label, x0, top + s * 0.105);
+  g.fillStyle = red;
+  g.fillText(time, x0 + lw + gap, top + s * 0.105);
+  if (waves[1]) {
+    g.textAlign = 'center';
+    g.fillStyle = '#cfe0ff';
+    g.font = `600 ${s * 0.07}px Rajdhani, sans-serif`;
+    g.fillText(`THEN WAVE ${waves[1].n} AT ${when(waves[1].t)}`, c, top + s * 0.225);
+  }
 }

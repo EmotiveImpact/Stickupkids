@@ -11,6 +11,8 @@ export interface ClipInfo {
 }
 
 export interface ClipEnd {
+  /** Over the big number: "THE CREW BANKS" unless given. */
+  head?: string;
   /** What the crew banked, as shown. */
   total: string;
   /** How it ended, for example "Clean getaway · 1:12". */
@@ -175,12 +177,12 @@ export class ClipRecorder {
       g.textAlign = 'center';
       g.fillStyle = '#9fb0d4';
       g.font = '600 34px Inter, sans-serif';
-      g.fillText('THE CREW BANKS', CLIP_W / 2, CLIP_H / 2 - 120);
+      g.fillText(this.end.head ?? 'THE CREW BANKS', CLIP_W / 2, CLIP_H / 2 - 120);
       g.fillStyle = LOOT;
       g.font = '700 168px Rajdhani, sans-serif';
       g.shadowColor = 'rgba(61,255,162,0.55)';
       g.shadowBlur = 30;
-      g.fillText(this.end.total, CLIP_W / 2, CLIP_H / 2 + 40);
+      g.fillText(this.end.total, CLIP_W / 2, CLIP_H / 2 + 40, CLIP_W - 120);
       g.shadowBlur = 0;
       g.fillStyle = '#ffffff';
       g.font = '600 38px Inter, sans-serif';

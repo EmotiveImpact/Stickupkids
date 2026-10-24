@@ -3,7 +3,7 @@
 
 import './ui/style.css';
 import type { GoCode, Level, Vec } from './sim/level.ts';
-import { JOBS, jobById, type Job } from './sim/jobs.ts';
+import { JOBS, artOf, jobById, type Job } from './sim/jobs.ts';
 import { CREW, Sim, emptyPlans, planDoors, type SimEvent, type Waypoint } from './sim/sim.ts';
 import { Replay, record, type Recording } from './sim/replay.ts';
 import { View, createEngine, type PlanOverlay } from './render/view.ts';
@@ -19,15 +19,17 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const engine = createEngine(canvas);
 let job: Job = jobById(q.get('job'));
 let level: Level = job.build();
-let view = new View(engine, level, `models/${job.id}/`);
+let view = new View(engine, level, artOf(job));
 
 let phase: Phase = 'title';
 let plans: Waypoint[][] = emptyPlans(level);
+/** They Slid: the doors braced before they come. */
+let barricades: Vec[] = [];
 let version = 1;
 let selected = 1;
 let selectedWp: number | null = null;
 let hover: Vec | null = null;
-let preview = new Sim(level, plans);
+let preview = new Sim(level, plans, 7, barricades);
 let sim = preview;
 let paused = false;
 let speed = 1;
@@ -48,7 +50,10 @@ const hud = new Hud(document.getElementById('hud')!, {
   start: (sample) => startPlanning(sample),
   replan: (fresh) => {
     hud.hideOverlay();
-    if (fresh) plans = emptyPlans(level);
+    if (fresh) {
+      plans = emptyPlans(level);
+      barricades = [];
+    }
     enterPlanning();
   },
   pickJob: (id) => pickJob(id),
@@ -64,6 +69,20 @@ function frameLevel() {
   hud.big = view.big;
   if (!view.big) return;
   const s = level.crewStarts;
+  const posts = level.enemies.flatMap((e) => (e.story ? [e.story] : []));
+  if (posts.length) {
+    // A ride out: take in the whip and every pin, so the plan starts from what Jojo has seen.
+    const pts = [...s, ...posts];
+    const x0 = Math.min(...pts.map((p) => p.x)) - 6;
+    const x1 = Math.max(...pts.map((p) => p.x)) + 6;
+    const y0 = Math.min(...pts.map((p) => p.y)) - 6;
+    const y1 = Math.max(...pts.map((p) => p.y)) + 10;
+    // The story panel takes the right-hand side.
+    const panel = innerWidth < 900 ? 220 : 300;
+    const ppm = Math.min(28, Math.max(8, Math.min((innerWidth - 280 - panel) / (x1 - x0), (innerHeight - 160) / ((y1 - y0) * 0.81))));
+    view.focus((x0 + x1) / 2 + panel / 2 / ppm, (y0 + y1) / 2, ppm);
+    return;
+  }
   view.focus(s.reduce((a, c) => a + c.x, 0) / s.length - 12, s.reduce((a, c) => a + c.y, 0) / s.length, 28);
 }
 
@@ -76,9 +95,10 @@ function pickJob(id: string) {
   view.dispose();
   level = job.build();
   names = namesOf(level);
-  view = new View(engine, level, `models/${job.id}/`);
+  view = new View(engine, level, artOf(job));
   frameLevel();
   plans = emptyPlans(level);
+  barricades = [];
   selected = 1;
   selectedWp = null;
   changed();
@@ -181,9 +201,12 @@ function clipFrame(dt: number) {
   hud.recordingTime(clip.seconds);
   const o = replay.sim.outcome;
   if (replay.done && !clip.ending && o) {
-    const how = { escaped: 'Clean getaway', droveOff: 'Drove off', police: 'Police arrived', wiped: 'Crew wiped out' }[o.reason];
     const m = Math.floor(o.time / 60);
-    clip.finish({ total: '£' + o.payout.total.toLocaleString('en-GB'), line: `${how} · ${m}:${String(Math.floor(o.time % 60)).padStart(2, '0')}` });
+    const line = `${REASONS[o.reason]} · ${m}:${String(Math.floor(o.time % 60)).padStart(2, '0')}`;
+    const money = (n: number) => '£' + n.toLocaleString('en-GB');
+    if (o.mode === 'rideout') clip.finish({ head: 'CAUGHT', total: `${o.caught} OF ${o.targets}`, line });
+    else if (o.mode === 'slid') clip.finish({ head: o.reason === 'robbed' ? 'THEY TOOK IT ALL' : 'HELD IT DOWN', total: money(o.kept), line });
+    else clip.finish({ total: money(o.payout.total), line });
   }
   if (clip.ending > CLIP_TAIL) void finishClip();
 }
@@ -260,14 +283,19 @@ function watchLoading() {
 
 function changed() {
   version++;
-  preview = new Sim(level, plans);
+  preview = new Sim(level, plans, 7, barricades);
   if (phase === 'planning') sim = preview;
 }
 
 function startPlanning(sample: boolean) {
   hud.hideOverlay();
-  if (sample) plans = job.samplePlans();
+  if (sample) loadSample();
   enterPlanning();
+}
+
+function loadSample() {
+  plans = job.samplePlans();
+  barricades = (job.sampleBarricades ?? []).map((b) => ({ ...b }));
 }
 
 function enterPlanning() {
@@ -283,7 +311,7 @@ function go() {
   if (phase !== 'planning') return;
   phase = 'raid';
   view.setReveal(false);
-  sim = new Sim(level, plans, (Math.random() * 1e9) | 0);
+  sim = new Sim(level, plans, (Math.random() * 1e9) | 0, barricades);
   view.bind(sim);
   view.setMode('raid');
   paused = false;
@@ -335,7 +363,7 @@ function tool(t: 'kick' | 'undo' | 'clear' | 'sample') {
     plan.splice(1);
     selectedWp = null;
   } else if (t === 'sample') {
-    plans = job.samplePlans();
+    loadSample();
     selectedWp = null;
   }
   changed();
@@ -424,6 +452,26 @@ function removeOrderPoint() {
   });
 }
 
+function toggleBarricade(x: number, y: number, name: string) {
+  const i = barricades.findIndex((b) => b.x === x && b.y === y);
+  const max = level.barricades ?? 0;
+  if (i >= 0) barricades.splice(i, 1);
+  else if (barricades.length >= max) {
+    hud.toast(`Only ${max} barricades. Click a braced door to take its barricade off.`);
+    return;
+  } else {
+    // Nobody can be standing in a doorway that is being braced.
+    const blocked = plans.some((plan) => plan.some((w) => Math.floor(w.x) === x && Math.floor(w.y) === y));
+    if (blocked) {
+      hud.toast('Someone is routed through that door. Move them first.');
+      return;
+    }
+    barricades.push({ x, y });
+    hud.toast(`${name} barricaded`, CREW[0].color);
+  }
+  changed();
+}
+
 function toggleSpeed() {
   speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
 }
@@ -464,6 +512,14 @@ canvas.addEventListener('pointerdown', (e) => {
     for (let i = 0; i < plans.length; i++) {
       if (near(plans[i][0], p, 0.55) && i + 1 !== selected) {
         selectCrew(i + 1);
+        return;
+      }
+    }
+    // They Slid: clicking a door braces it, or takes the brace off.
+    if (level.mode === 'slid') {
+      const d = level.doors.find((dd) => near({ x: dd.x + 0.5, y: dd.y + 0.5 }, p, 0.75));
+      if (d) {
+        toggleBarricade(d.x, d.y, d.name);
         return;
       }
     }
@@ -661,7 +717,14 @@ function narrate(events: SimEvent[]) {
     else if (ev.type === 'loot') {
       const l = level.loot.find((x) => x.id === ev.id)!;
       note(`${CREW[ev.slot - 1].name} bagged ${lower(l.name)}`, '#3DFFA2');
-    } else if (ev.type === 'backup') note(`Their backup has turned up at ${level.backup.place}`, '#FF3B4E');
+    } else if (ev.type === 'backup') {
+      if (level.mode === 'rideout') note(`The park has woken up. Their side are coming from ${level.backup.place}`, '#FF3B4E');
+      else note(`Their backup has turned up at ${level.backup.place}`, '#FF3B4E');
+    } else if (ev.type === 'caught') note(`Caught the ${lower(names[ev.id])}`, CREW[0].color);
+    else if (ev.type === 'post') note(`The ${lower(names[ev.id])} just posted. Jojo's dropped a pin`, CREW[2].color);
+    else if (ev.type === 'wave') note(ev.n === 1 ? `They're here: ${ev.place}` : `More of them: ${ev.place}`, '#FF3B4E');
+    else if (ev.type === 'ramming') note(`They're on the ${lower(level.doors.find((d) => d.x === ev.x && d.y === ev.y)?.name ?? 'door')}`, '#FF3B4E');
+    else if (ev.type === 'backOff') note("They've had enough. They're backing off", CREW[0].color);
     else if (ev.type === 'reveal') note(`${level.rooms.find((r) => r.id === ev.room)?.name ?? 'Room'} scouted`, '#ffffff');
     else if (ev.type === 'down') {
       const civvy = !ev.crew && level.enemies.find((e) => e.id === ev.id)?.kind === 'civilian';
@@ -675,6 +738,15 @@ function narrate(events: SimEvent[]) {
     else if (ev.type === 'lost') note(`${names[ev.id]} got away with ${lootName(ev.loot)}`, '#FF3B4E');
   }
 }
+
+const REASONS: Record<string, string> = {
+  escaped: 'Clean getaway',
+  droveOff: 'Drove off',
+  police: 'Police arrived',
+  wiped: 'Crew wiped out',
+  heldIt: 'Held it down',
+  robbed: 'They took the lot',
+};
 
 const lootName = (id: string) => lower(level.loot.find((l) => l.id === id)?.name ?? 'the loot');
 
@@ -723,7 +795,7 @@ function tick(dt: number) {
     minimap.draw(sim, view.visibleRect(), CREW.map((c) => c.color));
     if (phase === 'planning' || phase === 'title') {
       const d = planDoors(level, preview.grid, plans);
-      hud.updatePlanning({ plans, selected, selectedWp, kicks: d.kicks, picks: d.picks });
+      hud.updatePlanning({ plans, selected, selectedWp, kicks: d.kicks, picks: d.picks, barricades: barricades.length, maxBarricades: level.barricades ?? 0 }, preview);
     } else if (phase === 'replay' && replay) {
       hud.updateReplay(sim, {
         playing: replayPlaying && !replay.done,
@@ -742,7 +814,11 @@ function tick(dt: number) {
     phase = 'results';
     finished = sim;
     recording = record(sim, STEP);
-    setTimeout(() => hud.showResults(sim.outcome!, sim), 900);
+    // Only if nothing has moved on in the meantime (another job picked, or a replan).
+    const done = sim;
+    setTimeout(() => {
+      if (finished === done && phase === 'results') hud.showResults(done.outcome!, done);
+    }, 900);
   }
 }
 
@@ -771,6 +847,10 @@ const api = {
   get plans() {
     return plans;
   },
+  get barricades() {
+    return barricades;
+  },
+  barricade: (x: number, y: number) => toggleBarricade(x, y, level.doors.find((d) => d.x === x && d.y === y)?.name ?? 'Door'),
   get paused() {
     return paused;
   },

@@ -8,13 +8,14 @@ import {
   type EnemyDef,
   type EnemyKind,
   type GoCode,
+  type JobMode,
   type Level,
   type LootDef,
   type Persona,
   type Vec,
 } from './level.ts';
 import { LINES } from './lines.ts';
-import { payoutFor, revengeRisk, type Payout } from './payout.ts';
+import { payoutFor, revengeRisk, rideOutRisk, type Payout } from './payout.ts';
 
 export type Role = 'Muscle' | 'Creeper' | 'Lookout' | 'Talker';
 
@@ -80,6 +81,12 @@ export interface Crew {
   aimId: string | null;
   fov: number;
   range: number;
+  /** Where they last heard trouble: standing still, they turn to face it. */
+  look: Vec | null;
+  /** Seconds without moving. At home, a second's stillness puts them in cover. */
+  stillT: number;
+  px: number;
+  py: number;
 }
 
 /**
@@ -135,6 +142,19 @@ export interface Enemy {
   stash: string | null;
   stashSpot: Vec | null;
   holding: boolean;
+  /** Ride Out: one of the people the crew came for has been hit. */
+  caught: boolean;
+  /** Ride Out: their last post (sim seconds; before the job is negative). */
+  post: { x: number; y: number; t: number } | null;
+  /** Ride Out: seconds to their next post. */
+  postT: number;
+  /** They Slid: came through the doors in a wave, and runs back to `exit`. */
+  raider: boolean;
+  exit: Vec | null;
+  /** Ramming a barricade: the door, and seconds left. */
+  breach: { x: number; y: number; t: number; bangT: number } | null;
+  /** Seconds left bagging up the stash. */
+  grabT: number;
 }
 
 export interface LootItem {
@@ -165,7 +185,17 @@ export type SimEvent =
   | { type: 'police'; id: string }
   | { type: 'snatch'; id: string; loot: string }
   | { type: 'drop'; id: string; loot: string }
-  | { type: 'lost'; id: string; loot: string };
+  | { type: 'lost'; id: string; loot: string }
+  /** Ride Out: a target has been hit. */
+  | { type: 'caught'; id: string }
+  /** Ride Out: a target has posted where they are. */
+  | { type: 'post'; id: string }
+  /** They Slid: the next lot are here. */
+  | { type: 'wave'; n: number; of: number; place: string }
+  /** They Slid: someone has started on a barricade. */
+  | { type: 'ramming'; x: number; y: number }
+  /** They Slid: they have had enough. */
+  | { type: 'backOff' };
 
 /** An order given during the raid, by step, kept so the raid can be played again. */
 export type SimInput =
@@ -174,7 +204,9 @@ export type SimInput =
   | { tick: number; kind: 'driveOff' };
 
 export interface Outcome {
-  reason: 'escaped' | 'wiped' | 'police' | 'droveOff';
+  /** heldIt: they backed off (They Slid). robbed: they got the lot (They Slid). */
+  reason: 'escaped' | 'wiped' | 'police' | 'droveOff' | 'heldIt' | 'robbed';
+  mode: JobMode;
   take: number;
   secured: string[];
   escaped: number[];
@@ -198,6 +230,15 @@ export interface Outcome {
   payout: Payout;
   /** Chance, in per cent, that the firm comes for the crew. */
   revengeRisk: number;
+  /** Ride Out: the people the crew came for, and how many were caught. */
+  targets: number;
+  caught: number;
+  /** They Slid: what the stash is worth, and what is still the crew's. */
+  stash: number;
+  kept: number;
+  /** They Slid: how many came through, and how many were put down or held. */
+  raiders: number;
+  raidersDown: number;
 }
 
 interface EnemyStats {
@@ -222,12 +263,28 @@ const ENEMY_STATS: Record<EnemyKind, EnemyStats> = {
 };
 
 const CREW_SPEED = 2.6;
+/** Seconds to break through a barricade. */
+export const BARRICADE_TIME = 7;
+/** Seconds to bag up a stash and go. */
+const GRAB_TIME = 1.5;
+/** They Slid: once this share of them are down or held, the rest back off. */
+const BACK_OFF = 0.6;
+/** Ride Out: how much further than usual the people the crew came for can see. */
+const TARGET_SIGHT = 1.4;
+/** Ride Out: seconds between a target's posts, at least. */
+const POST_EVERY = 18;
 const HEAVY_SPEED = 0.7;
 const CREW_FOV = 110 * DEG;
 const CREW_RANGE = 9;
 const INTIMIDATE_RANGE = 6;
 const POLICE_RATE = 1 / 150;
 const BACKUP_TIME = 45;
+/** A gunshot brings the police this much closer (less on a defence: the street is already ringing them). */
+const SHOT_HEAT: Record<JobMode, number> = { stickup: 0.03, rideout: 0.012, slid: 0.004 };
+/** At home the street takes longer to ring it in: they hear this sort of thing. */
+const SLID_POLICE_RATE = 1 / 240;
+/** At home, someone set and waiting is behind something: shots at them land this much as often. */
+const COVER = 0.55;
 /** How far a street lamp's pool reaches, in metres. */
 const LAMP_REACH = 5.5;
 /** How long the boss talks before he shoots, unless the Talker is talking to him. */
@@ -322,6 +379,7 @@ export function planDoors(level: Level, grid: Grid, plans: Waypoint[][]): { kick
 
 export class Sim {
   readonly level: Level;
+  readonly mode: JobMode;
   readonly grid: Grid;
   readonly crew: Crew[];
   readonly enemies: Enemy[];
@@ -332,6 +390,8 @@ export class Sim {
   /** What the raid started from and every order given since: enough to play it again (src/sim/replay.ts). */
   readonly seed: number;
   readonly startPlans: Waypoint[][];
+  /** They Slid: the doors the crew barricaded before they came. */
+  readonly barricades: Vec[];
   readonly inputs: SimInput[] = [];
   /** Steps taken. */
   ticks = 0;
@@ -343,16 +403,22 @@ export class Sim {
   outcome: Outcome | null = null;
   /** A civilian got through to 999. */
   policeCalled = false;
+  /** They Slid: waves that have come so far, and whether the rest have backed off. */
+  waves = 0;
+  backingOff = false;
   private rng: () => number;
   private everAlerted = false;
   /** Lamp light per cell, 0 to 1, when the level is dark enough to matter. */
   private light: Float32Array | null = null;
 
-  constructor(level: Level, plans: Waypoint[][], seed = 7) {
+  constructor(level: Level, plans: Waypoint[][], seed = 7, barricades: Vec[] = []) {
     this.level = level;
+    this.mode = level.mode ?? 'stickup';
     this.grid = new Grid(level);
     this.seed = seed;
     this.startPlans = plans.map((p) => p.map((w) => ({ ...w })));
+    this.barricades = barricades.map((b) => ({ x: Math.floor(b.x), y: Math.floor(b.y) }));
+    for (const b of this.barricades) if (this.grid.door(b.x, b.y)) this.grid.setDoor(b.x, b.y, 'barricaded');
     this.rng = mulberry32(seed);
     this.crew = CREW.map((def, i) => {
       const plan = plans[i]?.length ? plans[i] : [{ ...level.crewStarts[i], hold: null, kick: false }];
@@ -374,6 +440,10 @@ export class Sim {
         aimId: null,
         fov: def.role === 'Lookout' ? 130 * DEG : CREW_FOV,
         range: def.role === 'Lookout' ? 12 : CREW_RANGE,
+        look: null,
+        stillT: 0,
+        px: plan[0].x,
+        py: plan[0].y,
       };
     });
     this.enemies = level.enemies.map((d) => this.makeEnemy(d, level.unscouted));
@@ -422,9 +492,11 @@ export class Sim {
       fireCd: 0,
       doorT: 0,
       seen: false,
-      known: !(room && unscouted.includes(room.id)),
+      // Targets are only known from what they post, until someone sees them.
+      known: !(room && unscouted.includes(room.id)) && !d.story,
       fov: s.fov,
-      range: s.range,
+      // On a ride out the people the crew came for are posted up and looking out.
+      range: s.range * (this.mode === 'rideout' && d.target ? TARGET_SIGHT : 1),
       talkT: 0,
       talkedTo: false,
       leader: null,
@@ -434,6 +506,13 @@ export class Sim {
       stash: null,
       stashSpot: null,
       holding: false,
+      caught: false,
+      post: d.story ? { x: d.story.x, y: d.story.y, t: -d.story.mins * 60 } : null,
+      postT: d.target ? POST_EVERY * (0.6 + this.rng() * 0.8) : 0,
+      raider: false,
+      exit: null,
+      breach: null,
+      grabT: 0,
     };
   }
 
@@ -480,7 +559,7 @@ export class Sim {
 
   /** Leave now: whoever is at the van gets away, the rest are left behind. */
   driveOff(): void {
-    if (this.outcome) return;
+    if (this.outcome || this.mode === 'slid') return;
     this.inputs.push({ tick: this.ticks, kind: 'driveOff' });
     for (const c of this.crew) {
       if (c.state !== 'down' && inRect(this.level.exit, c.x, c.y)) c.state = 'escaped';
@@ -493,8 +572,15 @@ export class Sim {
     this.ticks++;
     this.time += dt;
     for (const e of this.enemies) e.seen = false;
-    for (const c of this.crew) this.updateCrew(c, dt);
+    for (const c of this.crew) {
+      this.updateCrew(c, dt);
+      c.stillT = c.x === c.px && c.y === c.py ? c.stillT + dt : 0;
+      c.px = c.x;
+      c.py = c.y;
+    }
     for (const e of this.enemies) this.updateEnemy(e, dt);
+    if (this.mode === 'rideout') this.updatePosts(dt);
+    if (this.mode === 'slid') this.updateWaves();
     this.updateReveal();
     this.updateClocks(dt);
     this.checkEnd();
@@ -520,9 +606,11 @@ export class Sim {
       if (!this.grid.lineOfSight(c.x, c.y, e.x, e.y)) continue;
       e.seen = true;
       e.known = true;
-      // Only someone shooting back gets shot at. Anyone running, talking or on
-      // the phone gets a gun pointed at them and told to get down.
-      if (e.state === 'hostile') {
+      // Only someone shooting back gets shot at, or on a ride out someone the
+      // crew came for. Anyone running, talking or on the phone gets a gun
+      // pointed at them and told to get down.
+      const hunted = this.mode === 'rideout' && !!e.def.target && !e.caught && e.state !== 'subdued' && e.state !== 'fleeing';
+      if (e.state === 'hostile' || hunted) {
         if (d < hostileD) {
           hostile = e;
           hostileD = d;
@@ -543,17 +631,22 @@ export class Sim {
       c.facing = turnTowards(c.facing, a, 10 * dt);
       if (c.fireCd <= 0 && Math.abs(angleDiff(c.facing, a)) < 0.25) {
         c.fireCd = 0.55;
-        const hit = this.rng() < Math.min(0.9, Math.max(0.3, 0.8 - 0.03 * hostileD));
+        const hit = this.rng() < Math.min(0.9, Math.max(0.3, 0.8 - 0.03 * hostileD)) + (this.inCover(c) ? 0.1 : 0);
         this.shots++;
         this.events.push({ type: 'shot', from: { x: c.x, y: c.y }, to: { x: hostile.x, y: hostile.y }, hit, byCrew: true });
-        this.noise(c.x, c.y, 16, 'Gunshot', true);
-        this.police += 0.03;
+        this.noise(c.x, c.y, 16, 'Gunshot', true, true);
+        this.police += this.shotHeat;
         if (hit) this.damageEnemy(hostile, c.def.role === 'Muscle' ? 45 : 30, c);
         else this.stray(c, hostile);
       }
       return;
     }
     if (c.state === 'fight') c.state = 'moving';
+
+    // Standing still, turn to face trouble heard close by.
+    if (c.look && !soft && (c.state === 'idle' || c.state === 'hold')) {
+      c.facing = turnTowards(c.facing, Math.atan2(c.look.y - c.y, c.look.x - c.x), 5 * dt);
+    }
 
     // Hold up anyone who isn't shooting at us.
     c.aimId = null;
@@ -590,6 +683,8 @@ export class Sim {
     // Pick up loot we are standing next to.
     for (const item of this.loot) {
       if (item.state !== 'placed') continue;
+      // At home the stash stays where it is kept, unless someone dropped it.
+      if (this.mode === 'slid' && item.x === item.def.x && item.y === item.def.y) continue;
       if (dist(c, item) < 0.95) {
         const t = item.def.time * (c.def.role === 'Creeper' ? 0.7 : 1);
         c.action = { kind: 'loot', t: 0, total: t, x: item.x, y: item.y, lootId: item.def.id };
@@ -617,7 +712,7 @@ export class Sim {
       }
       if (!c.route.length) {
         c.state = 'idle';
-        if (c.wp >= c.plan.length && inRect(this.level.exit, c.x, c.y)) c.state = 'escaped';
+        if (this.mode !== 'slid' && c.wp >= c.plan.length && inRect(this.level.exit, c.x, c.y)) c.state = 'escaped';
         return;
       }
     }
@@ -639,6 +734,7 @@ export class Sim {
       return;
     }
     c.state = 'moving';
+    c.look = null;
     const heavy = c.carrying.some((id) => this.loot.find((l) => l.def.id === id)?.def.heavy);
     const speed = CREW_SPEED * (heavy ? HEAVY_SPEED : 1);
     this.moveTowards(c, next, speed * dt, c.aimId ? null : 12 * dt);
@@ -666,11 +762,11 @@ export class Sim {
     if (act.kind === 'door' || act.kind === 'pick') {
       this.grid.setDoor(x, y, 'open');
       this.events.push({ type: 'door', x, y, state: 'open' });
-      if (act.kind === 'door') this.noise(x + 0.5, y + 0.5, 2.5, 'Door', false);
+      if (act.kind === 'door') this.noise(x + 0.5, y + 0.5, 2.5, 'Door', false, true);
     } else if (act.kind === 'kick') {
       this.grid.setDoor(x, y, 'broken');
       this.events.push({ type: 'door', x, y, state: 'broken' });
-      this.noise(x + 0.5, y + 0.5, 12, 'Door kicked', false);
+      this.noise(x + 0.5, y + 0.5, 12, 'Door kicked', false, true);
       this.police += 0.1;
     } else if (act.kind === 'loot') {
       const item = this.loot.find((l) => l.def.id === act.lootId);
@@ -728,6 +824,17 @@ export class Sim {
 
   private damageEnemy(e: Enemy, dmg: number, by: Crew): void {
     e.hp -= dmg;
+    if (this.mode === 'rideout' && e.def.target && !e.caught) {
+      e.caught = true;
+      e.known = true;
+      this.events.push({ type: 'caught', id: e.id });
+      // Touched, most of them run. Muscle stands and fights.
+      if (e.hp > 0 && e.persona !== 'muscle') {
+        this.becomeHostile(e, by);
+        this.flee(e);
+        return;
+      }
+    }
     if (e.state === 'calm' || e.state === 'suspicious' || e.state === 'standoff') this.becomeHostile(e, by);
     if (e.hp <= 0) {
       e.hp = 0;
@@ -912,7 +1019,7 @@ export class Sim {
       this.police += 0.08;
     }
     this.policeActive = true;
-    if (this.backupT < 0 && this.backupT > -1.5) this.backupT = BACKUP_TIME;
+    if (this.mode !== 'slid' && this.backupT < 0 && this.backupT > -1.5) this.backupT = this.backupTime;
     if (e.persona === 'runner') {
       // Off for help, shouting the place up on the way.
       e.state = 'fleeing';
@@ -935,6 +1042,15 @@ export class Sim {
     }
     if (e.persona === 'muscle') this.say(e, LINES.muscleHolds);
     this.shout(e, target);
+  }
+
+  /** Off for the gate, hurt or scared. */
+  private flee(e: Enemy): void {
+    if (e.state === 'down' || e.state === 'gone' || e.state === 'subdued') return;
+    e.state = 'fleeing';
+    e.stash = null;
+    e.route = [];
+    e.routeGoal = null;
   }
 
   /** The boss wants to know who sent them. His men wait on his word. */
@@ -986,9 +1102,16 @@ export class Sim {
     }
   }
 
-  private noise(x: number, y: number, r: number, label: string, loud: boolean): void {
+  /** `byCrew`: the crew made it, so it does not turn their heads. */
+  private noise(x: number, y: number, r: number, label: string, loud: boolean, byCrew = false): void {
     this.events.push({ type: 'noise', x, y, r, label });
     if (r >= 5) this.policeActive = true;
+    if (!byCrew) {
+      for (const c of this.crew) {
+        if (c.state === 'down' || c.state === 'escaped' || Math.hypot(c.x - x, c.y - y) > r) continue;
+        c.look = { x, y };
+      }
+    }
     for (const e of this.enemies) {
       if (Math.hypot(e.x - x, e.y - y) > r) continue;
       if (e.persona === 'nosy') {
@@ -1040,15 +1163,16 @@ export class Sim {
           }
         } else if (e.fireCd <= 0 && Math.abs(angleDiff(e.facing, a)) < 0.3) {
           e.fireCd = s.fireCd;
-          const hit = this.rng() < Math.max(0.15, s.accuracy - 0.02 * v.d);
+          const hit = this.rng() < Math.max(0.15, s.accuracy - 0.02 * v.d) * (this.inCover(v.c) ? COVER : 1);
           this.events.push({ type: 'shot', from: { x: e.x, y: e.y }, to: { x: v.c.x, y: v.c.y }, hit, byCrew: false });
           this.noise(e.x, e.y, 16, 'Gunshot', true);
-          this.police += 0.03;
+          this.police += this.shotHeat;
           if (hit) this.damageCrew(v.c, s.damage, e);
           else this.stray(e, v.c);
         }
         return;
       }
+      if (e.raider) return this.updateRaider(e, dt);
       // Muscle holds his post and watches the way they came.
       if (e.persona === 'muscle') {
         if (dist(e, e.home) > 0.3) this.walkTo(e, e.home, s.speed, dt);
@@ -1159,7 +1283,7 @@ export class Sim {
       e.barkT = 1.5;
       this.shout(e, e.lastKnown ?? e);
     }
-    const gate = this.level.gate;
+    const gate = e.exit ?? this.level.gate;
     this.walkTo(e, gate, s.speed * (e.holding ? 0.85 : 1), dt);
     if (dist(e, gate) < 0.3) {
       e.state = 'gone';
@@ -1238,7 +1362,11 @@ export class Sim {
       e.doorT -= dt;
       return true;
     }
-    const mover = e.kind === 'dog' ? 'dog' : 'guard';
+    if (e.breach) {
+      if (this.grid.door(e.breach.x, e.breach.y) !== 'barricaded') e.breach = null;
+      else return this.ram(e, dt);
+    }
+    const mover = e.kind === 'dog' ? 'dog' : e.raider ? 'raider' : 'guard';
     if (!e.routeGoal || dist(e.routeGoal, goal) > 0.5 || (e.repathT <= 0 && !e.route.length)) {
       const p = this.grid.findPath(e.x, e.y, goal.x, goal.y, mover);
       e.repathT = 0.5;
@@ -1258,10 +1386,26 @@ export class Sim {
     const nx = Math.floor(next.x);
     const ny = Math.floor(next.y);
     const door = this.grid.door(nx, ny);
+    if (door === 'barricaded') {
+      // Only people breaking in path through a barricade: they have to ram it.
+      e.breach = { x: nx, y: ny, t: BARRICADE_TIME, bangT: 0 };
+      if (!this.enemies.some((o) => o !== e && o.breach?.x === nx && o.breach.y === ny)) this.events.push({ type: 'ramming', x: nx, y: ny });
+      return true;
+    }
+    if (door === 'locked' && e.raider) {
+      // No keys to someone else's door: it gets kicked in.
+      this.grid.setDoor(nx, ny, 'broken');
+      this.events.push({ type: 'door', x: nx, y: ny, state: 'broken' });
+      this.noise(nx + 0.5, ny + 0.5, 12, 'Door kicked', false);
+      e.doorT = 0.9;
+      return true;
+    }
     if (door === 'closed' || door === 'locked') {
       // Guards have keys; dogs never path through shut doors.
       this.grid.setDoor(nx, ny, 'open');
       this.events.push({ type: 'door', x: nx, y: ny, state: 'open' });
+      // Someone coming in through your doors is heard close by.
+      if (e.raider) this.noise(nx + 0.5, ny + 0.5, 4, 'Door', false);
       e.doorT = door === 'locked' ? 0.8 : 0.4;
       return true;
     }
@@ -1298,18 +1442,19 @@ export class Sim {
   }
 
   private updateClocks(dt: number): void {
-    if (this.policeActive) this.police += POLICE_RATE * dt;
+    if (this.policeActive) this.police += (this.mode === 'slid' ? SLID_POLICE_RATE : POLICE_RATE) * dt;
     if (this.backupT > 0) {
       this.backupT -= dt;
       if (this.backupT <= 0) {
         this.backupT = -2;
         this.events.push({ type: 'backup' });
-        const { spawn, target } = this.level.backup;
+        const { spawn, target, models } = this.level.backup;
         spawn.forEach((p, i) => {
-          const e = this.makeEnemy({ id: `backup${i}`, kind: 'soldier', name: 'Backup', x: p.x, y: p.y, facing: Math.PI / 2, patrol: [] }, []);
+          const e = this.makeEnemy({ id: `backup${i}`, kind: 'soldier', model: models?.[i], name: 'Backup', x: p.x, y: p.y, facing: Math.PI / 2, patrol: [] }, []);
           e.known = false;
           e.state = 'hostile';
-          e.lastKnown = { ...target };
+          // On a ride out they come straight for the crew; on a job, for the place.
+          e.lastKnown = this.mode === 'rideout' ? this.nearestCrew(p) ?? { ...target } : { ...target };
           this.enemies.push(e);
         });
       }
@@ -1323,24 +1468,240 @@ export class Sim {
     }
   }
 
+  /** Seconds from the first alarm to their backup (on a ride out, to the block waking up). */
+  get backupTime(): number {
+    return this.level.backup.time ?? BACKUP_TIME;
+  }
+
   /** 0..1 progress of the backup clock (0 when not started). */
   get backupProgress(): number {
     if (this.backupT === -2) return 1;
     if (this.backupT < 0) return 0;
-    return 1 - this.backupT / BACKUP_TIME;
+    return 1 - this.backupT / this.backupTime;
+  }
+
+  /** They Slid: 0..1 through the wait for the next wave (1 once they have all come). */
+  get waveProgress(): number {
+    const waves = this.level.waves ?? [];
+    if (this.waves >= waves.length) return 1;
+    const from = this.waves ? waves[this.waves - 1].t : 0;
+    return Math.max(0, Math.min(1, (this.time - from) / Math.max(0.001, waves[this.waves].t - from)));
+  }
+
+  /** They Slid: what the stash is worth, and what is still the crew's. */
+  get stashKept(): { total: number; kept: number } {
+    const total = this.loot.reduce((s, l) => s + l.def.value, 0);
+    return { total, kept: this.loot.filter((l) => l.state !== 'lost').reduce((s, l) => s + l.def.value, 0) };
+  }
+
+  /** They Slid: set and waiting in their own house, behind whatever is there. */
+  inCover(c: Crew): boolean {
+    return this.mode === 'slid' && c.stillT >= 1;
+  }
+
+  private get shotHeat(): number {
+    return SHOT_HEAT[this.mode];
+  }
+
+  private nearestCrew(p: Vec): Vec | null {
+    let best: Crew | null = null;
+    for (const c of this.crew) {
+      if (c.state === 'down' || c.state === 'escaped') continue;
+      if (!best || dist(c, p) < dist(best, p)) best = c;
+    }
+    return best ? { x: best.x, y: best.y } : null;
   }
 
   private checkEnd(): void {
     if (this.outcome) return;
     const alive = this.crew.filter((c) => c.state !== 'down');
     if (!alive.length) return this.finish('wiped');
+    if (this.mode === 'slid') {
+      if (this.loot.length && this.loot.every((l) => l.state === 'lost')) return this.finish('robbed');
+      const done = this.waves >= (this.level.waves?.length ?? 0);
+      if (done && !this.enemies.some((e) => e.raider && this.inFight(e))) this.finish('heldIt');
+      return;
+    }
     if (alive.every((c) => c.state === 'escaped')) this.finish('escaped');
   }
 
+  /** Still about and still a threat. */
+  private inFight(e: Enemy): boolean {
+    return e.state !== 'down' && e.state !== 'subdued' && e.state !== 'gone';
+  }
+
+  // ------------------------------------------------------------ ride out
+
+  /** While Jojo is up, the people the crew came for keep posting where they are. */
+  private updatePosts(dt: number): void {
+    const jojo = this.crew.find((c) => c.def.role === 'Lookout');
+    if (!jojo || jojo.state === 'down') return;
+    for (const e of this.enemies) {
+      if (!e.def.target || e.caught || e.seen || (e.state !== 'calm' && e.state !== 'suspicious')) continue;
+      e.postT -= dt;
+      if (e.postT > 0) continue;
+      e.postT = POST_EVERY * (1 + this.rng());
+      e.post = { x: e.x, y: e.y, t: this.time };
+      this.events.push({ type: 'post', id: e.id });
+    }
+  }
+
+  // ----------------------------------------------------------- they slid
+
+  /** The next lot turn up when their time comes. */
+  private updateWaves(): void {
+    const waves = this.level.waves ?? [];
+    while (this.waves < waves.length && this.time >= waves[this.waves].t) {
+      const w = waves[this.waves++];
+      for (const d of w.enemies) {
+        const e = this.makeEnemy(d, []);
+        e.raider = true;
+        e.known = false;
+        e.state = 'hostile';
+        e.alert = 1;
+        e.exit = { x: d.x, y: d.y };
+        this.enemies.push(e);
+      }
+      this.events.push({ type: 'wave', n: this.waves, of: waves.length, place: w.place });
+    }
+    if (this.backingOff || this.waves < waves.length) return;
+    // They back off once most of them are down, the last lot included.
+    const raiders = this.enemies.filter((e) => e.raider);
+    const last = new Set(waves[waves.length - 1].enemies.map((d) => d.id));
+    const isOut = (e: Enemy) => e.state === 'down' || e.state === 'subdued';
+    const out = raiders.filter(isOut).length;
+    const lastOut = raiders.filter((e) => last.has(e.id) && isOut(e)).length;
+    if (out < raiders.length * BACK_OFF || lastOut < last.size / 2) return;
+    this.backingOff = true;
+    this.events.push({ type: 'backOff' });
+    let said = false;
+    for (const e of raiders) {
+      if (!this.inFight(e) || e.state === 'fleeing') continue;
+      if (!said) this.say(e, LINES.backOff);
+      said = true;
+      if (!e.holding) e.stash = null;
+      e.state = 'fleeing';
+      e.route = [];
+      e.routeGoal = null;
+      e.lastKnown = null;
+      e.breach = null;
+    }
+  }
+
+  /** Someone breaking in, with no one in sight: for the stash, and out with it. */
+  private updateRaider(e: Enemy, dt: number): void {
+    const s = ENEMY_STATS[e.kind];
+    const out = e.exit ?? this.level.gate;
+    if (e.holding) {
+      const item = this.loot.find((l) => l.def.id === e.stash);
+      this.walkTo(e, out, s.speed * 0.85, dt);
+      if (dist(e, out) < 0.4) {
+        e.state = 'gone';
+        e.holding = false;
+        if (item) {
+          item.state = 'lost';
+          item.holder = null;
+          this.events.push({ type: 'lost', id: e.id, loot: item.def.id });
+        }
+      }
+      return;
+    }
+    // Heard or glimpsed someone: a quick look, then back to what they came for.
+    if (e.lastKnown) {
+      if (dist(e, e.lastKnown) > 0.4) {
+        if (!this.walkTo(e, e.lastKnown, s.speed, dt)) e.lastKnown = null;
+      } else {
+        e.searchT += dt;
+        e.facing += dt * 3;
+        if (e.searchT > 2) e.lastKnown = null;
+      }
+      return;
+    }
+    let item = e.stash ? this.loot.find((l) => l.def.id === e.stash && l.state === 'placed') : undefined;
+    if (!item || !e.stashSpot) {
+      e.stash = null;
+      e.grabT = 0;
+      const pick = this.nearestStash(e);
+      if (!pick) {
+        // Nothing left worth taking.
+        e.state = 'fleeing';
+        e.route = [];
+        e.routeGoal = null;
+        return;
+      }
+      item = pick.item;
+      e.stash = item.def.id;
+      e.stashSpot = pick.spot;
+    }
+    if (dist(e, item) > 1.05 && dist(e, e.stashSpot!) > 0.2) {
+      e.grabT = 0;
+      if (!this.walkTo(e, e.stashSpot!, s.speed, dt)) e.stash = null;
+      return;
+    }
+    e.facing = turnTowards(e.facing, Math.atan2(item.y - e.y, item.x - e.x), 8 * dt);
+    e.grabT += dt;
+    if (e.grabT < GRAB_TIME) return;
+    item.state = 'snatched';
+    item.holder = e.id;
+    e.holding = true;
+    e.route = [];
+    e.routeGoal = null;
+    this.events.push({ type: 'snatch', id: e.id, loot: item.def.id });
+  }
+
+  /** The nearest stash nobody has yet, and a free cell beside it. */
+  private nearestStash(e: Enemy): { item: LootItem; spot: Vec } | null {
+    let best: { item: LootItem; spot: Vec } | null = null;
+    let bd = Infinity;
+    for (const item of this.loot) {
+      if (item.state !== 'placed') continue;
+      const d = dist(e, item);
+      if (d >= bd) continue;
+      const spot = this.besideCell(item);
+      if (!spot) continue;
+      best = { item, spot };
+      bd = d;
+    }
+    return best;
+  }
+
+  /** An open cell next to a spot (loot can sit on a table or a bed). */
+  private besideCell(p: Vec): Vec | null {
+    const cx = Math.floor(p.x);
+    const cy = Math.floor(p.y);
+    if (this.grid.passable(cx, cy, 'raider')) return { x: cx + 0.5, y: cy + 0.5 };
+    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      if (this.grid.passable(cx + dx, cy + dy, 'raider')) return { x: cx + dx + 0.5, y: cy + dy + 0.5 };
+    }
+    return null;
+  }
+
+  /** Ramming a barricade: loud, and slow. */
+  private ram(e: Enemy, dt: number): boolean {
+    const b = e.breach!;
+    e.facing = turnTowards(e.facing, Math.atan2(b.y + 0.5 - e.y, b.x + 0.5 - e.x), 8 * dt);
+    b.t -= dt;
+    b.bangT -= dt;
+    if (b.bangT <= 0) {
+      b.bangT = 1.1;
+      this.noise(b.x + 0.5, b.y + 0.5, 9, 'Ramming', false);
+    }
+    if (b.t <= 0) {
+      e.breach = null;
+      this.grid.setDoor(b.x, b.y, 'broken');
+      this.events.push({ type: 'door', x: b.x, y: b.y, state: 'broken' });
+      this.noise(b.x + 0.5, b.y + 0.5, 12, 'Door smashed', false);
+      e.doorT = 0.4;
+    }
+    return true;
+  }
+
   private finish(reason: Outcome['reason']): void {
+    const slid = this.mode === 'slid';
     const escaped = this.crew.filter((c) => c.state === 'escaped').map((c) => c.def.slot);
     const down = this.crew.filter((c) => c.state === 'down').map((c) => c.def.slot);
-    const left = this.crew.filter((c) => c.state !== 'escaped' && c.state !== 'down').map((c) => c.def.slot);
+    // At home nobody is left behind.
+    const left = slid ? [] : this.crew.filter((c) => c.state !== 'escaped' && c.state !== 'down').map((c) => c.def.slot);
     const secured: string[] = [];
     let take = 0;
     for (const item of this.loot) {
@@ -1356,9 +1717,28 @@ export class Sim {
     const enemiesSubdued = people.filter((e) => e.state === 'subdued').length;
     const civiliansHurt = this.enemies.filter((e) => e.persona === 'nosy' && e.state === 'down').length;
     const quiet = !this.everAlerted && this.shots === 0;
-    const rivalHeat = Math.round(10 + bodies * 8 + dogsDown * 3 + enemiesSubdued * 2 + (this.everAlerted ? 8 : 0));
+    const targets = this.enemies.filter((e) => e.def.target);
+    const caught = targets.filter((e) => e.caught).length;
+    const raiders = this.enemies.filter((e) => e.raider);
+    const raidersDown = raiders.filter((e) => e.state === 'down' || e.state === 'subdued').length;
+    const { total: stash, kept } = this.stashKept;
+    let rivalHeat = Math.round(10 + bodies * 8 + dogsDown * 3 + enemiesSubdued * 2 + (this.everAlerted ? 8 : 0));
+    let risk = revengeRisk(bodies, rivalHeat);
+    let rep = Math.round(take / 1000 + (quiet ? 10 : 0) + (bodies === 0 && take > 0 ? 3 : 0) - left.length * 3 - down.length * 4 - civiliansHurt * 10);
+    if (this.mode === 'rideout') {
+      // Every one you touch, they're coming back for.
+      rivalHeat = Math.round(10 + caught * 12 + bodies * 6 + (this.everAlerted ? 6 : 0));
+      risk = rideOutRisk(caught, bodies);
+      rep = Math.round(caught * 5 + (targets.length && caught === targets.length ? 6 : 0) - left.length * 3 - down.length * 4 - civiliansHurt * 10);
+    } else if (slid) {
+      // Hold it down and the ends hear about it; lose the lot and they hear that too.
+      rivalHeat = Math.round(10 + raidersDown * 3);
+      risk = revengeRisk(0, rivalHeat);
+      rep = Math.round((reason === 'robbed' ? -10 : 8) + raidersDown + Math.round((kept / Math.max(1, stash)) * 6) - down.length * 4 - civiliansHurt * 10);
+    }
     this.outcome = {
       reason,
+      mode: this.mode,
       take,
       secured,
       escaped,
@@ -1368,7 +1748,7 @@ export class Sim {
         (quiet ? 2 + this.police * 10 : 8 + this.police * 30 + bodies * 6 + left.length * 6) + civiliansHurt * 15 + (this.policeCalled ? 8 : 0),
       ),
       rivalHeat,
-      rep: Math.round(take / 1000 + (quiet ? 10 : 0) + (bodies === 0 && take > 0 ? 3 : 0) - left.length * 3 - down.length * 4 - civiliansHurt * 10),
+      rep,
       time: this.time,
       shots: this.shots,
       enemiesDown: bodies + dogsDown,
@@ -1377,8 +1757,14 @@ export class Sim {
       civiliansHurt,
       policeCalled: this.policeCalled,
       payout: payoutFor(take, bodies, enemiesSubdued, civiliansHurt),
-      revengeRisk: revengeRisk(bodies, rivalHeat),
+      revengeRisk: risk,
       enemiesSubdued,
+      targets: targets.length,
+      caught,
+      stash,
+      kept,
+      raiders: raiders.length,
+      raidersDown,
     };
   }
 }

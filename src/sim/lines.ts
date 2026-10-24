@@ -24,4 +24,6 @@ export const LINES = {
   neighbourRang: 'POLICE ARE COMING',
   /** ...or was talked out of it. */
   neighbourFolds: 'I SEEN NOTHING',
+  /** They Slid: they have had enough and run for it. */
+  backOff: 'MOVE, MOVE',
 };

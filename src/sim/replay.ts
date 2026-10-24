@@ -2,12 +2,14 @@
 // given during it. The simulation is seeded and steps at a fixed rate, so
 // the replay matches the raid step for step, shots and all.
 
-import type { Level } from './level.ts';
+import type { Level, Vec } from './level.ts';
 import { Sim, type SimInput, type Waypoint } from './sim.ts';
 
 export interface Recording {
   seed: number;
   plans: Waypoint[][];
+  /** They Slid: the doors barricaded before it started. */
+  barricades: Vec[];
   inputs: SimInput[];
   /** The fixed step the raid ran at, and how many steps it took. */
   dt: number;
@@ -19,6 +21,7 @@ export function record(sim: Sim, dt: number): Recording {
   return {
     seed: sim.seed,
     plans: sim.startPlans.map((p) => p.map((w) => ({ ...w }))),
+    barricades: sim.barricades.map((b) => ({ ...b })),
     inputs: sim.inputs.map((i) => (i.kind === 'orders' ? { ...i, orders: i.orders.map((w) => ({ ...w })) } : { ...i })),
     dt,
     ticks: sim.ticks,
@@ -34,7 +37,7 @@ export class Replay {
   constructor(level: Level, rec: Recording) {
     this.level = level;
     this.rec = rec;
-    this.sim = new Sim(level, rec.plans, rec.seed);
+    this.sim = new Sim(level, rec.plans, rec.seed, rec.barricades);
   }
 
   /** Played to the end: every step taken and every order given. */

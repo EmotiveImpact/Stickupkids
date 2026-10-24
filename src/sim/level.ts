@@ -10,8 +10,34 @@
 //   w water (blocks movement, not sight)  b shrubs (block both)
 
 export type Vec = { x: number; y: number };
-export type DoorState = 'closed' | 'open' | 'locked' | 'broken';
+/** barricaded: shut and propped from inside. Only people breaking in get through, and slowly. */
+export type DoorState = 'closed' | 'open' | 'locked' | 'broken' | 'barricaded';
 export type GoCode = 'A' | 'B' | 'C';
+
+/**
+ * What kind of job it is.
+ * - stickup: rob the place and get back to the van.
+ * - rideout: catch the people you came for and get gone before their side wakes up.
+ * - slid: they have come for your place. Hold it until they back off or the police turn up.
+ */
+export type JobMode = 'stickup' | 'rideout' | 'slid';
+
+/** What a target last put on their story: where they were, and how long before the job. */
+export interface StoryPost {
+  x: number;
+  y: number;
+  mins: number;
+  caption: string;
+}
+
+/** They Slid: who comes through the doors, when, and from where. Each runs back the way they came. */
+export interface Wave {
+  /** Seconds into the job. */
+  t: number;
+  /** Where they come from, for the notes ("the front"). */
+  place: string;
+  enemies: EnemyDef[];
+}
 
 export interface DoorDef {
   x: number;
@@ -70,6 +96,10 @@ export interface EnemyDef {
   model?: string;
   /** Behaviour, when it differs from the kind's default. */
   persona?: Persona;
+  /** Ride Out: one of the people the crew came for. */
+  target?: boolean;
+  /** Ride Out: their last post, which is all the crew know of them before they are seen. */
+  story?: StoryPost;
 }
 
 export interface PropDef {
@@ -126,8 +156,11 @@ export interface Level {
   solid: boolean[][];
   /** Where a fleeing runner gets out. */
   gate: Vec;
-  /** Where their backup turns up, and the spot they head for. */
-  backup: { spawn: Vec[]; target: Vec; place: string };
+  /**
+   * Where their backup turns up, and the spot they head for. `time`: seconds
+   * from the first alarm (45 unless given). `models`: who comes, in spawn order.
+   */
+  backup: { spawn: Vec[]; target: Vec; place: string; time?: number; models?: string[] };
   /** Roofed ground (no rain). */
   covered: Rect[];
   /**
@@ -135,6 +168,12 @@ export interface Level {
    * street lamp, the closer an enemy has to be to see them.
    */
   darkness: number;
+  /** Stick-up unless given. */
+  mode?: JobMode;
+  /** They Slid: the people coming for the place, wave by wave. */
+  waves?: Wave[];
+  /** They Slid: how many doors the crew can barricade. */
+  barricades?: number;
 }
 
 export function inRect(r: Rect, x: number, y: number): boolean {

@@ -43,3 +43,8 @@ export function payoutFor(base: number, bodies: number, holdUps: number, civilia
 export function revengeRisk(bodies: number, rivalHeat: number): number {
   return Math.max(0, Math.min(95, Math.round(bodies * 18 + Math.max(0, rivalHeat - 20) * 0.5)));
 }
+
+/** Ride Out: every one the crew touched, their side are coming back for. */
+export function rideOutRisk(caught: number, bodies: number): number {
+  return Math.max(0, Math.min(95, Math.round(caught * 16 + bodies * 10)));
+}

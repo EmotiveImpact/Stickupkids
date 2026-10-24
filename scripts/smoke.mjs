@@ -134,6 +134,22 @@ const again = await page.evaluate(() => window.__game.finishReplay());
 assert.deepEqual(again, park, 'the replay ends as the raid did');
 await page.keyboard.press('Escape');
 await page.waitForFunction(() => window.__game.phase === 'results', null, { timeout: 10000 });
+// The two other kinds of job: a ride out on the opps, and holding the trap.
+for (const [id, check] of [
+  ['rideout', (o) => o.reason === 'escaped' && o.caught >= 4],
+  ['slid', (o) => (o.reason === 'heldIt' || o.reason === 'police') && o.kept >= 16000],
+]) {
+  await page.evaluate((j) => window.__game.pickJob(j), id);
+  await page.waitForFunction((j) => window.__game.job === j && document.body.classList.contains('loaded'), id, { timeout: 90000 });
+  const o = await page.evaluate(() => {
+    const g = window.__game;
+    g.start(true);
+    g.go();
+    g.advance(200);
+    return g.sim.outcome;
+  });
+  assert.ok(o && check(o), `the ${id} sample plan works: ${JSON.stringify(o && { reason: o.reason, caught: o.caught, kept: o.kept })}`);
+}
 assert.deepEqual(errors, [], 'no page errors');
 console.log('smoke test passed');
 await browser.close();

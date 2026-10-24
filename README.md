@@ -2,7 +2,7 @@
 
 A top-down tactical heist game set on a British estate at night. You plan a raid on a blueprint of the house, draw each crew member's route, sync them with go codes, then watch it play out in real time with pause.
 
-This is the first playable slice, built in [Babylon.js](https://www.babylonjs.com/) with TypeScript and Vite. Two jobs on a job board over a map of London: a mid-terrace on the Harrow Road estate, and the gang's weekly count in Burgess Park, a 250 by 155 m slice of the real park from Albany Road to Wells Way (map data © OpenStreetMap contributors).
+This is the first playable slice, built in [Babylon.js](https://www.babylonjs.com/) with TypeScript and Vite. Four jobs on a job board over a map of London: a mid-terrace on the Harrow Road estate, and the gang's weekly count in Burgess Park, a 250 by 155 m slice of the real park from Albany Road to Wells Way (map data © OpenStreetMap contributors), plus one of each of the other two kinds of job below.
 
 ![Planning on the blueprint](docs/screenshots/2-planning.png)
 ![The raid at night](docs/screenshots/3-raid.png)
@@ -45,6 +45,12 @@ Plans never survive contact, so the raid can be steered as it goes: pause with S
 
 Every job can be watched again from the results screen. The replay shows everyone, fog lifted, with a camera that follows whoever the action is happening to (drag, scroll or press Follow to take it back). **Make a clip** records the replay as a 9:16 video for TikTok, Shorts or Reels, with the job's name, captions for what happens, the payout at the end and the STICKUPKIDS mark: MP4 where the browser can record it, WebM otherwise. The raid is recorded as its starting plan, its seed and the orders given during it (`src/sim/replay.ts`); the simulation is deterministic, so the replay matches step for step.
 
+## Ride outs and holding the trap
+
+Not every job is a stick-up. **Ride out** (`src/sim/rideout.ts`) goes after Marlowe's lot on their own end of Burgess Park. Nobody knows exactly where they are: Jojo is watching their story, so each target shows as a red pin where they last posted from, with how long ago, and while Jojo is up he picks up new posts as they move about. The crew hit whoever they find. The first hit counts as caught, and a caught target runs unless he is muscle. Their side wakes up 25 seconds after the first alarm and comes for the crew, so the job is to catch who you can and get back in the whip. Nobody gets paid; the results count who was caught and how likely they are to come back for you.
+
+**They slid** (`src/sim/trap.ts`) turns it round: Marlowe's lot have found the crew's trap off East Street, and three waves come through the doors, front, back, then both. Before it starts, click up to two doors to barricade them; a barricade takes seven seconds of ramming. Anyone standing still is in cover and turns to face noises. Raiders go for the stash and run with it, and the job ends when they back off, the police turn up, or the stash is gone.
+
 ## Code layout
 
 ```
@@ -69,7 +75,7 @@ node scripts/smoke.mjs http://localhost:5173/
 node scripts/screenshots.mjs http://localhost:5173/ shots
 ```
 
-The smoke test drives the game with a real mouse and keyboard in headless Chromium: it draws a route, sets a go code, starts the raid, calls the code and pauses.
+The smoke test drives the game with a real mouse and keyboard in headless Chromium: it draws a route, sets a go code, starts the raid, calls the code and pauses. It then runs the sample plans for the park, the ride out and the defence.
 
 ## Art direction
 
