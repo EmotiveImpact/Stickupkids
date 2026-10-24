@@ -33,6 +33,59 @@ SLICES = {
         # Keep features this far past the map edge for the scenery.
         "margin": 60.0,
     },
+    # Deck-access slab blocks on the Aylesbury Estate, Walworth, either side
+    # of Thurlow Street. Turned so the blocks run straight across the map.
+    "aylesbury": {
+        "raw": "aylesbury-raw.json",
+        "origin": (51.48659, -0.08518),
+        "turn": -53.2,
+        "corner": (-70.0, -50.0),
+        "size": (140, 100),
+        "margin": 60.0,
+    },
+    # The railway arches south of Elephant and Castle station, between
+    # Walworth Road and Elephant Road. Turned so the viaduct runs across the
+    # top of the map with the arches opening south onto Elephant Road.
+    "elephant": {
+        "raw": "elephant-raw.json",
+        "origin": (51.492582, -0.098928),
+        "turn": 84.0,
+        "corner": (-75.0, -45.0),
+        "size": (150, 90),
+        "margin": 60.0,
+    },
+    # Electric Avenue, Brixton, where it bends off Brixton Road, with the
+    # shops between it and Market Row and the railway bridges over Atlantic
+    # Road in the east. Not turned: the avenue runs across the map already.
+    "brixton": {
+        "raw": "brixton-raw.json",
+        "origin": (51.462121, -0.113324),
+        "turn": 0.0,
+        "corner": (-50.0, -40.0),
+        "size": (150, 100),
+        "margin": 60.0,
+    },
+    # The multi-storey car park off Rye Lane, Peckham, behind the Peckhamplex,
+    # with Cerise Road coming in from the north and Moncrieff Place running
+    # along the railway on the south. Not turned.
+    "peckham": {
+        "raw": "peckham-raw.json",
+        "origin": (51.4707, -0.0680),
+        "turn": 0.0,
+        "corner": (-55.0, -65.0),
+        "size": (150, 100),
+        "margin": 60.0,
+    },
+    # Brockwell Lido on the north edge of Brockwell Park, Herne Hill. Turned
+    # so the pool runs straight across the map, Dulwich Road along the top.
+    "brockwell": {
+        "raw": "brockwell-raw.json",
+        "origin": (51.453007, -0.106341),
+        "turn": -26.6,
+        "corner": (-75.0, -55.0),
+        "size": (150, 100),
+        "margin": 60.0,
+    },
 }
 
 
@@ -56,7 +109,7 @@ def main(name):
         return any(-mg <= x <= w + mg and -mg <= y <= h + mg for x, y in pts)
 
     out = {"name": name, "size": [w, h], "credit": "Map data © OpenStreetMap contributors (ODbL)",
-           "paths": [], "trees": [], "buildings": [], "barriers": [], "water": [], "areas": []}
+           "paths": [], "trees": [], "buildings": [], "barriers": [], "water": [], "areas": [], "rail": []}
     for e in raw["elements"]:
         t = e.get("tags", {})
         if e["type"] == "node":
@@ -74,7 +127,10 @@ def main(name):
             pts = [proj(q["lat"], q["lon"]) for q in g]
             if len(pts) < 2 or not near(pts):
                 continue
-            if "highway" in t:
+            if "railway" in t:
+                if t["railway"] in ("rail", "light_rail", "subway") and t.get("tunnel") != "yes":
+                    out["rail"].append({"kind": t["railway"], "bridge": t.get("bridge") == "yes", "pts": pts})
+            elif "highway" in t:
                 hw = t["highway"]
                 width = {"cycleway": 3.2, "footway": 2.2, "path": 1.6, "service": 3.5, "residential": 7.0,
                          "secondary": 9.0, "tertiary": 8.0, "primary": 10.0, "steps": 2.0}.get(hw, 2.5)

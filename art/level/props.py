@@ -79,7 +79,9 @@ def build_loot(defs, P, coll, lift=None):
     for l in defs:
         g = Geo(f"loot_{l['id']}")
         o = Vector((0, 0, 0))
-        if l["id"] == "cash":
+        # Second and third lots of a kind (cash2, product3) look like the first.
+        kind = l["id"].rstrip("0123456789")
+        if kind == "cash":
             z = 0.42
             for k in range(6):
                 u = (k % 3 - 1) * 0.17
@@ -87,7 +89,7 @@ def build_loot(defs, P, coll, lift=None):
                 for s in range(2 + k % 2):
                     g.box(o + Vector((u, v, z + 0.025 + s * 0.05)), (0.15, 0.075, 0.045), "loot_note", bevel=0.004, rot=k * 0.3)
                     g.box(o + Vector((u, v, z + 0.025 + s * 0.05)), (0.035, 0.078, 0.047), "loot_band", rot=k * 0.3)
-        elif l["id"] == "product":
+        elif kind == "product":
             # A sports holdall on the floor with wrapped blocks spilling out.
             g.box(o + Vector((0, 0, 0.16)), (0.62, 0.32, 0.3), "loot_bag", bevel=0.1, seg=3, smooth=True)
             for k in range(5):
@@ -95,7 +97,7 @@ def build_loot(defs, P, coll, lift=None):
                       rot=0.2 * k)
             for s in (-1, 1):
                 g.cyl(o + Vector((s * 0.12, 0, 0.3)), 0.012, 0.25, "loot_bag", segs=6, axis="X")
-        elif l["id"] == "phones":
+        elif kind == "phones":
             # A drawstring sports bag, mouth open, phones spilling out.
             g.box(o + Vector((0, 0, 0.13)), (0.36, 0.26, 0.26), "loot_bag", bevel=0.09, seg=3, smooth=True)
             for k in range(5):
