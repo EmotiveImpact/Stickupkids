@@ -49,7 +49,7 @@ export class Atmosphere {
     // Same density of rain over a bigger stretch, up to a point.
     const { x0, y0, x1, y1 } = this.area;
     const k = Math.min(3, Math.max(1, ((x1 - x0) * (y1 - y0)) / (42 * 36)));
-    const rain = (this.rain = new ParticleSystem('rain', Math.round(5000 * k), scene));
+    const rain = (this.rain = new ParticleSystem('rain', Math.round(7500 * k), scene));
     rain.particleTexture = streakTexture(scene);
     rain.emitter = Vector3.Zero();
     rain.startPositionFunction = (_m, pos) => spot(pos, 5 + Math.random() * 4);
@@ -58,13 +58,13 @@ export class Atmosphere {
     rain.maxEmitPower = 1;
     rain.minLifeTime = 0.38;
     rain.maxLifeTime = 0.58;
-    rain.emitRate = 6000 * k;
+    rain.emitRate = 9000 * k;
     rain.minSize = 0.02;
     rain.maxSize = 0.028;
     rain.minScaleY = 14;
     rain.maxScaleY = 22;
-    rain.color1 = new Color4(0.55, 0.65, 0.85, 0.22);
-    rain.color2 = new Color4(0.75, 0.8, 0.95, 0.3);
+    rain.color1 = new Color4(0.55, 0.65, 0.85, 0.28);
+    rain.color2 = new Color4(0.75, 0.8, 0.95, 0.38);
     rain.colorDead = new Color4(0.6, 0.7, 0.9, 0.0);
     rain.blendMode = ParticleSystem.BLENDMODE_ADD;
     // Straight down the world is straight down the screen with this camera,
@@ -163,7 +163,7 @@ export class Atmosphere {
     // Drops high in the air show further up the screen than where they land.
     this.area = { x0: r.x0 - 3, y0: r.y0 - 2, x1: r.x1 + 3, y1: r.y1 + 9 };
     const k = Math.min(3, Math.max(1, ((this.area.x1 - this.area.x0) * (this.area.y1 - this.area.y0)) / (42 * 36)));
-    this.rain.emitRate = 6000 * k;
+    this.rain.emitRate = 9000 * k;
     this.splash.emitRate = 900 * k;
   }
 

@@ -93,6 +93,10 @@ uniform float paint;
 // 0: seen rooms stay dim and grey between torch beams. 1: a room the crew
 // have seen is lit enough to read its floor, furniture and mess (Door Kickers 2).
 uniform float seenLift;
+// Police lights: where (screen UV), how far they reach (in screen heights), and their colour now.
+uniform vec2 sirenUV;
+uniform float sirenR;
+uniform vec3 siren;
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // The deck's grade: a cold, wet night. Blues and violets wash out to a dark
 // teal-grey; sodium and orange keep their colour; blacks sit just off black.
@@ -104,14 +108,18 @@ vec3 grade(vec3 c, float dark) {
   float red = smoothstep(0.5, 0.25, c.g / max(c.r, 0.0001)) * smoothstep(0.05, 0.2, c.r - c.b);
   // Strongly coloured light (a room's lamp, a telly, a tag) keeps some colour; drab surfaces go grey.
   float vivid = smoothstep(0.22, 0.5, max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b)));
-  float sat = mix(mix(0.3, 0.92, warm), max(mix(mix(0.08, 0.45, warm), 1.0, red), vivid * 0.75), dark);
+  // The raid keeps its colour, as in the drill intro: sodium, tail lights,
+  // grow lights and blues stay rich; only drab surfaces go towards grey.
+  float sat = mix(mix(0.3, 0.92, warm), max(mix(mix(0.5, 0.95, warm), 1.05, red), mix(0.5, 1.1, vivid)), dark);
   vec3 g = mix(vec3(l), c, sat);
   vec3 teal = vec3(0.78, 0.97, 0.95);
-  g *= mix(teal, vec3(1.0), clamp(smoothstep(0.3, 0.85, l) + warm * 0.7 + dark * 0.5, 0.0, 1.0));
+  g *= mix(teal, vec3(1.0), clamp(smoothstep(0.3, 0.85, l) + warm * 0.7 + vivid * 0.6 + dark * 0.35, 0.0, 1.0));
   // A soft S: deeper shadows, mids held, highlights left to bloom.
   g = g * g * (3.0 - 2.0 * g) * 0.35 + g * 0.65;
-  // Crushed blacks for the raid.
-  g = max(g - 0.025 * dark, 0.0) * (1.0 + 0.04 * dark);
+  // Deep blacks for the raid, with the lit things pushed: the ground goes
+  // near black between lamps, so light and its reflections stand out.
+  g = mix(g, pow(g, vec3(1.45)) * 1.35, dark * 0.85);
+  g = max(g - 0.012 * dark, 0.0);
   return max(g - 0.006, 0.0) + vec3(0.004, 0.008, 0.009) * (1.0 - dark * 0.7);
 }
 // A small Kuwahara filter: each pixel takes the calmest of the four squares
@@ -151,13 +159,23 @@ float torchAt(vec2 uv) {
   t += texture2D(torchSampler, uv + vec2(-o.x, -o.y)).r * 0.15;
   return t;
 }
+// What has been seen, blurred wide so the fog has soft, smoky edges rather than blocks.
+float seenAt(vec2 uv) {
+  vec2 o = 16.0 / screenSize;
+  float k = texture2D(torchSampler, uv).r * 0.2;
+  k += (texture2D(torchSampler, uv + vec2(o.x, 0.0)).r + texture2D(torchSampler, uv - vec2(o.x, 0.0)).r
+      + texture2D(torchSampler, uv + vec2(0.0, o.y)).r + texture2D(torchSampler, uv - vec2(0.0, o.y)).r) * 0.12;
+  k += (texture2D(torchSampler, uv + o * 1.6).r + texture2D(torchSampler, uv - o * 1.6).r
+      + texture2D(torchSampler, uv + vec2(o.x, -o.y) * 1.6).r + texture2D(torchSampler, uv + vec2(-o.x, o.y) * 1.6).r) * 0.08;
+  return k;
+}
 // Depth in metres from the camera, from the depth renderer's linear depth.
 float depthAt(vec2 uv) { return texture2D(depthSampler, uv).r * depthRange; }
 void main(void) {
   vec3 src = clamp(texture2D(textureSampler, vUV).rgb, 0.0, 1.0);
   // The mask: 0 never seen, about 0.3 seen before, up to 1 in a beam now.
   float m = dark > 0.001 ? torchAt(vUV) : 0.0;
-  float known = smoothstep(0.04, 0.24, m);
+  float known = smoothstep(0.03, 0.26, dark > 0.001 ? max(seenAt(vUV), m * 0.6) : 0.0);
   float lift = seenLift * known;
   if (paint > 0.001) src = mix(src, kuwahara(vUV, 1.5), paint * (1.0 - 0.75 * lift));
   vec3 col = grade(src, dark * (1.0 - 0.7 * lift));
@@ -168,11 +186,18 @@ void main(void) {
     // Lamps, lit windows and screens hold their own, but only where the crew have looked.
     float own = smoothstep(0.1, 0.42, luma(col)) * known;
     float keep = max(max(known * mix(0.32, 0.85, seenLift), t), own);
-    col *= mix(1.0, mix(0.045, 1.0, keep) * (1.0 + 0.9 * t), dark);
+    col *= mix(1.0, mix(0.16, 1.0, keep) * (1.0 + 0.9 * t), dark);
+    // Where nobody has looked, the colour drains to a cold blue-grey.
+    col = mix(col, vec3(luma(col)) * vec3(0.8, 0.9, 1.1), (1.0 - keep) * dark * 0.7);
     // The beam itself, a cold white wash on whatever it falls on.
     col += vec3(0.82, 0.88, 1.0) * t * 0.06 * dark;
     // A seen room opens up: shadows lifted so floors, furniture and mess read.
-    col = mix(col, pow(col, vec3(0.62)) * 1.12, lift * dark);
+    col = mix(col, pow(col, vec3(0.78)) * 1.06, lift * dark);
+  }
+  if (sirenR > 0.0) {
+    vec2 dv = (vUV - sirenUV) * vec2(screenSize.x / screenSize.y, 1.0);
+    float f = 1.0 - smoothstep(0.0, sirenR, length(dv));
+    col += siren * f * f * (0.25 + luma(col) * 2.5);
   }
   if (amount <= 0.001) { gl_FragColor = vec4(col, 1.0); return; }
   // The plan: the real scene, lifted and cooled to a monochrome you can read,
@@ -312,6 +337,10 @@ export class View {
   private seenDirty = false;
   private seenT = 0;
   private bpTarget = 1;
+  /** Police lights in the grade: screen position, reach and colour this frame. */
+  private sirenUV = { x: 0.5, y: 0.5 };
+  private sirenR = 0;
+  private sirenCol = new Color3();
   /** Blood and debris, for the raid they came from. */
   private marks: Marks;
   private marksFor: Sim | null = null;
@@ -448,11 +477,15 @@ export class View {
     tm.alpha = 0.999;
     tm.alphaMode = Constants.ALPHA_SCREENMODE;
     this.makeSeenFloor();
-    this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange', 'dark', 'paint', 'seenLift'], ['depthSampler', 'torchSampler'], 1, this.cam);
+    this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange', 'dark', 'paint', 'seenLift', 'sirenUV', 'sirenR', 'siren'], ['depthSampler', 'torchSampler'], 1, this.cam);
     this.bp.onApply = (e) => {
       e.setTexture('torchSampler', torch);
       e.setFloat('dark', this.darkAmount);
-      e.setFloat('paint', this.darkAmount * 0.8);
+      // A touch of the brush only: the drill intro look is sharp.
+      e.setFloat('paint', this.darkAmount * 0.22);
+      e.setFloat2('sirenUV', this.sirenUV.x, this.sirenUV.y);
+      e.setFloat('sirenR', this.sirenR);
+      e.setColor3('siren', this.sirenCol);
       e.setFloat('seenLift', this.seenLift);
       e.setFloat('amount', this.bpAmount);
       e.setFloat2('screenSize', this.bp.width, this.bp.height);
@@ -566,8 +599,8 @@ export class View {
       const name = key.replace(/:lm$/, '');
       const k = WET[name];
       if (k === undefined) continue;
-      m.roughness = Math.min(m.roughness ?? 1, 0.18);
-      m.environmentIntensity = k;
+      m.roughness = Math.min(m.roughness ?? 1, 0.12);
+      m.environmentIntensity = k * 1.5;
       wet.add(m);
     }
     if (!wet.size) return;
@@ -758,6 +791,29 @@ export class View {
     // A cut, not a dissolve: the blueprint goes at once.
     this.bpAmount = 0;
     this.stepIntro(0);
+  }
+
+  /**
+   * Blues and twos: once the police are close, a blue and red pulse washes the
+   * street where they pull up (by the van), stronger as they get nearer.
+   */
+  private updateSiren(sim: Sim) {
+    const near = this.mode === 'raid' && sim.policeActive ? Math.min(1, Math.max(0, (sim.police - 0.45) / 0.55)) : 0;
+    const k = near * near * (3 - 2 * near) * this.darkAmount;
+    if (k < 0.01) {
+      this.sirenR = 0;
+      return;
+    }
+    const v = this.level.van;
+    const p = this.toScreen((v.x0 + v.x1 + 1) / 2, (v.y0 + v.y1 + 1) / 2);
+    this.sirenUV.x = p.x / innerWidth;
+    this.sirenUV.y = 1 - p.y / innerHeight;
+    // Two quick blue flashes, then red, about twice a second.
+    const ph = (this.time * 2.1) % 1;
+    const blue = ph < 0.12 || (ph > 0.22 && ph < 0.34) ? 1 : 0.4;
+    const red = ph > 0.55 && ph < 0.72 ? 1 : 0.15;
+    this.sirenCol.set(0.95 * red, 0.12 * blue, 1.0 * blue).scaleInPlace(0.9 * k);
+    this.sirenR = 0.35 + 0.3 * k;
   }
 
   /** Back to the overhead camera. */
@@ -1697,6 +1753,7 @@ export class View {
       if (r) this.atmosphere.setArea(r);
     }
     if (this.intro) this.stepIntro(dt);
+    this.updateSiren(sim);
     this.marks.update(dt);
     if (this.shake > 0.002) {
       this.shake *= Math.exp(-dt * 14);

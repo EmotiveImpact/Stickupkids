@@ -6,14 +6,17 @@ import { Color3, DynamicTexture, MeshBuilder, StandardMaterial, type Mesh, type 
 import type { Level } from '../sim/level.ts';
 import type { Coords } from './world.ts';
 
+// As in the drill intro stills: cold strip lights in kitchens, bathrooms and
+// work spaces, a warm lamp or the telly in living rooms and bedrooms, purple
+// grow light. Red is left to the opposition.
 const MOODS: [RegExp, string | null][] = [
   [/hall|landing|stair|corridor|lobby/i, null],
-  [/bed|grow|stash/i, '#ff2f4a'],
-  [/living|lounge|front room|sitting/i, '#3d6bff'],
-  [/kitchen|work|arch|kiln|garage|unit|shop|lock-?up/i, '#ffae55'],
-  [/bath|toilet|wash/i, '#c8f0ff'],
+  [/grow/i, '#b03cff'],
+  [/bed|stash/i, '#ffb070'],
+  [/living|lounge|front room|sitting/i, '#ffa65c'],
+  [/kitchen|work|arch|kiln|garage|unit|shop|lock-?up|bath|toilet|wash/i, '#d8e6ff'],
 ];
-const FALLBACK = ['#3d6bff', '#ffae55'];
+const FALLBACK = ['#d8e6ff', '#ffa65c'];
 
 let pool: DynamicTexture | null = null;
 function poolTexture(scene: Scene): DynamicTexture {
@@ -43,13 +46,13 @@ export function lightRooms(scene: Scene, level: Level, co: Coords): Mesh[] {
     // A soft wash of the lamp's colour, strongest in the middle of the room.
     const tex = poolTexture(scene);
     m.opacityTexture = tex;
-    m.emissiveColor = Color3.FromHexString(col).scale(0.35);
+    m.emissiveColor = Color3.FromHexString(col).scale(0.3);
     m.diffuseColor = Color3.Black();
     m.specularColor = Color3.Black();
     m.disableLighting = true;
     m.disableDepthWrite = true;
-    m.alpha = 0.55;
-    const p = MeshBuilder.CreateGround(`room-${r.id}`, { width: w * 1.15, height: h * 1.15 }, scene);
+    m.alpha = 0.32;
+    const p = MeshBuilder.CreateGround(`room-${r.id}`, { width: w * 0.95, height: h * 0.95 }, scene);
     p.position.set(co.X(r.x0 + w / 2), 0.03, co.Z(r.y0 + h / 2));
     p.material = m;
     p.isPickable = false;
