@@ -32,7 +32,7 @@ FIX = {
     "street_rat": {"tris": 600},
     "old_bed_frame": {"tris": 4000},
 }
-DEFAULT_TRIS = 2500   # big things; smaller ones get less (see _load)
+DEFAULT_TRIS = 1200   # big things; smaller ones get less (see _load)
 
 _base = {}
 _placed = []
@@ -105,7 +105,7 @@ def _load(asset):
         obj.shape_key_clear()
     tris = sum(len(p.vertices) - 2 for p in me.polygons)
     ext = max(max(v.co[i] for v in me.vertices) - min(v.co[i] for v in me.vertices) for i in range(3))
-    budget = fix.get("tris", DEFAULT_TRIS if ext > 1.0 else 1500 if ext > 0.45 else 500)
+    budget = fix.get("tris", DEFAULT_TRIS if ext > 1.0 else 700 if ext > 0.45 else 250)
     if tris > budget:
         mod = obj.modifiers.new("cut", "DECIMATE")
         mod.ratio = budget / tris
@@ -224,9 +224,10 @@ def kit_for(room_id):
     return KITS.get(base) or KITS.get(room_id.split("_")[0])
 
 
-def scatter(L, P, coll, rng, density=0.75, street=0.18, street_pad=6, mess=0.22):
+def scatter(L, P, coll, rng, density=0.75, street=0.18, street_pad=6, mess=0.22, limit=220):
     """Litter every room of level `L` (its JSON) along the walls, and the
-    ground round the job's building. Returns how many things went down."""
+    ground round the job's building, stopping at `limit` things so big maps
+    stay inside the download budget. Returns how many things went down."""
     T, W, H = L["tiles"], L["w"], L["h"]
 
     def ch(x, y):
@@ -256,6 +257,8 @@ def scatter(L, P, coll, rng, density=0.75, street=0.18, street_pad=6, mess=0.22)
 
     def drop(x, y, kit, faces):
         nonlocal n
+        if n >= limit:
+            return
         asset = rng.choice(kit)
         (wx, wy) = faces
         # Toward the wall, facing out into the room.
@@ -291,7 +294,7 @@ def scatter(L, P, coll, rng, density=0.75, street=0.18, street_pad=6, mess=0.22)
         junk = MESS.get(MESS_OF.get(r["id"].rstrip("0123456789"), "home"))
         for y in range(r["y0"], r["y1"] + 1):
             for x in range(r["x0"], r["x1"] + 1):
-                if ch(x, y) != "." or (x, y) in blocked or rng.random() >= mess:
+                if ch(x, y) != "." or (x, y) in blocked or rng.random() >= mess or n >= limit:
                     continue
                 asset = rng.choice(junk)
                 place(asset, P(x + rng.uniform(0.25, 0.75), y + rng.uniform(0.25, 0.75)), face=rng.uniform(0, 2 * math.pi),
