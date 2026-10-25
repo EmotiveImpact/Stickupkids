@@ -52,11 +52,12 @@ export interface ReplayInfo {
 
 /** Menu art, made with ChatGPT (2560 by 1440 masters in /mnt/project-files/menu-art/), graded by art/grade_menu.py. */
 const TITLE_ART = 'menu/title-hero.jpg';
-/** The title screen's crew, from the pitch deck cover: the full frame, and the same frame with only the crew (for the layer in front of the name). */
-const TITLE_CREW = 'menu/title-crew.webp';
+/** The title screen's crew, cut out of the pitch deck cover frame (the layer in front of the name). */
 const TITLE_CUT = 'menu/title-crew-cut.webp';
-/** The same frame as a 10 s seamless loop (rain, lamp flicker, puddle shimmer; art/title-loop/make_loop.py), and rain alone to lay over the crew cut-out. */
-const TITLE_LOOP = 'menu/title-loop';
+/** The same street with the crew painted out (ChatGPT), and that plate animated into a 10 s loop (Sunra, Kling 3.0 Pro, first frame = last frame). */
+const TITLE_STREET = 'menu/street-empty.webp';
+const TITLE_LOOP = 'menu/street-loop';
+/** Rain alone, to lay over the crew cut-out (art/title-loop/make_loop.py --rain-only). */
 const TITLE_RAIN = 'menu/title-rain';
 /** MP4 for Safari, WebM for browsers built without H.264. */
 const sources = (stem: string) => `<source src="${stem}.mp4" type="video/mp4"><source src="${stem}.webm" type="video/webm">`;
@@ -218,7 +219,7 @@ export class Hud {
   showSplash(jobs: Job[], current: string) {
     this.overlay.className = 'overlay splash';
     this.overlay.innerHTML = `<div class="stage">
-        <video class="crew-bg" poster="${TITLE_CREW}" autoplay muted loop playsinline>${sources(TITLE_LOOP)}</video>
+        <video class="crew-bg" poster="${TITLE_STREET}" autoplay muted loop playsinline>${sources(TITLE_LOOP)}</video>
         <div class="fade-top"></div><div class="fade-bottom"></div>
         <h1 class="title-word" style="-webkit-mask-image:url(${GRIT});mask-image:url(${GRIT})">STICKUPKIDS</h1>
         <img class="crew-cut" src="${TITLE_CUT}" alt="Four figures in balaclavas and puffer jackets walking towards you">
