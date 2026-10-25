@@ -341,16 +341,14 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 
 /* ------------------------------------------------------------ the title screen */
 /* The title screen, in the pitch deck's look. The stage is the deck cover's 1920 by 1080 frame scaled to cover the
-   window, so the crew cut-out stays on top of its own backdrop and their heads break into the bottom of the name. */
+   window. The montage fills it, darkened at the top so the name reads over any shot. */
 .overlay.splash { display: block; background: #050505; overflow: hidden; --sw: max(100vw, 177.78vh); --u: calc(var(--sw) / 1920); }
 .splash .stage { position: absolute; left: 50%; top: 50%; width: var(--sw); height: calc(var(--sw) * 0.5625); transform: translate(-50%, -50%); }
 .splash .stage > * { position: absolute; left: 0; width: 100%; margin: 0; }
-.splash .crew-bg, .splash .crew-cut { top: calc(190 * var(--u)); height: 100%; object-fit: cover; }
-.splash .crew-bg { filter: brightness(0.42) saturate(0.7); animation: title-bg 2.4s ease-out both, title-push 40s 2.4s ease-in-out infinite alternate; transform-origin: 50% 0; }
-.splash .fade-top { top: calc(190 * var(--u)); height: calc(260 * var(--u)); background: linear-gradient(180deg, #050505, rgba(5, 5, 5, 0)); }
-.splash .fade-bottom { top: calc(620 * var(--u)); height: calc(460 * var(--u)); background: linear-gradient(180deg, rgba(5, 5, 5, 0), #050505 85%); }
+.splash .crew-bg { top: 0; height: 100%; object-fit: cover; filter: brightness(0.62); animation: title-bg 2.4s ease-out both; }
+.splash .fade-top { top: 0; height: calc(560 * var(--u)); background: linear-gradient(180deg, rgba(5, 5, 5, 0.8), rgba(5, 5, 5, 0)); }
+.splash .fade-bottom { top: calc(700 * var(--u)); height: calc(380 * var(--u)); background: linear-gradient(180deg, rgba(5, 5, 5, 0), #050505 92%); }
 .splash .title-word { top: calc(130 * var(--u)); font: 400 calc(360 * var(--u))/1 'Anton', Impact, sans-serif; letter-spacing: calc(6 * var(--u)); text-align: center; color: #f2f1ee; animation: title-word 1.6s 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
-.splash .crew-cut { animation: title-crew 1.4s 1.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 .splash .frame { position: absolute; inset: 24px; border: 1px solid #262626; pointer-events: none; }
 .splash .corner { position: absolute; font: 400 12px/1 var(--body); letter-spacing: 0.32em; text-transform: uppercase; color: #8a8984; }
 .splash .corner.tl { top: 44px; left: 48px; }
@@ -363,7 +361,7 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .title-menu button:disabled { color: #5e5d59; cursor: default; }
 .title-menu button.on, .title-menu button:not(:disabled):hover { color: #ff7a1a; }
 .title-menu button.on::before { content: ''; position: absolute; left: -15px; top: 8px; bottom: 6px; width: 3px; background: #ff7a1a; }
-.splash .strap { position: absolute; left: 0; right: 0; bottom: 44px; margin: 0; text-align: center; font: 400 13px/1 var(--body); letter-spacing: 0.42em; text-transform: uppercase; color: #b5b4af; animation: title-ui 1s 2.6s ease-out both; }
+.splash .strap { position: absolute; left: 0; right: 0; bottom: 44px; margin: 0; text-align: center; font: 400 13px/1 var(--body); letter-spacing: 0.3em; text-transform: uppercase; color: #b5b4af; animation: title-ui 1s 2.6s ease-out both; }
 .splash .strap span { color: #ff7a1a; }
 /* A dark wash behind the menu, so it reads over the first figure's legs. */
 .splash .stage::after { content: ''; position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; background: radial-gradient(ellipse at 0% 100%, rgba(5, 5, 5, 0.85), rgba(5, 5, 5, 0) 70%); }
@@ -374,10 +372,8 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .splash.reveal .stage > *, .splash.reveal .title-menu, .splash.reveal .strap, .splash.reveal .press { animation-play-state: running; }
 /* The name is scuffed like a film poster: a speckled mask eats into the letters. */
 .splash .title-word { -webkit-mask-size: calc(420 * var(--u)); mask-size: calc(420 * var(--u)); }
-/* The reveal: the street comes up out of black, the name settles, then the crew walk up in front of it. */
+/* The reveal: the montage comes up out of black, then the name settles over it. */
 @keyframes title-bg { from { opacity: 0; transform: scale(1.08); } }
-@keyframes title-push { to { transform: scale(1.05); } }
 @keyframes title-word { from { opacity: 0; letter-spacing: calc(60 * var(--u)); filter: blur(12px); } }
-@keyframes title-crew { from { opacity: 0; transform: translateY(calc(70 * var(--u))) scale(1.04); } }
 @keyframes title-ui { from { opacity: 0; transform: translateY(8px); } }
 @keyframes press { 50% { opacity: 0.35; } }

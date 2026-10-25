@@ -52,9 +52,10 @@ export interface ReplayInfo {
 
 /** Menu art, made with ChatGPT (2560 by 1440 masters in /mnt/project-files/menu-art/), graded by art/grade_menu.py. */
 const TITLE_ART = 'menu/title-hero.jpg';
-/** The title screen's crew, from the pitch deck cover: the full frame, and the same frame with only the crew (for the layer in front of the name). */
-const TITLE_CREW = 'menu/title-crew.webp';
-const TITLE_CUT = 'menu/title-crew-cut.webp';
+/** The title montage: nineteen Kling 3.0 shots (Sunra) cut on the beat at 140 BPM in black and white with red and blue lights kept (art/title-loop/drill_montage.py). The poster is its first beat. */
+const TITLE_MONTAGE = 'menu/title-montage';
+/** MP4 for Safari, WebM for browsers built without H.264. */
+const sources = (stem: string) => `<source src="${stem}.mp4" type="video/mp4"><source src="${stem}.webm" type="video/webm">`;
 /** Specks that scuff the name like a film poster, as a mask (set inline so the path is relative to the page). */
 const GRIT = 'menu/grit.png';
 const JOB_ART: Record<string, string> = {
@@ -209,14 +210,13 @@ export class Hud {
 
   // ------------------------------------------------------------- modes
 
-  /** The title screen, in the pitch deck's look: the crew walk out in front of the name. A click or any key goes on to the job board. */
+  /** The title screen, in the pitch deck's look: the drill montage runs behind the name. A click or any key goes on to the job board. */
   showSplash(jobs: Job[], current: string) {
     this.overlay.className = 'overlay splash';
     this.overlay.innerHTML = `<div class="stage">
-        <img class="crew-bg" src="${TITLE_CREW}" alt="">
+        <video class="crew-bg" poster="${TITLE_MONTAGE}.webp" autoplay muted loop playsinline>${sources(TITLE_MONTAGE)}</video>
         <div class="fade-top"></div><div class="fade-bottom"></div>
         <h1 class="title-word" style="-webkit-mask-image:url(${GRIT});mask-image:url(${GRIT})">STICKUPKIDS</h1>
-        <img class="crew-cut" src="${TITLE_CUT}" alt="Four figures in balaclavas and puffer jackets walking towards you">
       </div>
       <div class="frame"></div>
       <span class="corner tl">Stickupkids</span><span class="corner tr">South London · Season One</span>
@@ -226,7 +226,7 @@ export class Hud {
         <button disabled>Crew<i>Soon</i></button>
         <button disabled>Settings<i>Soon</i></button>
       </nav>
-      <p class="strap">Plan it on the blueprint · Kick the door · <span>Pray nobody’s snitched</span></p>
+      <p class="strap">Plan the move · Kick off the door · Rob the ting · <span>Pray nobody snitched</span></p>
       <span class="corner br press">Press any key</span>`;
     const go = () => {
       removeEventListener('keydown', key);
