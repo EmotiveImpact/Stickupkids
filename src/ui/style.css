@@ -360,23 +360,13 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .splash .corner.tl { top: 44px; left: 48px; }
 .splash .corner.tr { top: 44px; right: 48px; }
 .splash .corner.br { bottom: 44px; right: 48px; }
-.splash .press { color: #b5b4af; animation: press 1.8s 3s ease-in-out infinite both; }
-.title-menu { position: absolute; left: 48px; bottom: 110px; display: flex; flex-direction: column; gap: 4px; padding-left: 14px; border-left: 1px solid #262626; animation: title-ui 1s 2.4s ease-out both; }
-.title-menu button { display: flex; align-items: baseline; gap: 14px; padding: 5px 0; font: 300 28px/1.1 var(--body); letter-spacing: 0.01em; color: #e4e3de; text-align: left; position: relative; }
-.title-menu button i { font: 400 10px/1 var(--body); font-style: normal; letter-spacing: 0.3em; text-transform: uppercase; color: #6d6c68; }
-.title-menu button:disabled { color: #5e5d59; cursor: default; }
-.title-menu button.on, .title-menu button:not(:disabled):hover { color: #ff7a1a; }
-.title-menu button.on::before { content: ''; position: absolute; left: -15px; top: 8px; bottom: 6px; width: 3px; background: #ff7a1a; }
+.splash .press { position: absolute; left: 0; right: 0; bottom: 96px; text-align: center; font: 400 15px/1 var(--body); letter-spacing: 0.42em; text-transform: uppercase; color: #e4e3de; animation: press 1.8s 3s ease-in-out infinite both; }
+.overlay.splash { cursor: pointer; }
 .splash .strap { position: absolute; left: 0; right: 0; bottom: 44px; margin: 0; text-align: center; font: 400 13px/1 var(--body); letter-spacing: 0.3em; text-transform: uppercase; color: #b5b4af; animation: title-ui 1s 2.6s ease-out both; }
 .splash .strap span { color: #ff7a1a; }
-/* A dark wash behind the menu, so it reads over the first figure's legs. */
-.splash .stage::after { content: ''; position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; background: radial-gradient(ellipse at 0% 100%, rgba(5, 5, 5, 0.85), rgba(5, 5, 5, 0) 70%); }
-@media (max-width: 900px) { .splash .strap, .splash .corner.tr { display: none; } .title-menu button { font-size: 22px; } }
-/* Upright screens: fit the name across the width instead of cropping it. */
+@media (max-width: 900px) { .splash .strap, .splash .corner.tr { display: none; } /* Upright screens: fit the name across the width instead of cropping it. */
 @media (max-aspect-ratio: 1/1) { .overlay.splash { --sw: 104cqw; } .splash .stage { top: 42%; } }
-.splash .stage > *, .title-menu, .splash .strap, .splash .press { animation-play-state: paused; }
-.splash.reveal .stage > *, .splash.reveal .title-menu, .splash.reveal .strap, .splash.reveal .press { animation-play-state: running; }
-/* The name is scuffed like a film poster: a speckled mask eats into the letters. */
+.splash .stage > *, .splash.reveal .stage > *, .splash.reveal /* The name is scuffed like a film poster: a speckled mask eats into the letters. */
 .splash .title-word { -webkit-mask-size: calc(420 * var(--u)); mask-size: calc(420 * var(--u)); }
 /* The reveal: the montage comes up out of black, then the name settles over it. */
 @keyframes title-bg { from { opacity: 0; transform: scale(1.08); } }
@@ -409,3 +399,58 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 @keyframes cine-blink { 50% { opacity: 0; } }
 .cine .skip { position: absolute; right: calc(var(--inset) + 2cqw); bottom: calc(11cqh / 2 - 0.6em); font: 400 11px/1.2 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); opacity: 0; transition: opacity 0.3s ease 0.6s; }
 .cine.on .skip { opacity: 1; }
+
+/* ---------- Choose your motive: slanted photo strips, the picked one slid open (mockup D + B, 25 Oct) ---------- */
+.overlay.modes { display: block; background: #030303; overflow: clip; --u: min(1cqw, 1.78cqh); --cond: 'Barlow Condensed', 'Arial Narrow', sans-serif; --mono: 'IBM Plex Mono', ui-monospace, monospace; }
+.modes .mstrips { position: absolute; top: 0; bottom: 0; left: calc(-7 * var(--u)); right: calc(-7 * var(--u)); display: flex; gap: calc(0.5 * var(--u)); transform: skewX(-9deg); }
+.modes .mstrip { position: relative; flex: 1 1 0; overflow: hidden; background: #000; cursor: pointer; transition: flex 0.55s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.modes .mstrip.on { flex: 4 1 0; cursor: default; }
+/* The end strips run off the screen, so they get that much extra and their names move in by half of it. */
+.modes .mstrip:first-child, .modes .mstrip:last-child { flex: 1 1 calc(7 * var(--u)); }
+.modes .mstrip.on:first-child, .modes .mstrip.on:last-child { flex: 4 1 calc(7 * var(--u)); }
+.modes .mstrip::after { content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 0; background: var(--accent); box-shadow: 0 0 calc(3 * var(--u)) rgba(255, 122, 26, 0.6); transition: width 0.3s; }
+.modes .mstrip:last-child::after { right: auto; left: 0; }
+.modes .mstrip.on::after { width: calc(0.7 * var(--u)); }
+.modes .mstrip img { position: absolute; top: 0; left: -20%; width: 140%; height: 100%; object-fit: cover; transform: skewX(9deg); filter: grayscale(1) brightness(0.3) contrast(1.3); transition: filter 0.5s; }
+.modes .mstrip.on img { filter: grayscale(1) brightness(0.72) contrast(1.35); }
+.modes .mstrip .dim { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.85), transparent 60%); }
+.modes .mstrip .tint { position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s; background: linear-gradient(0deg, rgba(0, 0, 0, 0.92), transparent 55%), linear-gradient(0deg, rgba(255, 122, 26, 0.16), transparent 40%); }
+.modes .mstrip.on .tint { opacity: 1; }
+.modes .side { position: absolute; left: 50%; bottom: calc(5 * var(--u)); transform: translateX(-50%) skewX(9deg); display: flex; flex-direction: column; align-items: center; gap: calc(1 * var(--u)); transition: opacity 0.25s; }
+.modes .mstrip:first-child .side { left: calc(50% + 3.5 * var(--u)); }
+.modes .mstrip:last-child .side { left: calc(50% - 3.5 * var(--u)); }
+.modes .side b { writing-mode: vertical-rl; transform: rotate(180deg); font: italic 700 calc(3.4 * var(--u))/1 var(--cond); text-transform: uppercase; letter-spacing: 0.03em; color: #9a9a96; white-space: nowrap; }
+.modes .side span { font: 400 calc(0.9 * var(--u))/1 var(--mono); color: #4a4a48; }
+.modes .mstrip:not(.on):hover .side b { color: var(--accent); }
+.modes .mstrip.on .side { opacity: 0; }
+.modes .ghost { position: absolute; right: calc(8 * var(--u)); top: calc(7.5 * var(--u)); transform: skewX(9deg); font: italic 700 calc(11 * var(--u))/0.8 var(--cond); text-transform: uppercase; color: transparent; -webkit-text-stroke: 1px rgba(255, 122, 26, 0.45); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+.modes .mstrip:last-child .ghost { right: calc(15 * var(--u)); }
+.modes .mstrip.on .ghost { opacity: 1; }
+.modes .open { position: absolute; left: calc(9 * var(--u)); bottom: calc(4.5 * var(--u)); width: calc(44 * var(--u)); transform: skewX(9deg); opacity: 0; transition: opacity 0.35s 0.15s; pointer-events: none; }
+.modes .mstrip:first-child .open { left: calc(13 * var(--u)); }
+.modes .mstrip.on .open { opacity: 1; pointer-events: auto; }
+.modes .open .k { font: 400 calc(0.95 * var(--u))/1 var(--mono); letter-spacing: 0.22em; color: var(--accent); text-transform: uppercase; }
+.modes .open h2 { margin: calc(0.4 * var(--u)) 0 0; font: italic 700 calc(7 * var(--u))/0.9 var(--cond); text-transform: uppercase; letter-spacing: 0.01em; white-space: nowrap; color: var(--ink); }
+.modes .open p { margin: calc(1.1 * var(--u)) 0 calc(1.6 * var(--u)); max-width: calc(30 * var(--u)); padding-left: calc(1.2 * var(--u)); border-left: 1px solid var(--accent); font: 300 calc(1.25 * var(--u))/1.5 var(--body); color: #c9c9c4; }
+.modes .meta { display: flex; gap: calc(3 * var(--u)); margin-bottom: calc(1.8 * var(--u)); }
+.modes .meta div { display: flex; flex-direction: column; gap: calc(0.3 * var(--u)); }
+.modes .meta em { font: 400 calc(0.8 * var(--u))/1 var(--mono); font-style: normal; letter-spacing: 0.2em; text-transform: uppercase; color: #5e5d59; }
+.modes .meta span { font: 300 calc(1.2 * var(--u))/1.2 var(--body); color: var(--ink); }
+.modes .mgo { clip-path: polygon(0 0, 100% 0, 92% 100%, 0 100%); padding: calc(0.8 * var(--u)) calc(3 * var(--u)) calc(0.8 * var(--u)) calc(1.6 * var(--u)); background: var(--accent); color: #1a0c02; font: 500 max(11px, calc(1 * var(--u)))/1 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; }
+.modes .mgo:hover { background: #ff9447; }
+.modes .mgo:disabled { background: #2a2a2a; color: #8a8984; cursor: default; }
+.modes .scan { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px); }
+.modes .mtab { position: absolute; left: 50%; top: 0; transform: translateX(-50%); padding: calc(0.5 * var(--u)) calc(3 * var(--u)); background: #000; border: 1px solid #2a2a2a; border-top: 0; font: italic 700 max(12px, calc(1.3 * var(--u)))/1.2 var(--cond); letter-spacing: 0.25em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
+.modes .mhead { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: calc(2.5 * var(--u)); padding: calc(2.6 * var(--u)) calc(3.5 * var(--u)); background: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent); pointer-events: none; }
+.modes .mhead > * { pointer-events: auto; }
+.modes .mhead .back { font: 400 max(11px, calc(1 * var(--u)))/1 var(--mono); letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); cursor: pointer; }
+.modes .mhead .wm { font: 600 max(12px, calc(1.25 * var(--u)))/1 var(--body); letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink); }
+.modes .mhead .wm i { font-style: normal; color: var(--accent); }
+.modes .mhead .lab { margin-left: auto; }
+.modes.glitch .mstrip.on img { animation: m-glitch 0.32s steps(2, end); }
+.modes.glitch .mstrip.on .ghost { animation: m-ghost 0.32s steps(3, end); }
+@keyframes m-glitch { 0% { translate: calc(1.2 * var(--u)) 0; clip-path: inset(10% 0 55% 0); } 33% { translate: calc(-1 * var(--u)) 0; clip-path: inset(45% 0 20% 0); } 66% { translate: calc(0.4 * var(--u)) 0; clip-path: inset(0 0 80% 0); } 100% { translate: none; clip-path: inset(0); } }
+@keyframes m-ghost { 0% { translate: calc(-1.5 * var(--u)) 0; } 50% { translate: calc(1 * var(--u)) 0; } 100% { translate: none; } }
+@media (max-width: 760px) { .modes .mhead .lab { display: none; } .modes .open { width: calc(60 * var(--u)); } }
+@media (prefers-reduced-motion: reduce) { .modes * { transition: none !important; animation: none !important; } }
+.board-map .corner .to-modes { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--accent); cursor: pointer; margin-right: 0.8em; }
