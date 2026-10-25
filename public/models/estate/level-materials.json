@@ -1,5 +1,250 @@
 {
  "materials": {
+  "ph_sofa_03": {
+   "tex": "ph/ph_sofa_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_sofa_03_1": {
+   "tex": "ph/ph_sofa_03_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_side_table_01": {
+   "tex": "ph/ph_side_table_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_modern_coffee_table_01": {
+   "tex": "ph/ph_modern_coffee_table_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_cigarette_pack": {
+   "tex": "ph/ph_cigarette_pack",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_modern_arm_chair_01": {
+   "tex": "ph/ph_modern_arm_chair_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_modern_arm_chair_01_1": {
+   "tex": "ph/ph_modern_arm_chair_01_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_dining_table": {
+   "tex": "ph/ph_dining_table",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_monobloc_chair_01": {
+   "tex": "ph/ph_plastic_monobloc_chair_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_dining_chair_02": {
+   "tex": "ph/ph_dining_chair_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_steel_frame_shelves_01": {
+   "tex": "ph/ph_steel_frame_shelves_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_cardboard_box_01": {
+   "tex": "ph/ph_cardboard_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_gaming_console": {
+   "tex": "ph/ph_gaming_console",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_02": {
+   "tex": "ph/ph_plastic_crate_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_boombox": {
+   "tex": "ph/ph_boombox",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_boombox_1": {
+   "tex": "ph/ph_boombox_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_bleach_bottle": {
+   "tex": "ph/ph_bleach_bottle",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_multi_cleaner_bottle": {
+   "tex": "ph/ph_multi_cleaner_bottle",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_01": {
+   "tex": "ph/ph_plastic_crate_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_long_life_food": {
+   "tex": "ph/ph_long_life_food",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_wooden_cutting_board": {
+   "tex": "ph/ph_wooden_cutting_board",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_pot_enamel_01": {
+   "tex": "ph/ph_pot_enamel_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_toolbox": {
+   "tex": "ph/ph_metal_toolbox",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_baseball_bat": {
+   "tex": "ph/ph_baseball_bat",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_compost_bags": {
+   "tex": "ph/ph_compost_bags",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_old_tyre": {
+   "tex": "ph/ph_old_tyre",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_rusted_wheel_rim_01": {
+   "tex": "ph/ph_rusted_wheel_rim_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_barrel_03": {
+   "tex": "ph/ph_barrel_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_03": {
+   "tex": "ph/ph_plastic_crate_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_wooden_stool_01": {
+   "tex": "ph/ph_wooden_stool_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can": {
+   "tex": "ph/ph_metal_trash_can",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_1": {
+   "tex": "ph/ph_metal_trash_can_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_2": {
+   "tex": "ph/ph_metal_trash_can_2",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_spray_paint_bottles_02": {
+   "tex": "ph/ph_spray_paint_bottles_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_street_rat": {
+   "tex": "ph/ph_street_rat",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
   "brick": {
    "tex": "brick",
    "tint": "#ffffff",
@@ -590,7 +835,7 @@
    "rough": 0.3,
    "emissive": [
     "#ff1828",
-    4.0
+    0.9
    ]
   },
   "emit_screen": {
@@ -836,7 +1081,7 @@
  },
  "cut": 1.5,
  "probe": {
-  "max": 1.895376633239746,
+  "max": 1.9081044660339355,
   "perUnit": 8
  }
 }

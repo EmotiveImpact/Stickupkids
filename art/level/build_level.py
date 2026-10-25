@@ -27,6 +27,7 @@ from mathutils import Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bake  # noqa: E402
+import dress  # noqa: E402
 import kit  # noqa: E402
 import props  # noqa: E402
 from bake import LIGHT_LOG, add_light  # noqa: E402
@@ -37,6 +38,7 @@ args = sys.argv
 OUT = args[args.index("--out") + 1] if "--out" in args else os.path.join(ROOT, "public", "models", "estate")
 BAKE = "--bake" in args
 PREVIEW = "--preview" in args
+DRESS = "--dress" in args     # real models (art/level/dress.py) in place of the drawn furniture
 SAMPLES = int(args[args.index("--samples") + 1]) if "--samples" in args else 128
 LM_SIZE = int(args[args.index("--size") + 1]) if "--size" in args else 2048
 
@@ -897,9 +899,7 @@ def prop_fridge(g, e, p):
     e.append(("fridge", fr.p(0, v + 0.45, 0.8)))
 
 
-def prop_table(g, e, p):
-    fr, span, depth = frame_for(p, g)
-    L, D = span * 0.88, depth * 0.72
+def prop_table_furniture(fr, L, D):
     fr.box(0, 0, 0.72, L, D, 0.05, "wood_dark", bevel=0.012)
     for su in (-1, 1):
         for sv in (-1, 1):
@@ -914,17 +914,26 @@ def prop_table(g, e, p):
             for su in (-1, 1):
                 for sw in (-1, 1):
                     fr.box(u + su * 0.18, v + sw * 0.17, 0, 0.035, 0.035, 0.44, "metal_dark")
+
+
+def prop_table(g, e, p, top=0.72, furniture=True):
+    """`furniture` False: only the clutter, on a table top at `top` (a real model is the table)."""
+    fr, span, depth = frame_for(p, g)
+    L, D = span * 0.88, depth * 0.72
+    t = top + 0.05
+    if furniture:
+        prop_table_furniture(fr, L, D)
     # A trap house dining table: scales, baggies, a laptop, cash counter.
-    fr.box(-0.6, 0.1, 0.77, 0.22, 0.16, 0.03, "plastic_black", bevel=0.01)
-    fr.box(-0.6, 0.1, 0.8, 0.14, 0.14, 0.004, "chrome")
+    fr.box(-0.6, 0.1, t, 0.22, 0.16, 0.03, "plastic_black", bevel=0.01)
+    fr.box(-0.6, 0.1, t + 0.03, 0.14, 0.14, 0.004, "chrome")
     for k in range(9):
-        fr.box(-0.2 + (k % 3) * 0.1, -0.15 + (k // 3) * 0.09, 0.77, 0.07, 0.05, 0.02, "plastic_white", rot=k * 0.7)
-    fr.box(0.6, -0.05, 0.77, 0.36, 0.25, 0.015, "metal_dark", bevel=0.005, rot=-0.2)
+        fr.box(-0.2 + (k % 3) * 0.1, -0.15 + (k // 3) * 0.09, t, 0.07, 0.05, 0.02, "plastic_white", rot=k * 0.7)
+    fr.box(0.6, -0.05, t, 0.36, 0.25, 0.015, "metal_dark", bevel=0.005, rot=-0.2)
     fe = Frame(e_geo, fr.c.x, fr.c.y, (fr.f.x, fr.f.y), (fr.a.x, fr.a.y))
-    fe.box(0.6 + 0.0, 0.08, 0.785, 0.34, 0.01, 0.22, "emit_screen", rot=-0.2)
+    fe.box(0.6 + 0.0, 0.08, t + 0.015, 0.34, 0.01, 0.22, "emit_screen", rot=-0.2)
     e.append(("laptop", fr.p(0.6, -0.1, 1.0)))
-    fr.cyl(0.2, 0.28, 0.77, 0.033, 0.12, "can_silver", segs=10)
-    fr.cyl(-0.9, -0.25, 0.77, 0.04, 0.2, "glass", segs=10)
+    fr.cyl(0.2, 0.28, t, 0.033, 0.12, "can_silver", segs=10)
+    fr.cyl(-0.9, -0.25, t, 0.04, 0.2, "glass", segs=10)
 
 
 def prop_cabinet(g, e, p):
@@ -1045,11 +1054,15 @@ def build_props(lamp_list):
         "cabinet": prop_cabinet, "bed": prop_bed, "shelves": prop_shelves, "shed": prop_shed,
         "gardenTable": prop_garden_table, "bins": prop_bins, "tree": prop_tree, "hedge": prop_hedge,
     }
+    if DRESS:
+        fns.update(DRESSED)
     for p in L["props"]:
         if p["kind"] in ("lamp", "car"):
             continue  # built with the street
         geo = g if in_house(p["x"], p["y"]) else ge
         fns[p["kind"]](geo, extra, p)
+    if DRESS:
+        dress_clutter()
 
     # Dressing that is not in the level data (never solid, kept out of the walkways).
     # Living room: rug, floor lamp, beanbag.
@@ -1100,6 +1113,96 @@ def build_props(lamp_list):
     ge.box(P(23.9, 20.7, 0.62), (0.95, 0.03, 0.04), "car_paint", rot=0, tilt=("Y", 0.3))
     ge.box(P(23.7, 20.7, 0.48), (0.04, 0.03, 0.5), "car_paint", tilt=("Y", -0.3))
     return g, ge, e_geo, extra
+
+
+# =================================================================== real models
+# With --dress, level props become Poly Haven models and the rooms get
+# clutter. Positions are map tiles (x east, y south), like the level data.
+def ph(asset, x, y, face=math.pi / 2, z=0.0, **kw):
+    return dress.place(asset, P(x, y, z), face=face, coll=C_STATIC, **kw)
+
+
+def centre(p):
+    return p["x"] + p["w"] / 2, p["y"] + p["h"] / 2
+
+
+def real_sofa(g, e, p):
+    x, y = centre(p)
+    ph("sofa_03", x, y, face=p.get("facing", 0))
+    ph("side_table_01", x - 0.05, p["y"] - 0.35)
+
+
+def real_armchair(g, e, p):
+    x, y = centre(p)
+    ph("modern_arm_chair_01", x, y, face=p.get("facing", 0), spin=0.25)
+
+
+def real_coffee_table(g, e, p):
+    x, y = centre(p)
+    ph("modern_coffee_table_01", x, y)
+    ph("cigarette_pack", x - 0.1, y - 0.3, z=0.39, spin=0.6)
+    fr, _s, _d = frame_for(p, g)
+    fr.cyl(0.18, 0.2, 0.39, 0.033, 0.12, "can_red", segs=10)
+    fr.cyl(0.1, 0.32, 0.39, 0.033, 0.12, "can_silver", segs=10)
+    fr.box(-0.85, 0.35, 0, 0.38, 0.38, 0.05, "cardboard", bevel=0.005, rot=0.4)   # pizza box
+
+
+def real_table(g, e, p):
+    x, y = centre(p)
+    ph("dining_table", x, y)
+    prop_table(g, e, p, top=0.83, furniture=False)
+    # Chairs that never matched: white garden chairs and two old dining chairs.
+    n, s = p["y"] - 0.05, p["y"] + p["h"] + 0.05
+    ph("plastic_monobloc_chair_01", x - 0.7, n, face=math.pi / 2, spin=0.15)
+    ph("dining_chair_02", x + 0.6, n, face=math.pi / 2, spin=-0.1)
+    ph("plastic_monobloc_chair_01", x - 0.8, s, face=-math.pi / 2, spin=-0.2)
+    ph("dining_chair_02", x + 0.1, s + 0.15, face=-math.pi / 2, spin=0.45)
+    ph("plastic_monobloc_chair_01", p["x"] - 0.45, y, face=0, spin=0.1)
+
+
+def real_shelves(g, e, p):
+    x, y = centre(p)
+    ph("steel_frame_shelves_01", x + 0.3, p["y"] + 0.22)
+    ph("cardboard_box_01", x - 0.55, p["y"] + 0.3, spin=0.2)
+    ph("cardboard_box_01", x - 0.5, p["y"] + 0.3, z=0.34, spin=-0.3)
+
+
+DRESSED = {"sofa": real_sofa, "armchair": real_armchair, "coffeeTable": real_coffee_table, "table": real_table,
+           "shelves": real_shelves}
+
+
+def dress_clutter():
+    """The mess that makes a room look lived in. Kept clear of doors and walkways."""
+    # Front room: the console by the telly, a crate of games, a speaker.
+    ph("gaming_console", 5.75, 15.35, face=0, spin=0.3)
+    ph("plastic_crate_02", 10.45, 14.45, face=math.pi, spin=0.2)
+    ph("boombox", 10.5, 18.55, face=-math.pi / 2, spin=-0.5)
+    # Kitchen: bleach and cleaner on the floor, crates of bottles, food on the side.
+    ph("bleach_bottle", 18.35, 8.3)
+    ph("multi_cleaner_bottle", 18.55, 8.25, spin=1.0)
+    ph("plastic_crate_01", 20.6, 8.35, spin=0.1)
+    ph("plastic_crate_01", 20.6, 8.35, z=0.26, spin=-0.25)
+    ph("long_life_food", 16.0, 8.3, z=0.92)
+    ph("wooden_cutting_board", 16.9, 8.4, z=0.92, spin=0.2)
+    ph("pot_enamel_01", 21.8, 8.4, z=0.92)
+    # Back bedroom (the stash): boxes, a crate, a toolbox, the bat on the floor.
+    ph("plastic_crate_02", 7.7, 12.45, spin=-0.3)
+    ph("metal_toolbox", 8.9, 12.6, spin=0.4)
+    ph("baseball_bat", 6.6, 11.75, tilt=(math.pi / 2, 0.0), spin=1.1)
+    ph("cardboard_box_01", 8.6, 8.4, spin=0.5)
+    # Garden: compost bags, tyres, a barrel, a chair knocked over.
+    ph("compost_bags", 16.3, 2.7, face=math.pi / 2)
+    ph("old_tyre", 25.6, 3.0, tilt=(math.pi / 2, 0.0))
+    ph("old_tyre", 25.65, 3.0, z=0.16, tilt=(math.pi / 2, 0.0), spin=0.4)
+    ph("rusted_wheel_rim_01", 26.4, 3.7, tilt=(math.pi / 2, 0.0), spin=0.3)
+    ph("barrel_03", 27.3, 6.3)
+    ph("plastic_crate_03", 11.6, 6.45, spin=0.3)
+    ph("wooden_stool_01", 10.4, 3.3)
+    ph("plastic_monobloc_chair_01", 6.6, 5.4, tilt=(-math.pi / 2, 0.0), spin=2.2)
+    # The alley: bins, spray cans, a rat.
+    ph("metal_trash_can", 15.5, 0.45, face=math.pi / 2)
+    ph("spray_paint_bottles_02", 11.5, 0.7, spin=0.8)
+    ph("street_rat", 12.4, 0.55, spin=0.9)
 
 
 # =================================================================== loot
@@ -1177,7 +1280,7 @@ def main():
 
     statics = [obj(g, C_STATIC) for g in (near, inner, far, road, low, skirt, frames, sills, nbody, nroof, ndet, fbody, froof, fdet,
                                           bnd, bndf, st, stf, pint, pext)]
-    statics = [o for o in statics if o]
+    statics = [o for o in statics if o] + dress.placed()
     door_objs = []
     for d in doors:
         o = obj(d["geo"], C_STATIC)
@@ -1192,6 +1295,7 @@ def main():
 
     bake.finish(OUT, W, H, P, statics, door_objs, emitters, hidden_in_bake, loot, doors,
                 (C_STATIC, C_EXPORT, C_BLOCK, C_DYN), CUT, bake=BAKE, samples=SAMPLES, lm_size=LM_SIZE,
-                preview=os.path.join(HERE, "preview.png") if PREVIEW else None, ortho=34, t0=t0)
+                preview=os.path.join(HERE, "preview.png") if PREVIEW else None, ortho=34, t0=t0,
+                meta={"materials": dress.materials()} if DRESS else None)
 
 main()
