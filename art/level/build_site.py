@@ -33,6 +33,7 @@ from mathutils import Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bake  # noqa: E402
+import dress  # noqa: E402
 import furniture  # noqa: E402
 import kit  # noqa: E402
 import props  # noqa: E402
@@ -43,6 +44,7 @@ ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 args = sys.argv
 JOB = next(a for a in args[1:] if not a.startswith("--") and not a.replace(".", "").isdigit() and "/" not in a)
 OUT = args[args.index("--out") + 1] if "--out" in args else os.path.join(ROOT, "public", "models", JOB)
+DRESS = "--dress" in args     # litter the rooms with real models (art/level/dress.py)
 BAKE = "--bake" in args
 PREVIEW = "--preview" in args
 SAMPLES = int(args[args.index("--samples") + 1]) if "--samples" in args else 96
@@ -1118,6 +1120,8 @@ def main():
         deck.aabb(BX(x0), BY(y1), z0, BX(x1), BY(y0), z1, "concrete")
     if CFG.get("extra"):
         EXTRAS[CFG["extra"]](ext, emit, deck, extra)
+    if DRESS:
+        print(f"dressed with {dress.scatter(L, P, C_STATIC, random.Random(5))} models")
     print(f"geometry built {time.time() - t0:.1f}s")
 
     def obj(g, coll, **kw):
@@ -1126,7 +1130,7 @@ def main():
     statics = [obj(g, C_STATIC) for g in (near, inner, far, low, frames, sills, blocks, block_det, houses, fences, trunks, trunks_far,
                                           ext, pint)]
     statics.append(obj(shrubs, C_STATIC, smooth_angle=89))
-    statics = [o for o in statics if o]
+    statics = [o for o in statics if o] + dress.placed()
     door_objs = []
     for d in doors:
         door_objs.append(obj(d["geo"], C_STATIC))
@@ -1142,7 +1146,7 @@ def main():
     bake.finish(OUT, W, H, P, statics, door_objs + canopies, emitters, hidden, loot, doors, COLL, CUT,
                 bake=BAKE, samples=SAMPLES, lm_size=LM_SIZE,
                 preview=os.path.join(HERE, f"preview-{JOB}.png") if PREVIEW else None, ortho=max(W, H) * 0.6, t0=t0,
-                meta={"lamp": LAMP}, export_hidden=False, probe_per_unit=4)
+                meta={"lamp": LAMP, "materials": dress.materials()}, export_hidden=False, probe_per_unit=4)
 
 
 main()

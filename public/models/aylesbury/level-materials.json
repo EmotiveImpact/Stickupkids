@@ -1,5 +1,117 @@
 {
  "materials": {
+  "ph_side_table_01": {
+   "tex": "ph/ph_side_table_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_02": {
+   "tex": "ph/ph_plastic_crate_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_monobloc_chair_01": {
+   "tex": "ph/ph_plastic_monobloc_chair_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_spray_paint_bottles_02": {
+   "tex": "ph/ph_spray_paint_bottles_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_ottoman_01": {
+   "tex": "ph/ph_ottoman_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_cardboard_box_01": {
+   "tex": "ph/ph_cardboard_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_bleach_bottle": {
+   "tex": "ph/ph_bleach_bottle",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_multi_cleaner_bottle": {
+   "tex": "ph/ph_multi_cleaner_bottle",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_03": {
+   "tex": "ph/ph_plastic_crate_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_toolbox": {
+   "tex": "ph/ph_metal_toolbox",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_broom": {
+   "tex": "ph/ph_plastic_broom",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_broom_1": {
+   "tex": "ph/ph_plastic_broom_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can": {
+   "tex": "ph/ph_metal_trash_can",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_1": {
+   "tex": "ph/ph_metal_trash_can_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_2": {
+   "tex": "ph/ph_metal_trash_can_2",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_rusted_wheel_rim_01": {
+   "tex": "ph/ph_rusted_wheel_rim_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
   "brick": {
    "tex": "brick",
    "tint": "#ffffff",
@@ -752,6 +864,33 @@
     6.0
    ]
   },
+  "emit_pool": {
+   "tex": null,
+   "tint": "#1c78b0",
+   "size": 1.0,
+   "rough": 0.05,
+   "emissive": [
+    "#1a70b0",
+    0.7
+   ]
+  },
+  "pool_line": {
+   "tex": null,
+   "tint": "#1a3a78",
+   "size": 1.0,
+   "rough": 0.1,
+   "emissive": [
+    "#1a4a90",
+    0.6
+   ]
+  },
+  "coping": {
+   "tex": "concrete",
+   "tint": "#e8e4dc",
+   "size": 1.5,
+   "rough": 0.7,
+   "emissive": null
+  },
   "plaster_lobby": {
    "tex": "plaster",
    "tint": "#9aa0a8",
@@ -1062,7 +1201,7 @@
  "cut": 1.5,
  "lamp": "#ffd8a8",
  "probe": {
-  "max": 1.2429522500762937,
+  "max": 1.2276517854461668,
   "perUnit": 4
  }
 }

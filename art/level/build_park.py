@@ -26,6 +26,7 @@ from mathutils import Matrix, Vector
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import bake  # noqa: E402
+import dress  # noqa: E402
 import kit  # noqa: E402
 import props  # noqa: E402
 from bake import LIGHT_LOG, add_light  # noqa: E402
@@ -34,6 +35,7 @@ from kit import Geo  # noqa: E402
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 args = sys.argv
 OUT = args[args.index("--out") + 1] if "--out" in args else os.path.join(ROOT, "public", "models", "burgess")
+DRESS = "--dress" in args     # litter the kiln and its yard with real models (art/level/dress.py)
 BAKE = "--bake" in args
 PREVIEW = "--preview" in args
 SAMPLES = int(args[args.index("--samples") + 1]) if "--samples" in args else 96
@@ -731,6 +733,8 @@ def main():
     fences = build_fences()
     print(f"scenery {time.time() - t0:.1f}s")
     fur, fur_far, emit, lamps, car_front, van_front = build_furniture()
+    if DRESS:
+        print(f"dressed with {dress.scatter(L, P, C_STATIC, random.Random(5), street=0.12)} models")
     print(f"geometry built {time.time() - t0:.1f}s")
 
     def obj(g, coll):
@@ -738,7 +742,7 @@ def main():
 
     statics = [obj(g, C_STATIC) for g in (near, far, low, trunks, trunks_far, fur, fur_far, houses, houses_far, fences)]
     statics.append(shrubs.to_object(C_STATIC, smooth_angle=89))
-    statics = [o for o in statics if o]
+    statics = [o for o in statics if o] + dress.placed()
     door_objs = []
     for d in doors:
         door_objs.append(obj(d["geo"], C_STATIC))
@@ -758,7 +762,7 @@ def main():
     bake.finish(OUT, W, H, P, statics, door_objs + canopies, emitters, hidden, loot, doors, COLL, CUT,
                 bake=BAKE, samples=SAMPLES, lm_size=LM_SIZE,
                 preview=os.path.join(HERE, "preview-park.png") if PREVIEW else None, ortho=max(W, H) * 0.6, t0=t0,
-                meta={"lamp": LAMP}, export_hidden=False, probe_per_unit=4)
+                meta={"lamp": LAMP, "materials": dress.materials()}, export_hidden=False, probe_per_unit=4)
 
 
 main()

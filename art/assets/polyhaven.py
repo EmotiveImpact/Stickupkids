@@ -34,6 +34,10 @@ WANTED = [
     # garden, alley, street
     "metal_trash_can", "old_tyre", "compost_bags", "wooden_stool_01", "rusted_wheel_rim_01", "street_rat",
     "spray_paint_bottles_02", "plastic_crate_03", "barrel_03", "exterior_aircon_unit", "security_light",
+    # grow, shop, café, car park
+    "weed_plant_02", "CashRegister_01", "propane_tank", "metal_jerrycan", "plastic_jerrycan", "wooden_crate_02",
+    "painted_wooden_chair_01", "plastic_bottle_gallon", "concrete_road_barrier_02", "WetFloorSign_01",
+    "hand_truck", "plastic_broom", "korean_fire_extinguisher_01", "seeding_tray_01", "lightbulb_led",
 ]
 
 
