@@ -414,10 +414,10 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .modes .mstrip::after { content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 0; background: var(--accent); box-shadow: 0 0 calc(3 * var(--u)) rgba(255, 122, 26, 0.6); transition: width 0.3s; }
 .modes .mstrip:last-child::after { right: auto; left: 0; }
 .modes .mstrip.on::after { width: calc(0.7 * var(--u)); }
-.modes .mstrip img { position: absolute; top: 0; left: -20%; width: 140%; height: 100%; object-fit: cover; transform: skewX(9deg); filter: grayscale(1) brightness(0.3) contrast(1.3); transition: filter 0.5s; }
-.modes .mstrip.on img { filter: grayscale(1) brightness(0.72) contrast(1.35); }
-.modes .mstrip .dim { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.85), transparent 60%); }
-.modes .mstrip .tint { position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s; background: linear-gradient(0deg, rgba(0, 0, 0, 0.92), transparent 55%), linear-gradient(0deg, rgba(255, 122, 26, 0.16), transparent 40%); }
+.modes .mstrip img { position: absolute; top: 0; left: -20%; width: 140%; height: 100%; object-fit: cover; transform: skewX(9deg); filter: grayscale(1) brightness(0.58) contrast(1.12); transition: filter 0.5s; }
+.modes .mstrip.on img { filter: grayscale(1) brightness(1.05) contrast(1.1); }
+.modes .mstrip .dim { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(5, 5, 5, 0.6), transparent 45%); }
+.modes .mstrip .tint { position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s; background: linear-gradient(0deg, rgba(5, 5, 5, 0.78), transparent 50%), linear-gradient(0deg, rgba(255, 122, 26, 0.16), transparent 40%); }
 .modes .mstrip.on .tint { opacity: 1; }
 .modes .side { position: absolute; left: 50%; bottom: calc(5 * var(--u)); transform: translateX(-50%) skewX(9deg); display: flex; flex-direction: column; align-items: center; gap: calc(1 * var(--u)); transition: opacity 0.25s; }
 .modes .mstrip:first-child .side { left: calc(50% + 3.5 * var(--u)); }
@@ -426,7 +426,7 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .modes .side span { font: 400 calc(0.9 * var(--u))/1 var(--mono); color: #4a4a48; }
 .modes .mstrip:not(.on):hover .side b { color: var(--accent); }
 .modes .mstrip.on .side { opacity: 0; }
-.modes .ghost { position: absolute; right: calc(8 * var(--u)); top: calc(7.5 * var(--u)); transform: skewX(9deg); font: italic 700 calc(11 * var(--u))/0.8 var(--cond); text-transform: uppercase; color: transparent; -webkit-text-stroke: 1px rgba(255, 122, 26, 0.45); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+.modes .ghost { position: absolute; right: calc(8 * var(--u)); top: calc(7.5 * var(--u)); transform: skewX(9deg); font: italic 700 calc(11 * var(--u))/0.8 var(--cond); text-transform: uppercase; color: transparent; -webkit-text-stroke: 1px rgba(255, 122, 26, 0.75); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
 .modes .mstrip:last-child .ghost { right: calc(15 * var(--u)); }
 .modes .mstrip.on .ghost { opacity: 1; }
 .modes .open { position: absolute; left: calc(9 * var(--u)); bottom: calc(4.5 * var(--u)); width: calc(44 * var(--u)); transform: skewX(9deg); opacity: 0; transition: opacity 0.35s 0.15s; pointer-events: none; }
