@@ -18,6 +18,7 @@ import {
   MeshBuilder,
   MirrorTexture,
   RenderTargetTexture,
+  Texture,
   ParticleSystem,
   PBRMaterial,
   Plane,
@@ -152,9 +153,14 @@ void main(void) {
   if (dark > 0.001) {
     // Outside the torch beams the night takes over; lamps, lit windows and
     // screens hold their own.
-    float t = smoothstep(0.0, 0.7, torchAt(vUV));
-    float own = smoothstep(0.1, 0.42, luma(col));
-    col *= mix(1.0, mix(0.3, 1.0, max(t, own)) * (1.0 + 0.9 * t), dark);
+    // The mask: 0 never seen, about 0.3 seen before, up to 1 in a beam now.
+    float m = torchAt(vUV);
+    float known = smoothstep(0.04, 0.24, m);
+    float t = smoothstep(0.3, 0.9, m);
+    // Lamps, lit windows and screens hold their own, but only where the crew have looked.
+    float own = smoothstep(0.1, 0.42, luma(col)) * known;
+    float keep = max(max(known * 0.32, t), own);
+    col *= mix(1.0, mix(0.045, 1.0, keep) * (1.0 + 0.9 * t), dark);
     // The beam itself, a cold white wash on whatever it falls on.
     col += vec3(0.82, 0.88, 1.0) * t * 0.06 * dark;
   }
@@ -282,6 +288,11 @@ export class View {
   private torchMask: RenderTargetTexture;
   private torchMat: StandardMaterial;
   private darkAmount = 0;
+  /** Fog of war: one pixel a cell, lit where the crew have seen, drawn into the torch mask as a dim floor. */
+  private seenTex!: DynamicTexture;
+  private seenGrid: Uint8Array = new Uint8Array(0);
+  private seenDirty = false;
+  private seenT = 0;
   private bpTarget = 1;
   private estate: Estate | null = null;
   private readonly kits = new Map<string, CharacterKit>();
@@ -412,6 +423,7 @@ export class View {
     // Screen blending, so overlapping beams add up without blowing out.
     tm.alpha = 0.999;
     tm.alphaMode = Constants.ALPHA_SCREENMODE;
+    this.makeSeenFloor();
     this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange', 'dark', 'paint'], ['depthSampler', 'torchSampler'], 1, this.cam);
     this.bp.onApply = (e) => {
       e.setTexture('torchSampler', torch);
@@ -729,6 +741,8 @@ export class View {
   }
 
   setMode(m: Mode) {
+    // Each raid starts with the inside of the place unseen.
+    if (m !== this.mode) this.forgetSeen();
     this.mode = m;
     this.atmosphere?.setRain(m === 'raid');
     this.bpTarget = m === 'planning' ? 1 : 0;
@@ -958,6 +972,91 @@ export class View {
     ring.position.set(this.co.X(x), 0.08, this.co.Z(y));
     this.toOverlay(ring);
     this.fx.push({ mesh: ring, t: 0, life: 1.1, kind: 'ring', r });
+  }
+
+  // ------------------------------------------------------- fog of war
+
+  /** Inside a building: hidden until someone sees it. Streets, gardens and walls are known from the start. */
+  private hiddenCell(x: number, y: number): boolean {
+    const t = this.level.tiles[y][x];
+    return t === '.' || t === 'D' || t === 'O' || t === 'W';
+  }
+
+  private makeSeenFloor() {
+    const { w, h } = this.level;
+    const tex = (this.seenTex = new DynamicTexture('seen', { width: w, height: h }, this.scene, false, Texture.BILINEAR_SAMPLINGMODE));
+    tex.wrapU = tex.wrapV = Texture.CLAMP_ADDRESSMODE;
+    this.seenGrid = new Uint8Array(w * h);
+    const floor = MeshBuilder.CreateGround('seenFloor', { width: w, height: h }, this.scene);
+    floor.position.y = 0.02;
+    floor.layerMask = 0;
+    floor.isPickable = false;
+    const m = new StandardMaterial('seenMat', this.scene);
+    m.emissiveTexture = tex;
+    m.diffuseColor = Color3.Black();
+    m.specularColor = Color3.Black();
+    m.disableLighting = true;
+    m.disableDepthWrite = true;
+    m.alpha = 0.999;
+    m.alphaMode = Constants.ALPHA_SCREENMODE;
+    floor.material = m;
+    this.torchMask.renderList!.push(floor);
+    this.forgetSeen();
+  }
+
+  /** Back to knowing only the outside. */
+  private forgetSeen() {
+    const { w, h } = this.level;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) this.seenGrid[y * w + x] = this.hiddenCell(x, y) ? 0 : 1;
+    this.seenDirty = true;
+  }
+
+  /** Remember every cell inside a vision fan, and a little round the person. */
+  private markSeen(fan: Vec[], ox: number, oy: number) {
+    const { w, h } = this.level;
+    const poly = [{ x: ox, y: oy }, ...fan];
+    let x0 = ox, x1 = ox, y0 = oy, y1 = oy;
+    for (const p of poly) {
+      x0 = Math.min(x0, p.x);
+      x1 = Math.max(x1, p.x);
+      y0 = Math.min(y0, p.y);
+      y1 = Math.max(y1, p.y);
+    }
+    const near = 1.6;
+    for (let y = Math.max(0, Math.floor(Math.min(y0, oy - near))); y <= Math.min(h - 1, Math.floor(Math.max(y1, oy + near))); y++) {
+      for (let x = Math.max(0, Math.floor(Math.min(x0, ox - near))); x <= Math.min(w - 1, Math.floor(Math.max(x1, ox + near))); x++) {
+        const k = y * w + x;
+        if (this.seenGrid[k]) continue;
+        const cx = x + 0.5;
+        const cy = y + 0.5;
+        let inside = Math.hypot(cx - ox, cy - oy) < near;
+        for (let i = 0, j = poly.length - 1; !inside && i < poly.length; j = i++) {
+          const a = poly[i];
+          const b = poly[j];
+          if (a.y > cy !== b.y > cy && cx < ((b.x - a.x) * (cy - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+        }
+        if (inside) {
+          this.seenGrid[k] = 1;
+          this.seenDirty = true;
+        }
+      }
+    }
+  }
+
+  /** Push the seen grid to its texture: seen cells a dim grey (155 is about 0.3 once the texture is read as sRGB), unseen black. */
+  private flushSeen() {
+    if (!this.seenDirty) return;
+    this.seenDirty = false;
+    const { w, h } = this.level;
+    const g = this.seenTex.getContext() as unknown as CanvasRenderingContext2D;
+    const img = g.createImageData(w, h);
+    for (let k = 0; k < w * h; k++) {
+      const v = this.seenGrid[k] ? 155 : 0;
+      img.data[k * 4] = img.data[k * 4 + 1] = img.data[k * 4 + 2] = v;
+      img.data[k * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    this.seenTex.update(true);
   }
 
   private makeCone(color: string, alpha: number): Mesh {
@@ -1464,6 +1563,10 @@ export class View {
     this.darkAmount += ((this.mode === 'raid' ? 1 : 0) - this.darkAmount) * Math.min(1, dt * 3);
     if (this.darkAmount < 0.002) this.darkAmount = 0;
     this.torchMask.refreshRate = this.darkAmount > 0 ? 1 : 0;
+    // What the crew have seen, gathered a few times a second.
+    this.seenT -= dt;
+    if (this.seenT < -0.12) this.seenT = 0.12;
+    this.flushSeen();
     const est = this.estate;
     if (!est) {
       this.scene.render();
@@ -1693,7 +1796,11 @@ export class View {
     a.ring.scaling.setAll(sel ? 1.25 : 1);
     a.bag!.setEnabled(c.carrying.length > 0);
     const sim = this.lastSim;
-    if (sim) this.setCone(a.cone, sim.grid.visionFan(c.x, c.y, c.facing, c.fov, c.range, 36), c.x, c.y, 0.05, c.range);
+    if (sim) {
+      const fan = sim.grid.visionFan(c.x, c.y, c.facing, c.fov, c.range, 36);
+      this.setCone(a.cone, fan, c.x, c.y, 0.05, c.range);
+      if (this.mode === 'raid' && this.seenT <= 0) this.markSeen(fan, c.x, c.y);
+    }
   }
 
   private lastSim: Sim | null = null;
