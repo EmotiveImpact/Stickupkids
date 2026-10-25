@@ -70,6 +70,8 @@ def box_uvs(obj):
     mw = obj.matrix_world
     for f in bm.faces:
         name = me.materials[f.material_index].name.split(".")[0]
+        if name.startswith("ph_"):
+            continue  # a real model: keep its own UVs
         s = kit.uv_size(name)
         n = f.normal
         ax = max(range(3), key=lambda i: abs(n[i]))
@@ -113,7 +115,7 @@ def split_hidden(obj):
 def importance(name):
     if name.endswith("_hidden"):
         return 0.1
-    table = [("ground_int", 2.0), ("walls", 1.6), ("props_int", 1.6), ("door_", 1.4), ("frames", 1.3), ("sills", 1.2),
+    table = [("ground_int", 2.0), ("walls", 1.6), ("props_int", 1.6), ("ph_", 1.6), ("door_", 1.4), ("frames", 1.3), ("sills", 1.2),
              ("skirting", 1.0), ("ground_near", 1.0), ("road", 0.8), ("boundaries_far", 0.3), ("boundaries", 1.0),
              ("street_far", 0.3), ("street", 1.0), ("props_ext", 1.0), ("neigh", 0.6), ("far_canopies", 0.05), ("far_trees", 0.08), ("far_", 0.25),
              ("ground_far", 0.25), ("canopies", 0.3), ("trees", 0.6), ("shrubs", 0.6)]
@@ -389,7 +391,7 @@ def finish(out, W, H, P, statics, door_objs, emitters, hidden_in_bake, loot, doo
         o.select_set(True)
     path = os.path.join(out, "level.glb")
     bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", use_selection=True, export_texcoords=True,
-                              export_normals=True, export_materials="EXPORT", export_yup=True, export_apply=False,
+                              export_normals=True, export_materials="EXPORT", export_image_format="NONE", export_yup=True, export_apply=False,
                               export_cameras=False, export_lights=False)
     print(f"exported {path} {os.path.getsize(path) / 1e6:.1f} MB, total {time.time() - t0:.0f}s")
 
