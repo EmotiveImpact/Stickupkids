@@ -1,11 +1,11 @@
 """Cut the Kling clips into the black and white drill montage for the title screen.
 
-24 beats at 140 BPM (about 10.3 s), every cut on a beat. Effects are added per frame:
+30 beats at 140 BPM (about 12.9 s), every cut on a beat. Effects are added per frame:
 black and white grade, slight fisheye, (with --punch) a zoom thump on each beat and shake on the off beats,
 stutter repeats, a white flash on the feds hit, a whip blur into the run, grain and vignette.
 
 Usage: python3 drill_montage.py CLIPDIR OUT.mp4 [--caption] [--punch]
-CLIPDIR holds k-eyes, k-walk, k-stair, k-feds, k-run, k-door, k-roof, k-estate (.mp4).
+CLIPDIR holds the Kling clips named in SHOTS (.mp4).
 """
 import subprocess, sys, numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -23,20 +23,24 @@ def load(name):
     return np.frombuffer(raw, np.uint8).reshape(-1, H, W).astype(np.float32) / 255  # 24 fps frames
 
 
-clips = {n: load(n) for n in ['k-eyes', 'k-walk', 'k-stair', 'k-feds', 'k-run', 'k-door', 'k-roof', 'k-estate']}
-
 # (clip, beats, source start s, speed, punch-ins on?)  speed may be a function of shot time t for ramps
 SHOTS = [
     ('k-eyes', 2, 0.6, 1.0, True),
-    ('k-walk', 4, 0.2, lambda t: 0.45 * t if t < 2 * BEAT else 0.45 * 2 * BEAT + (t - 2 * BEAT), True),  # slow-mo, snaps to speed on beat 3
+    ('k-walk', 3, 0.2, lambda t: 0.45 * t if t < 2 * BEAT else 0.45 * 2 * BEAT + (t - 2 * BEAT), True),  # slow-mo, snaps to speed on beat 3
     ('k-stair', 2, 0.8, 1.0, True),
+    ('k-door', 2, 0.5, 1.0, True),
+    ('k-hands', 2, 0.6, 1.0, True),
     ('k-feds', 1, 1.6, 1.0, True),
     ('k-run', 2, 0.9, 1.0, True),
-    ('k-door', 2, 0.5, 1.0, True),
+    ('k-driveoff', 2, 1.0, 1.0, True),
+    ('k-incar', 2, 0.6, 1.0, True),
+    ('k-lookback', 2, 0.8, 1.0, True),
     ('k-roof', 4, 0.4, 0.9, False),
     ('k-estate', 2, 0.6, 1.0, True),
-    ('k-walk', 5, 0.85, 1.0, True),
+    ('k-walk', 4, 0.85, 1.0, True),
 ]
+
+clips = {n: load(n) for n in {s[0] for s in SHOTS}}
 
 yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
 nx, ny = (xx - W / 2) / (W / 2), (yy - H / 2) / (W / 2)
