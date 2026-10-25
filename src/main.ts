@@ -12,6 +12,7 @@ import { ClipRecorder, saveFile } from './render/clip.ts';
 import { Hud, type ReplayAction } from './ui/hud.ts';
 import { Minimap } from './ui/minimap.ts';
 import { fit, watchFit } from './ui/viewport.ts';
+import { Sound } from './audio/sound.ts';
 
 type Phase = 'title' | 'planning' | 'raid' | 'results' | 'replay';
 
@@ -69,6 +70,12 @@ const hud = new Hud(document.getElementById('hud')!, {
 
 const minimap = new Minimap(document.getElementById('hud')!, (x, y) => view.lookAt(x, y));
 
+/** Park jobs sound like a park; the rest like the estate. */
+const PARK_JOBS = new Set(['burgess', 'brockwell', 'rideout']);
+const sound = new Sound();
+sound.setLevel(PARK_JOBS.has(job.id) ? 'park' : 'estate');
+sound.setPhase('title');
+
 /** A big level opens close in on the crew, with the overview map beside it. */
 function frameLevel() {
   minimap.setLevel(level);
@@ -97,6 +104,7 @@ function pickJob(id: string) {
   const next = jobById(id);
   if (next === job) return hud.selectJob(next.id);
   job = next;
+  sound.setLevel(PARK_JOBS.has(job.id) ? 'park' : 'estate');
   view.dispose();
   level = job.build();
   names = namesOf(level);
@@ -157,6 +165,7 @@ function replayAction(a: ReplayAction) {
 function watchReplay() {
   if (!recording || !finished) return;
   phase = 'replay';
+  sound.setPhase('replay');
   hud.hideOverlay();
   view.setReveal(true);
   view.setMode('raid');
@@ -182,6 +191,7 @@ function leaveReplay() {
   sim = finished!;
   view.bind(sim);
   phase = 'results';
+  sound.setPhase('results');
   hud.showResults(finished!.outcome!, finished!);
 }
 
@@ -255,6 +265,7 @@ function endClipView() {
 /** Back to the job board, keeping the current job picked. */
 function showJobs() {
   phase = 'title';
+  sound.setPhase('title');
   paused = false;
   view.setReveal(false);
   sim = preview;
@@ -313,6 +324,7 @@ function enterPlanning() {
   introT = 0;
   hud.hideBriefing();
   phase = 'planning';
+  sound.setPhase('planning');
   paused = false;
   selectedWp = null;
   changed();
@@ -323,6 +335,8 @@ function enterPlanning() {
 function go() {
   if (phase !== 'planning') return;
   phase = 'raid';
+  sound.setPhase('raid');
+  sound.go();
   view.setReveal(false);
   sim = new Sim(level, plans, (Math.random() * 1e9) | 0, barricades);
   view.bind(sim);
@@ -701,6 +715,10 @@ window.addEventListener('pointerup', () => (dragging = null));
 
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
+  if (k === 'm' && !(e.target instanceof HTMLInputElement)) {
+    hud.toast(sound.toggleMute() ? 'Sound off (M)' : 'Sound on (M)', '#ffffff');
+    return;
+  }
   if (phase === 'replay') {
     if (k === ' ') {
       replayAction('play');
@@ -874,6 +892,9 @@ function tick(dt: number) {
   if (phase === 'raid' || phase === 'replay') {
     view.handleEvents(events);
     narrate(events);
+    const seen = view.visibleRect();
+    sound.handleEvents(events, sim, seen);
+    if (!paused && !(phase === 'replay' && !replayPlaying)) sound.footsteps(dt, sim.crew, seen);
   }
   if (phase === 'replay') {
     const r = canvas.getBoundingClientRect();
@@ -911,6 +932,8 @@ function tick(dt: number) {
   if (phase === 'raid' && sim.outcome) {
     endIntro();
     phase = 'results';
+    sound.setPhase('results');
+    sound.finish(sim.outcome);
     finished = sim;
     recording = record(sim, STEP);
     // Only if nothing has moved on in the meantime (another job picked, or a replan).
