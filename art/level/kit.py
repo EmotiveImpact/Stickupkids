@@ -37,6 +37,20 @@ MATS = {
     "carpet_stash": ("carpet", "#ffffff", 1.0, 1.0, None),
     "tiles": ("tiles", "#ffffff", 1.2, 0.35, None),
     "rug": ("fabric", "#b0a0c8", 0.7, 1.0, None),
+    # Worn floors from ambientCG (art/assets/make_floors.py), shown at their real size.
+    "carpet_navy": ("carpet_navy", "#ffffff", 1.0, 1.0, None),
+    "carpet_red": ("carpet_red", "#ffffff", 1.0, 1.0, None),
+    "carpet_grey": ("carpet_grey", "#ffffff", 1.2, 1.0, None),
+    "carpet_council": ("carpet_council", "#ffffff", 1.4, 1.0, None),
+    "carpet_olive": ("carpet_olive", "#ffffff", 1.0, 1.0, None),
+    "carpet_teal": ("carpet_teal", "#ffffff", 1.6, 1.0, None),
+    "lino_check": ("lino_check", "#ffffff", 1.2, 0.45, None),
+    "lino_marble": ("lino_marble", "#ffffff", 1.2, 0.45, None),
+    "tiles_white": ("tiles_white", "#ffffff", 1.6, 0.3, None),
+    "tiles_slab": ("tiles_slab", "#ffffff", 2.4, 0.6, None),
+    "boards_worn": ("boards_worn", "#ffffff", 1.6, 0.6, None),
+    "boards_old": ("boards_old", "#ffffff", 1.6, 0.65, None),
+    "concrete_floor": ("concrete_floor", "#ffffff", 2.4, 0.55, None),
     # Outside
     "tarmac": ("tarmac", "#ffffff", 3.0, 0.35, None),
     "tarmac_alley": ("tarmac", "#c8ccd8", 3.0, 0.5, None),
@@ -109,7 +123,9 @@ TEX_MEANS = {}
 TEX_SIZE = {}
 # Materials that show a texture at its real-world size (art/textures/out/sizes.txt).
 # The rest reuse a texture at whatever scale reads best on them.
-TRUE_SIZE = {"brick", "brick_n1", "brick_n2", "brick_n3", "boards", "carpet_living", "carpet_stash", "tiles",
+WORN_FLOORS = {"carpet_navy", "carpet_red", "carpet_grey", "carpet_council", "carpet_olive", "carpet_teal", "lino_check",
+               "lino_marble", "tiles_white", "tiles_slab", "boards_worn", "boards_old", "concrete_floor"}
+TRUE_SIZE = WORN_FLOORS | {"brick", "brick_n1", "brick_n2", "brick_n3", "boards", "carpet_living", "carpet_stash", "tiles",
              "tarmac", "tarmac_alley", "paving", "patio", "concrete", "grass", "soil", "fence", "slate"}
 
 

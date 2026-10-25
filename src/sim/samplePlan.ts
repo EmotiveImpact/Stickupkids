@@ -15,13 +15,13 @@ const wp = (x: number, y: number, hold: GoCode | null = null, kick = false): Way
 export function samplePlans(): Waypoint[][] {
   return [
     // 1 Dex, Muscle: living room cash.
-    [wp(10, 22), wp(13, 20, 'A'), wp(12, 16), wp(9, 16), wp(6, 14), wp(6, 16), wp(12, 17), wp(12, 20), wp(3, 22)],
+    [wp(10, 22), wp(13, 20, 'A'), wp(12, 16), wp(10, 16), wp(8, 15), wp(8, 16), wp(12, 17), wp(12, 20), wp(3, 22)],
     // 2 Kemi, Creeper: front door, back bedroom bag.
     [wp(11, 23), wp(12, 20), wp(12, 17), wp(12, 11), wp(7, 11), wp(12, 12), wp(12, 20), wp(2, 23)],
     // 3 Jojo, Lookout: side passage, eyes on the kitchen.
-    [wp(14, 22), wp(27, 20), wp(27, 13, 'B'), wp(27, 20), wp(5, 22)],
+    [wp(14, 22), wp(22, 20), wp(22, 13, 'B'), wp(22, 20), wp(5, 22)],
     // 4 Taz, Talker: dining room and kitchen product.
-    [wp(15, 23), wp(13, 21, 'A'), wp(13, 15), wp(16, 16), wp(21, 14), wp(21, 9), wp(21, 14), wp(15, 16), wp(13, 17), wp(13, 20), wp(4, 23)],
+    [wp(15, 23), wp(13, 21, 'A'), wp(13, 15), wp(15, 16), wp(18, 14), wp(17, 10), wp(18, 14), wp(15, 16), wp(13, 17), wp(13, 20), wp(4, 23)],
   ];
 }
 
@@ -60,13 +60,13 @@ export function aylesburyPlans(): Waypoint[][] {
   const back = [...out].reverse();
   return [
     // 1 Dex, Muscle: the landlord and the cash in the living room.
-    [wp(133, 50), ...out, wp(77, 50, 'A'), wp(74, 47), wp(74, 43), wp(70, 43), wp(68, 41), wp(74, 43), wp(74, 47), ...back, wp(133, 50)],
+    [wp(133, 50), ...out, wp(77, 50, 'A'), wp(75, 47), wp(75, 43), wp(73, 43), wp(71, 41), wp(75, 43), wp(75, 47), ...back, wp(133, 50)],
     // 2 Kemi, Creeper: front door, back bedroom bag.
-    [wp(133, 51), ...out, wp(75, 49), wp(74, 47), wp(74, 45), wp(75, 44), wp(78, 44), wp(80, 44), wp(75, 44), wp(74, 47), ...back, wp(133, 51)],
+    [wp(133, 51), ...out, wp(75, 49), wp(75, 47), wp(75, 45), wp(76, 44), wp(78, 44), wp(79, 44), wp(76, 44), wp(75, 47), ...back, wp(133, 51)],
     // 3 Jojo, Lookout: eyes on the walkway until B.
     [wp(133, 52), ...out, wp(84, 52, 'B'), ...back, wp(133, 52)],
     // 4 Taz, Talker: the door man, then the kitchen.
-    [wp(133, 53), ...out, wp(73, 50, 'A'), wp(74, 47), wp(75, 42), wp(78, 40), wp(81, 40), wp(75, 41), wp(74, 47), ...back, wp(133, 53)],
+    [wp(133, 53), ...out, wp(73, 50, 'A'), wp(75, 47), wp(76, 42), wp(78, 40), wp(80, 41), wp(76, 41), wp(75, 47), ...back, wp(133, 53)],
   ];
 }
 
@@ -176,9 +176,9 @@ export function trapPlans(): Waypoint[][] {
     // 2 Kemi: out of the back bedroom into the kitchen.
     [wp(8, 10), wp(12, 10), wp(15, 10), wp(16, 12), wp(16, 11)],
     // 3 Jojo: in the kitchen, facing the back door.
-    [wp(19, 11), wp(20, 12), wp(20, 11)],
+    [wp(17, 11), wp(18, 12), wp(18, 11)],
     // 4 Taz: through the living room into the hall beside Dex.
-    [wp(9, 14), wp(12, 16), wp(13, 11), wp(13, 12)],
+    [wp(9, 15), wp(12, 16), wp(13, 11), wp(13, 12)],
   ];
 }
 

@@ -47,6 +47,12 @@ L = json.load(open(os.path.join(HERE, "estate.json")))
 W, H = L["w"], L["h"]
 T = L["tiles"]
 ROOMS = L["rooms"]
+# The target house's shell (walls included) and the side passage east of it.
+HOUSE = (min(r["x0"] for r in ROOMS) - 1, min(r["y0"] for r in ROOMS) - 1,
+         max(r["x1"] for r in ROOMS) + 1, max(r["y1"] for r in ROOMS) + 1)
+_px = [x for x in range(HOUSE[2] + 1, L["w"]) if L["tiles"][HOUSE[1] + 3][x] == "p"]
+PASSAGE = (min(_px), max(_px))
+OPENINGS = [(x, y) for y, row in enumerate(L["tiles"]) for x, c in enumerate(row) if c == "O"]
 
 CUT = 1.5     # wall height in the game
 CEIL = 2.6    # ceiling height for the bake
@@ -106,7 +112,7 @@ def virtual_tile(x, y):
 
 
 def in_house(x, y):
-    return 4 <= x <= 25 and 7 <= y <= 19
+    return HOUSE[0] <= x <= HOUSE[2] and HOUSE[1] <= y <= HOUSE[3]
 
 
 def room_of(x, y):
@@ -143,7 +149,7 @@ def room_at_point(px, py):
     return "out"
 
 
-FLOOR_MAT = {"stash": "carpet_stash", "living": "carpet_living", "hall": "boards", "kitchen": "tiles", "dining": "boards"}
+FLOOR_MAT = {"stash": "carpet_navy", "living": "carpet_grey", "hall": "boards_old", "kitchen": "lino_check", "dining": "boards_worn"}
 PLASTER = {"stash": "plaster_stash", "living": "plaster_living", "hall": "plaster_hall", "kitchen": "plaster_kitchen", "dining": "plaster_dining"}
 
 
@@ -159,7 +165,7 @@ def ground_mat(px, py):
     if y <= 0 and y >= -1:
         return "tarmac_alley" if y == 0 else "concrete"
     if t == "p":
-        if 26 <= x <= 28 and 7 <= y <= 21:
+        if PASSAGE[0] <= x <= PASSAGE[1] and 7 <= y <= 21:
             return "concrete"
         if 12 <= x <= 13 and 20 <= y <= 21:
             return "patio"
@@ -173,7 +179,7 @@ def ground_mat(px, py):
     if t == "g":
         if 2 <= y <= 6:
             # Back gardens: patio by the house, a path to the back door.
-            if y == 6 and 15 <= x <= 24:
+            if y == 6 and 15 <= x <= HOUSE[2]:
                 return "patio"
             if x == 19 and 0 <= px:
                 return "patio"
@@ -181,7 +187,7 @@ def ground_mat(px, py):
                 return "patio"
             return "grass"
         if y == 20:
-            if 4 <= x <= 25:
+            if HOUSE[0] <= x <= HOUSE[2]:
                 return "gravel"
             return "grass" if (x // 5) % 2 else "gravel"
         if y < -1:
@@ -226,7 +232,7 @@ def build_ground():
 
 # =================================================================== walls
 R = 20
-HX0, HY0, HX1, HY1 = 4, 7, 26, 20
+HX0, HY0, HX1, HY1 = HOUSE[0], HOUSE[1], HOUSE[2] + 1, HOUSE[3] + 1
 NXP, NYP = (HX1 - HX0) * R, (HY1 - HY0) * R
 
 
@@ -235,7 +241,7 @@ def wall_like(x, y):
 
 
 def is_shell(x, y):
-    return x in (4, 25) or y in (7, 19)
+    return x in (HOUSE[0], HOUSE[2]) or y in (HOUSE[1], HOUSE[3])
 
 
 def solid_band(ch, b):
@@ -460,7 +466,7 @@ def build_openings(ch):
             else:
                 a0, a1 = run[0][1], run[-1][1] + 1
                 c = x + 0.5
-                outward = 1 if x == 25 else -1
+                outward = 1 if x == HOUSE[2] else -1
                 def box(u0, u1, z0, z1, d, m, off=0.0, geo=frames):
                     geo.aabb(BX(c + off) - d / 2, BY(u1), z0, BX(c + off) + d / 2, BY(u0), z1, m, bevel=0.006)
             # Frame: sill rail, jambs, mullions, transom, head (head above the cut).
@@ -482,7 +488,7 @@ def build_openings(ch):
             box(a0 - 0.05, a1 + 0.05, SILL - 0.03, SILL, 0.12, "frame_white", off=-outward * (t / 2 + 0.03), geo=sills)
 
     # Door architraves and leaves.
-    for d in L["doors"] + [{"x": 20, "y": 13, "axis": "h", "locked": False, "name": "Open doorway", "open": True}]:
+    for d in L["doors"] + [{"x": x, "y": y, "axis": "h", "locked": False, "name": "Open doorway", "open": True} for x, y in OPENINGS]:
         x, y = d["x"], d["y"]
         t = 0.3 if is_shell(x, y) else 0.2
         aw, ad = 0.07, 0.018
@@ -622,8 +628,8 @@ def build_neighbours():
     far_roof = Geo("far_roof")
     far_det = Geo("far_detail")
     lit = Geo("lit_windows")
-    terrace(body, roof, det, -24.0, 4.35, 19.65, 7.35, seed=3, lit=lit)
-    terrace(body, roof, det, 29.0, 54.0, 19.65, 7.35, seed=5, lit=lit)
+    terrace(body, roof, det, -24.0, HOUSE[0] + 0.35, 19.65, 7.35, seed=3, lit=lit)
+    terrace(body, roof, det, PASSAGE[1] + 1.0, 54.0, 19.65, 7.35, seed=5, lit=lit)
     # The terrace across the alley shows its back to us.
     terrace(far_body, far_roof, far_det, -24.0, 54.0, -7.0, -17.0, seed=9, lit=lit)
     return body, roof, det, far_body, far_roof, far_det, lit
@@ -675,7 +681,7 @@ def build_boundaries():
     for x in (14, 16):
         g.aabb(BX(x) - 0.08, BY(1.5) - 0.08, 0, BX(x) + 0.08, BY(1.5) + 0.08, 1.35, "fence", bevel=0.02)
     # Garden dividers.
-    for x in (0.5, 29.5):
+    for x in (0.5, HOUSE[0] - 0.5, HOUSE[2] + 0.5, PASSAGE[1] + 3.5):
         fence_run(g, x, 1.5, x, 7.35)
     for x in range(-25, -3, 5):
         fence_run(gf, x + 0.35, 1.5, x + 0.35, 7.35)
@@ -685,14 +691,14 @@ def build_boundaries():
     fence_run(gf, -24, -0.5, 54, -0.5, height=1.5)
     for x in range(-24, 54, 5):
         fence_run(gf, x, -7.0, x, -0.5, height=1.5)
-    # Front garden walls with railings: target gap at 12-13, side passage 26-28.
+    # Front garden walls with railings: target gap at 12-13, then the side passage.
     garden_wall(g, -3, 12, 21)
-    garden_wall(g, 14, 26, 21)
-    garden_wall(g, 29, 33, 21)
+    garden_wall(g, 14, PASSAGE[0], 21)
+    garden_wall(g, PASSAGE[1] + 1, 33, 21)
     garden_wall(gf, -24, -3, 21)
     garden_wall(gf, 33, 54, 21)
     # Little dividing walls between the front gardens.
-    for x in (3.5, -1.5, -6.5, 29.5, 34.5):
+    for x in (HOUSE[0] - 0.5, 0.5, -4.5, PASSAGE[1] + 1.5, PASSAGE[1] + 6.5, 34.5):
         gg = g if -3 < x < 33 else gf
         gg.aabb(BX(x) - 0.12, BY(21.4), 0, BX(x) + 0.12, BY(19.7), 0.62, "brick", bevel=0.01)
         gg.aabb(BX(x) - 0.15, BY(21.4), 0.62, BX(x) + 0.15, BY(19.7), 0.68, "sill", bevel=0.01)
@@ -1063,14 +1069,15 @@ def build_props(lamp_list):
         fns[p["kind"]](geo, extra, p)
     if DRESS:
         dress_clutter()
+        print(f"dressed with {dress.scatter(L, P, C_STATIC, random.Random(5), density=0.35, street=0.12)} more models")
 
     # Dressing that is not in the level data (never solid, kept out of the walkways).
-    # Living room: rug, floor lamp, beanbag.
-    g.aabb(BX(5.9), BY(18.0), 0, BX(7.9), BY(15.4), 0.012, "rug", bevel=0.004)
-    g.cyl(P(5.35, 18.62, 0), 0.14, 0.03, "metal_dark", segs=12)
-    g.cyl(P(5.35, 18.62, 0.03), 0.015, 1.25, "metal", segs=6)
-    g.cyl(P(5.35, 18.62, 1.18), 0.17, 0.26, "fabric_pillow", segs=14, r2=0.11)
-    extra.append(("floorlamp", P(5.35, 18.62, 1.3)))
+    # Living room: rug, floor lamp.
+    g.aabb(BX(7.4), BY(17.6), 0, BX(9.9), BY(15.2), 0.012, "rug", bevel=0.004)
+    g.cyl(P(7.3, 15.3, 0), 0.14, 0.03, "metal_dark", segs=12)
+    g.cyl(P(7.3, 15.3, 0.03), 0.015, 1.25, "metal", segs=6)
+    g.cyl(P(7.3, 15.3, 1.18), 0.17, 0.26, "fabric_pillow", segs=14, r2=0.11)
+    extra.append(("floorlamp", P(7.3, 15.3, 1.3)))
     # Hall: radiator, post on the mat, coats.
     g.aabb(BX(11.66), BY(15.9), 0.15, BX(11.72), BY(15.0), 0.7, "plastic_white", bevel=0.01)
     g.aabb(BX(12.2), BY(18.95), 0, BX(13.0), BY(18.45), 0.015, "fabric_chair")
@@ -1080,21 +1087,21 @@ def build_props(lamp_list):
         g.box(P(14.33, 17.2 + k * 0.28, 1.15), (0.08, 0.24, 0.55), "metal_dark" if k != 1 else "fabric_chair",
               bevel=0.04, seg=2, smooth=True)
     # Kitchen: pedal bin, washing basket.
-    g.cyl(P(18.35, 8.35, 0), 0.16, 0.5, "chrome", segs=14)
+    g.cyl(P(15.35, 9.35, 0), 0.16, 0.5, "chrome", segs=14)
     g.cyl(P(15.4, 12.6, 0), 0.25, 0.3, "plastic_white", segs=14, r2=0.27)
     # Stash room: gaming desk and screen, clothes on the floor.
     g.aabb(BX(9.55), BY(12.95), 0, BX(10.6), BY(11.9), 0.74, "plastic_black", bevel=0.01)
     g.box(P(10.35, 12.4, 0.74) + Vector((0, 0, 0.2)), (0.04, 0.62, 0.36), "plastic_black", bevel=0.01)
     e_geo.box(P(10.32, 12.4, 0.94), (0.005, 0.58, 0.32), "emit_screen")
     extra.append(("monitor", P(10.1, 12.4, 1.0)))
-    for k, (x, y) in enumerate(((7.2, 9.4), (8.3, 8.6), (6.0, 12.3))):
+    for k, (x, y) in enumerate(((7.4, 9.4), (8.3, 8.6), (7.6, 12.5))):
         g.box(P(x, y, 0.03), (0.5, 0.35, 0.06), "metal_dark" if k % 2 else "fabric_chair", bevel=0.03, seg=2, smooth=True, rot=k)
     # Back garden: rotary washing line, a trampoline next door, plant pots.
     g2 = ge
     g2.cyl(P(13.0, 4.0, 0), 0.025, 1.7, "metal", segs=6)
     for a in range(4):
         g2.cyl(P(13.0, 4.0, 1.65), 0.012, 1.0, "metal", segs=4, axis="X", rot=a * math.pi / 2 + 0.3)
-    for k, (x, y) in enumerate(((17.6, 6.4), (18.2, 6.5), (24.0, 6.4))):
+    for k, (x, y) in enumerate(((17.6, 6.4), (18.2, 6.5), (15.6, 6.4))):
         g2.cyl(P(x, y, 0), 0.18, 0.34, "plant_pot", segs=12, r2=0.14)
         g2.ico(P(x, y, 0.5), 0.22, "leaves", subdiv=1, noise=0.25, seed=60 + k)
     t = Geo("tramp")
@@ -1108,10 +1115,10 @@ def build_props(lamp_list):
     for k, (x, y) in enumerate(((10.5, 0.6), (10.9, 0.4), (24.3, 0.5))):
         ge.ico(P(x, y, 0.22), 0.28, "plastic_black", subdiv=2, scale=(1, 1, 0.9), noise=0.12, seed=70 + k)
     # Front garden: the bin is a level prop; add a bike chained to the railings.
-    ge.cyl(P(23.4, 20.7, 0.33), 0.32, 0.03, "tyre", segs=18, axis="Y")
-    ge.cyl(P(24.4, 20.7, 0.33), 0.32, 0.03, "tyre", segs=18, axis="Y")
-    ge.box(P(23.9, 20.7, 0.62), (0.95, 0.03, 0.04), "car_paint", rot=0, tilt=("Y", 0.3))
-    ge.box(P(23.7, 20.7, 0.48), (0.04, 0.03, 0.5), "car_paint", tilt=("Y", -0.3))
+    ge.cyl(P(9.4, 20.7, 0.33), 0.32, 0.03, "tyre", segs=18, axis="Y")
+    ge.cyl(P(10.4, 20.7, 0.33), 0.32, 0.03, "tyre", segs=18, axis="Y")
+    ge.box(P(9.9, 20.7, 0.62), (0.95, 0.03, 0.04), "car_paint", rot=0, tilt=("Y", 0.3))
+    ge.box(P(9.7, 20.7, 0.48), (0.04, 0.03, 0.5), "car_paint", tilt=("Y", -0.3))
     return g, ge, e_geo, extra
 
 
@@ -1129,7 +1136,7 @@ def centre(p):
 def real_sofa(g, e, p):
     x, y = centre(p)
     ph("sofa_03", x, y, face=p.get("facing", 0))
-    ph("side_table_01", x - 0.05, p["y"] - 0.35)
+    ph("side_table_01", p["x"] + p["w"] + 0.3, y)
 
 
 def real_armchair(g, e, p):
@@ -1174,27 +1181,26 @@ DRESSED = {"sofa": real_sofa, "armchair": real_armchair, "coffeeTable": real_cof
 def dress_clutter():
     """The mess that makes a room look lived in. Kept clear of doors and walkways."""
     # Front room: the console by the telly, a crate of games, a speaker.
-    ph("gaming_console", 5.75, 15.35, face=0, spin=0.3)
-    ph("plastic_crate_02", 10.45, 14.45, face=math.pi, spin=0.2)
-    ph("boombox", 10.5, 18.55, face=-math.pi / 2, spin=-0.5)
+    ph("gaming_console", 10.0, 14.35, face=0, spin=0.3)
+    ph("boombox", 10.55, 17.55, face=math.pi, spin=-0.5)
     # Kitchen: bleach and cleaner on the floor, crates of bottles, food on the side.
-    ph("bleach_bottle", 18.35, 8.3)
-    ph("multi_cleaner_bottle", 18.55, 8.25, spin=1.0)
-    ph("plastic_crate_01", 20.6, 8.35, spin=0.1)
-    ph("plastic_crate_01", 20.6, 8.35, z=0.26, spin=-0.25)
+    ph("bleach_bottle", 18.2, 8.3)
+    ph("multi_cleaner_bottle", 18.4, 8.25, spin=1.0)
+    ph("plastic_crate_01", 16.4, 12.6, spin=0.1)
+    ph("plastic_crate_01", 16.4, 12.6, z=0.26, spin=-0.25)
     ph("long_life_food", 16.0, 8.3, z=0.92)
     ph("wooden_cutting_board", 16.9, 8.4, z=0.92, spin=0.2)
-    ph("pot_enamel_01", 21.8, 8.4, z=0.92)
+    ph("pot_enamel_01", 19.5, 9.5, z=0.92)
     # Back bedroom (the stash): boxes, a crate, a toolbox, the bat on the floor.
     ph("plastic_crate_02", 7.7, 12.45, spin=-0.3)
     ph("metal_toolbox", 8.9, 12.6, spin=0.4)
-    ph("baseball_bat", 6.6, 11.75, tilt=(math.pi / 2, 0.0), spin=1.1)
-    ph("cardboard_box_01", 8.6, 8.4, spin=0.5)
+    ph("baseball_bat", 8.4, 11.8, tilt=(math.pi / 2, 0.0), spin=1.1)
+    ph("cardboard_box_01", 10.55, 9.3, spin=0.5)
     # Garden: compost bags, tyres, a barrel, a chair knocked over.
-    ph("compost_bags", 16.3, 2.7, face=math.pi / 2)
-    ph("old_tyre", 25.6, 3.0, tilt=(math.pi / 2, 0.0))
-    ph("old_tyre", 25.65, 3.0, z=0.16, tilt=(math.pi / 2, 0.0), spin=0.4)
-    ph("rusted_wheel_rim_01", 26.4, 3.7, tilt=(math.pi / 2, 0.0), spin=0.3)
+    ph("compost_bags", 15.6, 2.6, face=math.pi / 2)
+    ph("old_tyre", 6.6, 2.6, tilt=(math.pi / 2, 0.0))
+    ph("old_tyre", 6.65, 2.6, z=0.16, tilt=(math.pi / 2, 0.0), spin=0.4)
+    ph("rusted_wheel_rim_01", 7.3, 2.4, tilt=(math.pi / 2, 0.0), spin=0.3)
     ph("barrel_03", 27.3, 6.3)
     ph("plastic_crate_03", 11.6, 6.45, spin=0.3)
     ph("wooden_stool_01", 10.4, 3.3)
@@ -1226,11 +1232,11 @@ def build_lights(lamps, extra, van_front):
         add_light(f"street{k}", "POINT", p, "#ff9a3e", 380, radius=0.12)
         LIGHT_LOG.append(("street", tuple(p)))
     # Interiors.
-    for name, (x, y), col, power in (("hall", (12.9, 14.6), "#ffcf9e", 150), ("dining", (19.5, 16.0), "#ffd4a8", 130)):
+    for name, (x, y), col, power in (("hall", (12.9, 14.6), "#ffcf9e", 150), ("dining", (17.5, 16.0), "#ffd4a8", 130)):
         add_light(name, "POINT", P(x, y, 2.4), col, power, radius=0.08)
         LIGHT_LOG.append((name, tuple(P(x, y, 2.4))))
-    add_light("kitchen", "AREA", P(19.5, 10.3, 2.55), "#dfe8ff", 65, size=(1.4, 0.2))
-    LIGHT_LOG.append(("kitchen", tuple(P(19.5, 10.3, 2.4))))
+    add_light("kitchen", "AREA", P(17.2, 10.3, 2.55), "#dfe8ff", 65, size=(1.4, 0.2))
+    LIGHT_LOG.append(("kitchen", tuple(P(17.2, 10.3, 2.4))))
     add_light("porch", "POINT", P(12.5, 19.95, 2.2), "#ffd9a8", 40, radius=0.05)
     add_light("backdoor", "POINT", P(19.5, 7.0, 2.2), "#d8e4ff", 30, radius=0.05)
     for kind, p in extra:
@@ -1256,9 +1262,9 @@ def build_lights(lamps, extra, van_front):
 
 def build_blockers():
     b = Geo("ceiling_block")
-    b.aabb(BX(4.35), BY(19.65), CEIL, BX(25.65), BY(7.35), CEIL + 0.15, "ceiling")
+    b.aabb(BX(HOUSE[0] + 0.35), BY(HOUSE[3] + 0.65), CEIL, BX(HOUSE[2] + 0.65), BY(HOUSE[1] + 0.35), CEIL + 0.15, "ceiling")
     # Roof over the target house so no sky gets in.
-    b.aabb(BX(4.0), BY(19.9), EAVES, BX(26.0), BY(7.1), EAVES + 0.1, "slate")
+    b.aabb(BX(HOUSE[0]), BY(HOUSE[3] + 0.9), EAVES, BX(HOUSE[2] + 1.0), BY(HOUSE[1] + 0.1), EAVES + 0.1, "slate")
     return b
 
 

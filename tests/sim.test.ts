@@ -20,7 +20,7 @@ const STICKUPS = JOBS.filter((j) => (j.mode ?? 'stickup') === 'stickup');
 test('walls block sight, windows do not', () => {
   const g = new Grid(buildEstateHouse());
   // Through the kitchen side window from the side passage.
-  assert.equal(g.lineOfSight(27.5, 10.5, 22.5, 10.5), true);
+  assert.equal(g.lineOfSight(22.5, 10.5, 17.5, 10.5), true);
   // Through the wall between the kitchen and the hall.
   assert.equal(g.lineOfSight(16.5, 11.5, 12.5, 11.5), false);
   // Closed door blocks sight until opened.
@@ -31,8 +31,8 @@ test('walls block sight, windows do not', () => {
 
 test('dogs cannot path through shut doors, crew can', () => {
   const g = new Grid(buildEstateHouse());
-  assert.ok(g.findPath(19.5, 5.5, 19.5, 9.5, 'crew'));
-  assert.equal(g.findPath(19.5, 5.5, 19.5, 9.5, 'dog'), null);
+  assert.ok(g.findPath(19.5, 5.5, 18.5, 9.5, 'crew'));
+  assert.equal(g.findPath(19.5, 5.5, 18.5, 9.5, 'dog'), null);
 });
 
 test('every sample plan segment is reachable', () => {

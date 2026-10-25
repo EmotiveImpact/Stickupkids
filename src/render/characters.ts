@@ -20,8 +20,8 @@ import {
 } from './babylon.ts';
 import { MAX_LIGHTS, loadModel } from './estate.ts';
 
-/** The model is 1.78 m; a touch over life size reads better from above. */
-export const CHAR_SCALE = 1.12;
+/** The model is 1.78 m and shown at life size, so people stand a head under the 2 m doors. */
+export const CHAR_SCALE = 1.0;
 const FADE = 0.18;
 
 export type Weapon = 'pistol' | 'rifle' | 'shotgun' | 'smg';

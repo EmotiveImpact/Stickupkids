@@ -11,3 +11,16 @@ soil 1.921
 fence 1.284
 slate 1.376
 concrete 2.881
+carpet_navy 1.000
+carpet_red 1.000
+carpet_grey 1.200
+carpet_council 1.400
+carpet_olive 1.000
+carpet_teal 1.600
+lino_check 1.200
+lino_marble 1.200
+tiles_white 1.600
+tiles_slab 2.400
+boards_worn 1.600
+boards_old 1.600
+concrete_floor 2.400
