@@ -1,10 +1,10 @@
 """Cut the Kling clips into the black and white drill montage for the title screen.
 
 24 beats at 140 BPM (about 10.3 s), every cut on a beat. Effects are added per frame:
-black and white grade, slight fisheye, punch-in zoom on each beat, shake on the off beats,
+black and white grade, slight fisheye, (with --punch) a zoom thump on each beat and shake on the off beats,
 stutter repeats, a white flash on the feds hit, a whip blur into the run, grain and vignette.
 
-Usage: python3 drill_montage.py CLIPDIR OUT.mp4 [--caption]
+Usage: python3 drill_montage.py CLIPDIR OUT.mp4 [--caption] [--punch]
 CLIPDIR holds k-eyes, k-walk, k-stair, k-feds, k-run, k-door, k-roof, k-estate (.mp4).
 """
 import subprocess, sys, numpy as np
@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 clipdir, out = sys.argv[1], sys.argv[2]
 CAPTION = '--caption' in sys.argv
+PUNCH = '--punch' in sys.argv  # the zoom thump and shake on the beat; off by default (Edem found it annoying)
 W, H, FPS, BPM = 1280, 720, 30, 140
 BEAT = 60 / BPM
 
@@ -93,10 +94,10 @@ for f in range(N):
     gb = T / BEAT  # global beat position
     ph = gb - np.floor(gb)
     zoom = 1.0
-    if punch:
+    if PUNCH and punch:
         zoom += 0.07 * np.exp(-ph * 9)
     dx = dy = 0.0
-    if punch and int(gb) % 2 == 1:
+    if PUNCH and punch and int(gb) % 2 == 1:
         a = 14 * np.exp(-ph * 7)
         dx, dy = rng.normal(0, a), rng.normal(0, a * 0.6)
     L = grade(warp(img, zoom, dx, dy))
