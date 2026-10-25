@@ -38,6 +38,18 @@ WANTED = [
     "weed_plant_02", "CashRegister_01", "propane_tank", "metal_jerrycan", "plastic_jerrycan", "wooden_crate_02",
     "painted_wooden_chair_01", "plastic_bottle_gallon", "concrete_road_barrier_02", "WetFloorSign_01",
     "hand_truck", "plastic_broom", "korean_fire_extinguisher_01", "seeding_tray_01", "lightbulb_led",
+    # second sweep (25 Oct): more lived-in clutter and street kit
+    "trashbag", "throw_pillows_01", "rubber_boots", "wine_bottles_01", "plastic_container", "multi_cleaner_5_litre",
+    "russian_food_cans_01", "can_rusted", "security_camera_01", "security_camera_02", "water_manhole_cover",
+    "utility_box_01", "utility_box_02", "rollershutter_door", "rollershutter_window_01", "steel_frame_shelves_02",
+    "steel_frame_shelves_03", "modern_coffee_table_02", "mounted_fluorescent_lights", "power_box_01", "plunger",
+    "vintage_suitcase", "wicker_basket_01", "portable_generator", "office_notepads", "stationery_supplies", "gamepad",
+    "sledgehammer_01", "ammo_box", "medical_box", "painted_wooden_nightstand", "modern_wooden_cabinet",
+    "compost_bag_02", "cement_bag", "metal_jerrycan_green", "small_lpg_tank", "tool_cart",
+    "worn_metal_rack", "fire_hydrant", "modular_electric_cables", "modular_street_seating", "metal_stool_02",
+    "bar_chair_round_01", "hanging_industrial_lamp", "ceramic_pot", "planter_pot_clay",
+    "wooden_ladder", "binder_notebook", "clipboard", "hamburger_buns", "bananas", "lemon", "desk_lamp_arm_01", "lightbulb_01", "garden_sprinkler_01", "watering_can_metal_01", "rusted_wheel_rim_02",
+    "rusted_spade_01", "wooden_broom", "leather_cleaner_can", "cleaner_tin_01",
 ]
 
 

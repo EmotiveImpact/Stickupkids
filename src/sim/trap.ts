@@ -11,8 +11,8 @@ export function buildTrap(): Level {
   const doors = house.doors.map((d) => ({ ...d, locked: d.name === 'Front door' }));
   const loot: LootDef[] = [
     { id: 'bag', name: 'The stash bag in the back bedroom', x: 7.5, y: 11.5, value: 12000, time: 4, heavy: true },
-    { id: 'product', name: 'The food in the kitchen', x: 21.5, y: 9.5, value: 5500, time: 2.5, heavy: false },
-    { id: 'cash', name: "The P's on the coffee table", x: 6.5, y: 16.5, value: 4000, time: 2, heavy: false },
+    { id: 'product', name: 'The food in the kitchen', x: 17.5, y: 10.5, value: 5500, time: 2.5, heavy: false },
+    { id: 'cash', name: "The P's on the coffee table", x: 8.5, y: 16.5, value: 4000, time: 2, heavy: false },
   ];
   const man = (id: string, name: string, model: string, x: number, y: number, facing: number): EnemyDef => ({ id, kind: 'soldier', model, name, x, y, facing, patrol: [] });
   const N = -Math.PI / 2;
@@ -52,8 +52,8 @@ export function buildTrap(): Level {
     crewStarts: [
       { x: 12.5, y: 11.5 },
       { x: 8.5, y: 10.5 },
-      { x: 19.5, y: 11.5 },
-      { x: 9.5, y: 14.5 },
+      { x: 17.5, y: 11.5 },
+      { x: 9.5, y: 15.5 },
     ],
     waves,
     barricades: 2,

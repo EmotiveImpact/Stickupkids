@@ -230,6 +230,7 @@
    "id": "elder",
    "kind": "dealer",
    "model": "gang-leader",
+   "persona": "boss",
    "name": "Elder",
    "x": 99.5,
    "y": 124.5,
@@ -250,6 +251,7 @@
    "id": "minder",
    "kind": "soldier",
    "model": "gang-muscle-a",
+   "persona": "muscle",
    "name": "Minder",
    "x": 88.5,
    "y": 117.5,
@@ -361,6 +363,7 @@
    "id": "driver",
    "kind": "soldier",
    "model": "gang-muscle-a",
+   "persona": "muscle",
    "name": "Driver",
    "x": 91.5,
    "y": 15.5,
@@ -388,6 +391,16 @@
      "y": 9.5
     }
    ]
+  },
+  {
+   "id": "neighbour",
+   "kind": "civilian",
+   "model": "dealer",
+   "name": "Neighbour",
+   "x": 100.5,
+   "y": 18.5,
+   "facing": 3.141592653589793,
+   "patrol": []
   },
   {
    "id": "bmxYounger",

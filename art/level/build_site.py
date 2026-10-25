@@ -60,8 +60,8 @@ ZB = [0.0, SILL, CUT, HEAD, CEIL]
 # the job's own geometry (a function of the builder's geometry sets).
 SITES = {
     "aylesbury": {
-        # The estate's walkway and path lamps: warm white, not sodium.
-        "lamp": "#ffd8a8", "lamp_power": 850, "lamp_h": 5.0,
+        # The walkway and path lamps: sodium orange, like the intro.
+        "lamp": "#ff9a3c", "lamp_power": 850, "lamp_h": 5.0,
         "moon": ("#8aa2f0", 2.4), "sky": ("#1a2a55", 0.6),
         "wall_out": "panel",
         # Storeys above the ground floor, for the bake's shade and the far blocks.
@@ -71,14 +71,14 @@ SITES = {
             "kitchen": ("#a9b8cc", ("#e8f0ff", 110)), "stash": ("#9a86a6", None),
             "lobby": ("#9aa0a8", ("#dfe8ff", 160)), "bins": ("#7a7884", ("#dfe8ff", 30)),
         },
-        "floors": {"carpet": "carpet_living", "boards": "boards", "lino": "lino", "tiles": "tiles"},
-        "room_floor": {"stash": "carpet_stash"},
+        "floors": {"carpet": "carpet_council", "boards": "boards_old", "lino": "lino_marble", "tiles": "tiles_white"},
+        "room_floor": {"stash": "carpet_red", "lobby": "tiles_slab", "bins": "concrete_floor"},
         "paved": "paving",
         "car_paint": "car_paint2",
     },
     "elephant": {
         # The lane's lamps are old sodium heads; the footpath has the same.
-        "lamp": "#ffb070", "lamp_power": 750, "lamp_h": 5.5,
+        "lamp": "#ff9a3c", "lamp_power": 750, "lamp_h": 5.5,
         "moon": ("#8aa2f0", 2.2), "sky": ("#1a2a55", 0.55),
         "wall_out": "brick_viaduct",
         "x_height": 7.0, "far_height": 15.0,
@@ -86,7 +86,7 @@ SITES = {
             "office": ("#a8a098", ("#ffe0b0", 90)),
             "grow": ("#d8dce4", ("#ffc8f0", 260)),
         },
-        "floors": {"lino": "lino", "tiles": "concrete"},
+        "floors": {"lino": "lino_marble", "tiles": "concrete_floor"},
         "room_floor": {},
         "paved": "paving",
         "car_paint": "car_paint",
@@ -96,7 +96,7 @@ SITES = {
     },
     "brixton": {
         # White LED heads on the avenue and Coldharbour Lane.
-        "lamp": "#ffe4c4", "lamp_power": 800, "lamp_h": 6.0,
+        "lamp": "#ff9a3c", "lamp_power": 800, "lamp_h": 6.0,
         "moon": ("#8aa2f0", 2.3), "sky": ("#1a2a55", 0.55),
         "wall_out": "brick",
         "x_height": 9.0, "far_height": 12.0,
@@ -105,28 +105,28 @@ SITES = {
             "back": ("#8c7c94", ("#ffc890", 55)), "row": ("#b0aca4", None), "row2": ("#b0aca4", None),
             "passage": ("#8e8a90", ("#dfe8ff", 30)),
         },
-        "floors": {"lino": "lino", "boards": "boards", "tiles": "tiles"},
-        "room_floor": {},
+        "floors": {"lino": "lino_check", "boards": "boards_worn", "tiles": "tiles_slab"},
+        "room_floor": {"stock": "concrete_floor", "back": "carpet_olive"},
         "paved": "paving",
         "car_paint": "car_paint2",
         "extra": "brixton",
     },
     "peckham": {
         # White LED heads on Cerise Road and the railway path.
-        "lamp": "#ffe8d0", "lamp_power": 800, "lamp_h": 6.0,
+        "lamp": "#ff9a3c", "lamp_power": 800, "lamp_h": 6.0,
         "moon": ("#8aa2f0", 2.4), "sky": ("#1a2a55", 0.6),
         "wall_out": "concrete",
         "x_height": 9.0, "far_height": 12.0,
         "rooms": {"deck": ("#9c9ca6", None), "deck2": ("#9c9ca6", None), "deck3": ("#9c9ca6", None), "stairs": ("#8a8a96", ("#dfe8ff", 45))},
-        "floors": {"tiles": "concrete"},
+        "floors": {"tiles": "concrete_floor"},
         "room_floor": {},
         "paved": "paving",
         "car_paint": "car_paint",
         "extra": "peckham",
     },
     "brockwell": {
-        # Old park lamps on the paths, warm white.
-        "lamp": "#ffdcb0", "lamp_power": 750, "lamp_h": 5.0,
+        # Old park lamps on the paths, sodium orange.
+        "lamp": "#ff9a3c", "lamp_power": 750, "lamp_h": 5.0,
         "moon": ("#8aa2f0", 2.4), "sky": ("#1a2a55", 0.6),
         "wall_out": "brick",
         "x_height": 4.0, "far_height": 10.0,
@@ -134,8 +134,8 @@ SITES = {
             "cafe": ("#d8d0c0", ("#ffe4b8", 120)), "store": ("#b0a8a0", ("#ffd8a8", 50)),
             "plant": ("#9aa4ac", ("#dfe8ff", 60)),
         },
-        "floors": {"tiles": "tiles", "lino": "lino"},
-        "room_floor": {},
+        "floors": {"tiles": "tiles_white", "lino": "lino_marble"},
+        "room_floor": {"store": "concrete_floor", "plant": "tiles_slab"},
         "paved": "paving",
         "car_paint": "car_paint2",
         "extra": "brockwell",

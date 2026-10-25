@@ -12,7 +12,7 @@ import { mulberry32 } from './sim.ts';
 /** The middle block's ground floor: west and east ends, north and south faces. */
 export const BLOCK = { x0: 46, x1: 117, y0: 38, y1: 46 };
 /** The stash flat inside it. */
-export const FLAT = { x0: 66, x1: 84 };
+export const FLAT = { x0: 69, x1: 83 };
 
 export function buildAylesbury(): Level {
   const h = GROUND.length;
@@ -35,16 +35,17 @@ export function buildAylesbury(): Level {
   fill(58, by0, 61, by1, 'p');
 
   // The stash flat: living room west, hall, kitchen and back bedroom east.
+  // Rooms are about 1.2 times a real council maisonette's.
   const { x0: fx0, x1: fx1 } = FLAT;
   fill(fx0, by0, fx1, by1, '#');
   fill(fx0 + 1, by0 + 1, fx1 - 1, by1 - 1, '.');
-  fill(73, by0 + 1, 73, by1 - 1, '#');
-  fill(76, by0 + 1, 76, by1 - 1, '#');
-  fill(77, 42, fx1 - 1, 42, '#');
+  fill(74, by0 + 1, 74, by1 - 1, '#');
+  fill(77, by0 + 1, 77, by1 - 1, '#');
+  fill(78, 42, fx1 - 1, 42, '#');
   for (const [x, y] of [
-    [68, by1], [69, by1], [70, by1], [71, by1],
+    [70, by1], [71, by1], [72, by1], [73, by1],
     [79, by1], [80, by1], [81, by1],
-    [68, by0], [69, by0], [77, by0], [78, by0],
+    [71, by0], [72, by0], [78, by0], [79, by0],
   ]) set(x, y, 'W');
 
   // The stair lobby east of the flat: through from the walkway to the back.
@@ -62,11 +63,11 @@ export function buildAylesbury(): Level {
   fill(49, 48, 52, 49, '.');
 
   const doors: DoorDef[] = [
-    { x: 74, y: by1, locked: true, axis: 'h', name: 'Front door' },
+    { x: 75, y: by1, locked: true, axis: 'h', name: 'Front door' },
     { x: 80, y: by0, locked: false, axis: 'h', name: 'Back door' },
-    { x: 73, y: 43, locked: false, axis: 'v', name: 'Living room' },
-    { x: 76, y: 40, locked: false, axis: 'v', name: 'Kitchen' },
-    { x: 76, y: 44, locked: true, axis: 'v', name: 'Back bedroom' },
+    { x: 74, y: 43, locked: false, axis: 'v', name: 'Living room' },
+    { x: 77, y: 40, locked: false, axis: 'v', name: 'Kitchen' },
+    { x: 77, y: 44, locked: true, axis: 'v', name: 'Back bedroom' },
     { x: 88, y: by1, locked: false, axis: 'h', name: 'Lobby door' },
     { x: 88, y: by0, locked: false, axis: 'h', name: 'Lobby back door' },
     { x: 75, y: 34, locked: false, axis: 'h', name: 'Yard gate' },
@@ -75,27 +76,27 @@ export function buildAylesbury(): Level {
   for (const d of doors) set(d.x, d.y, 'D');
 
   const rooms: Room[] = [
-    { id: 'living', name: 'Living room', x0: 67, y0: 39, x1: 72, y1: 45, floor: 'carpet' },
-    { id: 'hall', name: 'Hall', x0: 74, y0: 39, x1: 75, y1: 45, floor: 'boards' },
-    { id: 'kitchen', name: 'Kitchen', x0: 77, y0: 39, x1: 83, y1: 41, floor: 'lino' },
-    { id: 'stash', name: 'Back bedroom', x0: 77, y0: 43, x1: 83, y1: 45, floor: 'carpet' },
+    { id: 'living', name: 'Living room', x0: 70, y0: 39, x1: 73, y1: 45, floor: 'carpet' },
+    { id: 'hall', name: 'Hall', x0: 75, y0: 39, x1: 76, y1: 45, floor: 'boards' },
+    { id: 'kitchen', name: 'Kitchen', x0: 78, y0: 39, x1: 82, y1: 41, floor: 'lino' },
+    { id: 'stash', name: 'Back bedroom', x0: 78, y0: 43, x1: 82, y1: 45, floor: 'carpet' },
     { id: 'lobby', name: 'Stair lobby', x0: 87, y0: 39, x1: 89, y1: 45, floor: 'lino' },
     { id: 'bins', name: 'Bin store', x0: 49, y0: 48, x1: 52, y1: 49, floor: 'lino' },
   ];
 
   const props: PropDef[] = [
     // Living room.
-    { kind: 'tv', x: 67, y: 40, w: 1, h: 3, facing: 0, solid: true },
-    { kind: 'sofa', x: 70, y: 40, w: 1, h: 3, facing: Math.PI, solid: true },
-    { kind: 'coffeeTable', x: 68, y: 41, w: 1, h: 1 },
-    { kind: 'armchair', x: 71, y: 44, w: 1, h: 1, facing: -Math.PI / 2, solid: true },
+    { kind: 'tv', x: 70, y: 40, w: 1, h: 3, facing: 0, solid: true },
+    { kind: 'sofa', x: 73, y: 40, w: 1, h: 3, facing: Math.PI, solid: true },
+    { kind: 'coffeeTable', x: 71, y: 41, w: 1, h: 1 },
+    { kind: 'armchair', x: 72, y: 45, w: 1, h: 1, facing: -Math.PI / 2, solid: true },
     // Kitchen: counters on the north wall, the fridge in the corner, a table.
     { kind: 'counter', x: 79, y: 39, w: 3, h: 1, facing: Math.PI / 2, solid: true },
-    { kind: 'fridge', x: 83, y: 39, w: 1, h: 1, facing: Math.PI, solid: true },
+    { kind: 'fridge', x: 82, y: 39, w: 1, h: 1, facing: Math.PI, solid: true },
     { kind: 'table', x: 80, y: 40, w: 2, h: 1 },
     // Back bedroom.
-    { kind: 'bed', x: 82, y: 43, w: 2, h: 3, solid: true },
-    { kind: 'shelves', x: 77, y: 45, w: 2, h: 1, facing: -Math.PI / 2, solid: true },
+    { kind: 'bed', x: 81, y: 43, w: 2, h: 3, solid: true },
+    { kind: 'shelves', x: 78, y: 45, w: 2, h: 1, facing: -Math.PI / 2, solid: true },
     // Lobby: the stairs up to the decks.
     { kind: 'stairs', x: 87, y: 40, w: 1, h: 4, solid: true },
     // The yard: bins and a dumped washing machine.
@@ -155,7 +156,7 @@ export function buildAylesbury(): Level {
   const solid = solidMask(w, h, props);
 
   const loot: LootDef[] = [
-    { id: 'cash', name: 'Cash on the coffee table', x: 68.5, y: 41.5, value: 4500, time: 2, heavy: false },
+    { id: 'cash', name: 'Cash on the coffee table', x: 71.5, y: 41.5, value: 4500, time: 2, heavy: false },
     { id: 'product', name: 'The re-up on the kitchen table', x: 80.5, y: 40.5, value: 5000, time: 2.5, heavy: false },
     { id: 'bag', name: 'The stash bag', x: 79.5, y: 44.5, value: 14000, time: 4, heavy: true },
     { id: 'product2', name: 'More in the car boot', x: 69.5, y: 31.5, value: 3500, time: 2.5, heavy: false },
@@ -164,7 +165,7 @@ export function buildAylesbury(): Level {
   const loop = (...pts: [number, number][]) => pts.map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 }));
   const enemies: EnemyDef[] = [
     // In the flat.
-    { id: 'dealer', kind: 'dealer', model: 'gang-leader', name: 'Landlord', x: 70.5, y: 41.5, facing: Math.PI, patrol: [] },
+    { id: 'dealer', kind: 'dealer', model: 'gang-leader', name: 'Landlord', x: 72.5, y: 41.5, facing: Math.PI, patrol: [] },
     { id: 'hall', kind: 'soldier', model: 'gang-muscle-a', name: 'Door', x: 75.5, y: 39.5, facing: -Math.PI / 2, patrol: [] },
     { id: 'cook', kind: 'runner', model: 'gang-runner', name: 'Cook', x: 81.5, y: 41.5, facing: -Math.PI / 2, patrol: [] },
     // The dog in the yard.
@@ -189,10 +190,10 @@ export function buildAylesbury(): Level {
 
   const lights: LightDef[] = [
     ...lamps.map((l) => ({ kind: 'street' as const, x: l.x + 0.5, y: l.y + 0.5 })),
-    { kind: 'tv', x: 67.7, y: 41.5 },
-    { kind: 'fridge', x: 83.4, y: 39.6 },
+    { kind: 'tv', x: 70.7, y: 41.5 },
+    { kind: 'fridge', x: 82.4, y: 39.6 },
     { kind: 'ceiling', x: 88.5, y: 42.5 },
-    { kind: 'ceiling', x: 74.8, y: 42 },
+    { kind: 'ceiling', x: 75.8, y: 42 },
     { kind: 'car', x: 74, y: 32 },
     { kind: 'van', x: 137, y: 49.5 },
   ];

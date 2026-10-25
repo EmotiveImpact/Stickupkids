@@ -170,20 +170,23 @@ def materials():
 # so the middle of a room and every doorway stay clear for the crew.
 KITS = {
     "living": ["plastic_crate_02", "boombox", "cardboard_box_01", "side_table_01", "plastic_monobloc_chair_01",
-               "spray_paint_bottles_02", "Ottoman_01"],
+               "spray_paint_bottles_02", "Ottoman_01", "trashbag", "painted_wooden_nightstand", "modern_wooden_cabinet",
+               "wicker_basket_01"],
     "kitchen": ["bleach_bottle", "multi_cleaner_bottle", "plastic_crate_01", "plastic_bottle_gallon", "plastic_jerrycan",
                 "cardboard_box_01", "plastic_broom"],
     "stash": ["cardboard_box_01", "plastic_crate_02", "metal_toolbox", "baseball_bat", "machete", "wooden_crate_02",
-              "plastic_crate_03"],
+              "plastic_crate_03", "ammo_box", "sledgehammer_01", "vintage_suitcase", "painted_wooden_nightstand", "trashbag"],
     "hall": ["cardboard_box_01", "plastic_broom", "plastic_crate_01"],
     "lobby": ["cardboard_box_01", "WetFloorSign_01", "plastic_broom", "metal_trash_can"],
     "bins": ["metal_trash_can", "cardboard_box_01", "plastic_crate_03", "old_tyre"],
     "office": ["cardboard_box_01", "plastic_monobloc_chair_01", "metal_toolbox", "plastic_crate_02", "propane_tank",
                "korean_fire_extinguisher_01"],
     "grow": ["compost_bags", "plastic_crate_03", "seeding_tray_01", "plastic_jerrycan", "barrel_03", "plastic_bottle_gallon",
-             "wooden_stool_01", "propane_tank", "hand_truck"],
+             "wooden_stool_01", "propane_tank", "hand_truck", "portable_generator", "compost_bag_02", "watering_can_metal_01",
+             "steel_frame_shelves_02", "small_lpg_tank"],
     "shop": ["cardboard_box_01", "plastic_crate_02", "WetFloorSign_01", "plastic_monobloc_chair_01"],
-    "stock": ["cardboard_box_01", "wooden_crate_02", "plastic_crate_01", "hand_truck", "plastic_crate_03"],
+    "stock": ["cardboard_box_01", "wooden_crate_02", "plastic_crate_01", "hand_truck", "plastic_crate_03",
+              "steel_frame_shelves_03", "worn_metal_rack", "russian_food_cans_01", "trashbag"],
     "back": ["cardboard_box_01", "plastic_monobloc_chair_01", "metal_toolbox", "baseball_bat", "plastic_crate_02"],
     "row": ["cardboard_box_01", "wooden_crate_02", "plastic_crate_03", "metal_trash_can"],
     "passage": ["cardboard_box_01", "metal_trash_can", "old_tyre", "spray_paint_bottles_02"],
@@ -195,8 +198,22 @@ KITS = {
     "plant": ["metal_toolbox", "propane_tank", "plastic_jerrycan", "barrel_03", "korean_fire_extinguisher_01", "hand_truck"],
     "kiln": ["cardboard_box_01", "plastic_crate_03", "metal_trash_can", "old_tyre", "barrel_03"],
     "street": ["cardboard_box_01", "old_tyre", "plastic_crate_03", "metal_trash_can", "spray_paint_bottles_02",
-               "rusted_wheel_rim_01", "street_rat"],
+               "rusted_wheel_rim_01", "street_rat", "trashbag", "trashbag", "utility_box_01", "power_box_01", "can_rusted"],
 }
+# Small things dropped anywhere on a room's floor, not just along the walls.
+MESS = {
+    "home": ["trashbag", "throw_pillows_01", "rubber_boots", "wine_bottles_01", "cigarette_pack", "can_rusted",
+             "russian_food_cans_01", "gamepad", "office_notepads", "plastic_bottle_gallon", "vintage_suitcase",
+             "wicker_basket_01", "hamburger_buns"],
+    "work": ["trashbag", "can_rusted", "plastic_container", "multi_cleaner_5_litre", "cardboard_box_01",
+             "plastic_bottle_gallon", "cement_bag", "metal_jerrycan_green"],
+    "street": ["trashbag", "trashbag", "can_rusted", "cardboard_box_01", "plastic_crate_03"],
+}
+MESS_OF = {"living": "home", "kitchen": "home", "stash": "home", "hall": "home", "back": "home",
+           "office": "work", "grow": "work", "shop": "work", "stock": "work", "store": "work", "plant": "work",
+           "cafe": "work", "kiln": "work", "lobby": "street", "bins": "street", "row": "street", "passage": "street",
+           "deck": "street", "stairs": "street"}
+
 STACKS = {"cardboard_box_01", "plastic_crate_01", "plastic_crate_02", "plastic_crate_03", "wooden_crate_02"}
 LIE = {"baseball_bat", "machete", "old_tyre", "rusted_wheel_rim_01"}
 WALLS = set("#WX")
@@ -207,7 +224,7 @@ def kit_for(room_id):
     return KITS.get(base) or KITS.get(room_id.split("_")[0])
 
 
-def scatter(L, P, coll, rng, density=0.4, street=0.08, street_pad=6):
+def scatter(L, P, coll, rng, density=0.75, street=0.18, street_pad=6, mess=0.22):
     """Litter every room of level `L` (its JSON) along the walls, and the
     ground round the job's building. Returns how many things went down."""
     T, W, H = L["tiles"], L["w"], L["h"]
@@ -270,6 +287,16 @@ def scatter(L, P, coll, rng, density=0.4, street=0.08, street_pad=6):
                 if d and rng.random() < density:
                     drop(x, y, kit, d)
                     block(x, y, 0)
+        # Then the mess in the middle: small enough to step round, never on a door or a person.
+        junk = MESS.get(MESS_OF.get(r["id"].rstrip("0123456789"), "home"))
+        for y in range(r["y0"], r["y1"] + 1):
+            for x in range(r["x0"], r["x1"] + 1):
+                if ch(x, y) != "." or (x, y) in blocked or rng.random() >= mess:
+                    continue
+                asset = rng.choice(junk)
+                place(asset, P(x + rng.uniform(0.25, 0.75), y + rng.uniform(0.25, 0.75)), face=rng.uniform(0, 2 * math.pi),
+                      coll=coll, spin=0.0)
+                n += 1
     # Outside: the pavement and yards hugging the job's own building.
     shell = [(x, y) for y in range(H) for x in range(W) if ch(x, y) in "#W"]
     if shell and street > 0:
