@@ -89,12 +89,15 @@ uniform float depthRange;
 uniform sampler2D torchSampler;
 uniform float dark;
 uniform float paint;
+// 0: seen rooms stay dim and grey between torch beams. 1: a room the crew
+// have seen is lit enough to read its floor, furniture and mess (Door Kickers 2).
+uniform float seenLift;
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // The deck's grade: a cold, wet night. Blues and violets wash out to a dark
 // teal-grey; sodium and orange keep their colour; blacks sit just off black.
 // In the raid it goes further, to near black and white: only red (the
 // opposition, tail lights) keeps its colour, sodium keeps a little.
-vec3 grade(vec3 c) {
+vec3 grade(vec3 c, float dark) {
   float l = luma(c);
   float warm = smoothstep(0.03, 0.22, c.r - c.b) * smoothstep(-0.05, 0.12, c.r - c.g);
   float red = smoothstep(0.5, 0.25, c.g / max(c.r, 0.0001)) * smoothstep(0.05, 0.2, c.r - c.b);
@@ -151,21 +154,24 @@ float torchAt(vec2 uv) {
 float depthAt(vec2 uv) { return texture2D(depthSampler, uv).r * depthRange; }
 void main(void) {
   vec3 src = clamp(texture2D(textureSampler, vUV).rgb, 0.0, 1.0);
-  if (paint > 0.001) src = mix(src, kuwahara(vUV, 1.5), paint);
-  vec3 col = grade(src);
+  // The mask: 0 never seen, about 0.3 seen before, up to 1 in a beam now.
+  float m = dark > 0.001 ? torchAt(vUV) : 0.0;
+  float known = smoothstep(0.04, 0.24, m);
+  float lift = seenLift * known;
+  if (paint > 0.001) src = mix(src, kuwahara(vUV, 1.5), paint * (1.0 - 0.75 * lift));
+  vec3 col = grade(src, dark * (1.0 - 0.7 * lift));
   if (dark > 0.001) {
     // Outside the torch beams the night takes over; lamps, lit windows and
     // screens hold their own.
-    // The mask: 0 never seen, about 0.3 seen before, up to 1 in a beam now.
-    float m = torchAt(vUV);
-    float known = smoothstep(0.04, 0.24, m);
     float t = smoothstep(0.3, 0.9, m);
     // Lamps, lit windows and screens hold their own, but only where the crew have looked.
     float own = smoothstep(0.1, 0.42, luma(col)) * known;
-    float keep = max(max(known * 0.32, t), own);
+    float keep = max(max(known * mix(0.32, 0.85, seenLift), t), own);
     col *= mix(1.0, mix(0.045, 1.0, keep) * (1.0 + 0.9 * t), dark);
     // The beam itself, a cold white wash on whatever it falls on.
     col += vec3(0.82, 0.88, 1.0) * t * 0.06 * dark;
+    // A seen room opens up: shadows lifted so floors, furniture and mess read.
+    col = mix(col, pow(col, vec3(0.62)) * 1.12, lift * dark);
   }
   if (amount <= 0.001) { gl_FragColor = vec4(col, 1.0); return; }
   // The plan: the real scene, lifted and cooled to a monochrome you can read,
@@ -293,6 +299,8 @@ export class View {
   private torchMask: RenderTargetTexture;
   private torchMat: StandardMaterial;
   private darkAmount = 0;
+  /** How far a seen room lifts out of the dark in the raid (0 to 1); ?look=lit tries 1. */
+  seenLift = new URLSearchParams(location.search).get('look') === 'lit' ? 1 : 0;
   /** Fog of war: one pixel a cell, lit where the crew have seen, drawn into the torch mask as a dim floor. */
   private seenTex!: DynamicTexture;
   private seenGrid: Uint8Array = new Uint8Array(0);
@@ -429,11 +437,12 @@ export class View {
     tm.alpha = 0.999;
     tm.alphaMode = Constants.ALPHA_SCREENMODE;
     this.makeSeenFloor();
-    this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange', 'dark', 'paint'], ['depthSampler', 'torchSampler'], 1, this.cam);
+    this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange', 'dark', 'paint', 'seenLift'], ['depthSampler', 'torchSampler'], 1, this.cam);
     this.bp.onApply = (e) => {
       e.setTexture('torchSampler', torch);
       e.setFloat('dark', this.darkAmount);
       e.setFloat('paint', this.darkAmount * 0.8);
+      e.setFloat('seenLift', this.seenLift);
       e.setFloat('amount', this.bpAmount);
       e.setFloat2('screenSize', this.bp.width, this.bp.height);
       e.setTexture('depthSampler', depth.getDepthMap());
