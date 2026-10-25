@@ -163,3 +163,126 @@ def placed():
 
 def materials():
     return dict(_mats)
+
+
+# ------------------------------------------------------------ room scatter
+# What each kind of room is littered with. Things are placed along the walls,
+# so the middle of a room and every doorway stay clear for the crew.
+KITS = {
+    "living": ["plastic_crate_02", "boombox", "cardboard_box_01", "side_table_01", "plastic_monobloc_chair_01",
+               "spray_paint_bottles_02", "Ottoman_01"],
+    "kitchen": ["bleach_bottle", "multi_cleaner_bottle", "plastic_crate_01", "plastic_bottle_gallon", "plastic_jerrycan",
+                "cardboard_box_01", "plastic_broom"],
+    "stash": ["cardboard_box_01", "plastic_crate_02", "metal_toolbox", "baseball_bat", "machete", "wooden_crate_02",
+              "plastic_crate_03"],
+    "hall": ["cardboard_box_01", "plastic_broom", "plastic_crate_01"],
+    "lobby": ["cardboard_box_01", "WetFloorSign_01", "plastic_broom", "metal_trash_can"],
+    "bins": ["metal_trash_can", "cardboard_box_01", "plastic_crate_03", "old_tyre"],
+    "office": ["cardboard_box_01", "plastic_monobloc_chair_01", "metal_toolbox", "plastic_crate_02", "propane_tank",
+               "korean_fire_extinguisher_01"],
+    "grow": ["compost_bags", "plastic_crate_03", "seeding_tray_01", "plastic_jerrycan", "barrel_03", "plastic_bottle_gallon",
+             "wooden_stool_01", "propane_tank", "hand_truck"],
+    "shop": ["cardboard_box_01", "plastic_crate_02", "WetFloorSign_01", "plastic_monobloc_chair_01"],
+    "stock": ["cardboard_box_01", "wooden_crate_02", "plastic_crate_01", "hand_truck", "plastic_crate_03"],
+    "back": ["cardboard_box_01", "plastic_monobloc_chair_01", "metal_toolbox", "baseball_bat", "plastic_crate_02"],
+    "row": ["cardboard_box_01", "wooden_crate_02", "plastic_crate_03", "metal_trash_can"],
+    "passage": ["cardboard_box_01", "metal_trash_can", "old_tyre", "spray_paint_bottles_02"],
+    "deck": ["old_tyre", "rusted_wheel_rim_01", "cardboard_box_01", "concrete_road_barrier_02", "metal_trash_can",
+             "plastic_crate_03"],
+    "stairs": ["cardboard_box_01", "spray_paint_bottles_02", "street_rat"],
+    "cafe": ["plastic_monobloc_chair_01", "painted_wooden_chair_01", "cardboard_box_01", "plastic_crate_01", "WetFloorSign_01"],
+    "store": ["cardboard_box_01", "plastic_crate_01", "propane_tank", "plastic_bottle_gallon", "plastic_broom"],
+    "plant": ["metal_toolbox", "propane_tank", "plastic_jerrycan", "barrel_03", "korean_fire_extinguisher_01", "hand_truck"],
+    "kiln": ["cardboard_box_01", "plastic_crate_03", "metal_trash_can", "old_tyre", "barrel_03"],
+    "street": ["cardboard_box_01", "old_tyre", "plastic_crate_03", "metal_trash_can", "spray_paint_bottles_02",
+               "rusted_wheel_rim_01", "street_rat"],
+}
+STACKS = {"cardboard_box_01", "plastic_crate_01", "plastic_crate_02", "plastic_crate_03", "wooden_crate_02"}
+LIE = {"baseball_bat", "machete", "old_tyre", "rusted_wheel_rim_01"}
+WALLS = set("#WX")
+
+
+def kit_for(room_id):
+    base = room_id.rstrip("0123456789")
+    return KITS.get(base) or KITS.get(room_id.split("_")[0])
+
+
+def scatter(L, P, coll, rng, density=0.4, street=0.08, street_pad=6):
+    """Litter every room of level `L` (its JSON) along the walls, and the
+    ground round the job's building. Returns how many things went down."""
+    T, W, H = L["tiles"], L["w"], L["h"]
+
+    def ch(x, y):
+        return T[y][x] if 0 <= x < W and 0 <= y < H else "X"
+
+    blocked = set()
+
+    def block(x, y, r=1):
+        for dx in range(-r, r + 1):
+            for dy in range(-r, r + 1):
+                blocked.add((int(x) + dx, int(y) + dy))
+
+    for p in L["props"]:
+        for x in range(p["x"], p["x"] + p.get("w", 1)):
+            for y in range(p["y"], p["y"] + p.get("h", 1)):
+                block(x, y, 0)
+    for d in L["doors"]:
+        block(d["x"], d["y"], 1)
+    for k in ("loot", "enemies", "crewStarts"):
+        for e in L.get(k, []):
+            block(e["x"], e["y"], 1)
+    for y in range(H):
+        for x in range(W):
+            if ch(x, y) == "D":
+                block(x, y, 1)
+    n = 0
+
+    def drop(x, y, kit, faces):
+        nonlocal n
+        asset = rng.choice(kit)
+        (wx, wy) = faces
+        # Toward the wall, facing out into the room.
+        px, py = x + 0.5 + wx * 0.22, y + 0.5 + wy * 0.22
+        face = math.atan2(-wy, -wx)
+        tilt = (math.pi / 2, 0.0) if asset in LIE else (0.0, 0.0)
+        place(asset, P(px, py), face=face, coll=coll, tilt=tilt, spin=rng.uniform(-0.45, 0.45))
+        n += 1
+        if asset in STACKS and rng.random() < 0.4:
+            h = size(asset).z
+            place(asset, P(px, py, h), face=face, coll=coll, spin=rng.uniform(-0.5, 0.5))
+            n += 1
+
+    def wall_dir(x, y):
+        for wx, wy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            if ch(x + wx, y + wy) in WALLS:
+                return (wx, wy)
+        return None
+
+    rooms_at = set()
+    for r in L["rooms"]:
+        kit = kit_for(r["id"])
+        for y in range(r["y0"], r["y1"] + 1):
+            for x in range(r["x0"], r["x1"] + 1):
+                rooms_at.add((x, y))
+                if not kit or ch(x, y) != "." or (x, y) in blocked:
+                    continue
+                d = wall_dir(x, y)
+                if d and rng.random() < density:
+                    drop(x, y, kit, d)
+                    block(x, y, 0)
+    # Outside: the pavement and yards hugging the job's own building.
+    shell = [(x, y) for y in range(H) for x in range(W) if ch(x, y) in "#W"]
+    if shell and street > 0:
+        x0 = min(x for x, _ in shell) - street_pad
+        x1 = max(x for x, _ in shell) + street_pad
+        y0 = min(y for _, y in shell) - street_pad
+        y1 = max(y for _, y in shell) + street_pad
+        for y in range(max(0, y0), min(H, y1 + 1)):
+            for x in range(max(0, x0), min(W, x1 + 1)):
+                if (x, y) in rooms_at or (x, y) in blocked or ch(x, y) not in "pgb.":
+                    continue
+                d = wall_dir(x, y)
+                if d and rng.random() < street:
+                    drop(x, y, KITS["street"], d)
+                    block(x, y, 1)
+    return n
