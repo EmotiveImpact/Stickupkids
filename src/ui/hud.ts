@@ -12,6 +12,7 @@ import type { Job } from '../sim/jobs.ts';
 import { CREW, type Crew, type Outcome, type Sim, type Waypoint } from '../sim/sim.ts';
 import { BURGESS, MAP_H, MAP_W, PARKS, RIVER, ROADS, mapXY } from './cityMap.ts';
 import { ICONS } from './icons.ts';
+import { fit } from './viewport.ts';
 
 export interface HudHandlers {
   selectCrew(slot: number): void;
@@ -468,8 +469,8 @@ export class Hud {
   /** Tell the game how much of each edge the HUD takes, so the map is framed in what is left. */
   layout() {
     if (!this.mode || this.mode === 'results') return;
-    const W = innerWidth;
-    const H = innerHeight;
+    const W = fit.w;
+    const H = fit.h;
     const box = (e: Element) => e.getBoundingClientRect();
     const f = box(this.frame);
     const i: Insets = { left: f.left + 6, right: W - f.right + 6, top: f.top + 6, bottom: H - f.bottom + 6 };

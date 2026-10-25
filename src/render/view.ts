@@ -45,6 +45,7 @@ import { Atmosphere, dotTexture, glowTexture } from './atmosphere.ts';
 import { sprayTags } from './graffiti.ts';
 import { lightRooms } from './roomLight.ts';
 import { Marks } from './marks.ts';
+import { fit } from '../ui/viewport.ts';
 import { Constants } from '@babylonjs/core/Engines/constants';
 
 const OVERLAY = 0x10000000;
@@ -806,8 +807,8 @@ export class View {
     }
     const v = this.level.van;
     const p = this.toScreen((v.x0 + v.x1 + 1) / 2, (v.y0 + v.y1 + 1) / 2);
-    this.sirenUV.x = p.x / innerWidth;
-    this.sirenUV.y = 1 - p.y / innerHeight;
+    this.sirenUV.x = p.x / fit.w;
+    this.sirenUV.y = 1 - p.y / fit.h;
     // Two quick blue flashes, then red, about twice a second.
     const ph = (this.time * 2.1) % 1;
     const blue = ph < 0.12 || (ph > 0.22 && ph < 0.34) ? 1 : 0.4;
@@ -855,7 +856,7 @@ export class View {
   visibleRect(): { x0: number; y0: number; x1: number; y1: number } | null {
     const i = this.insets;
     const a = this.groundAt(i.left, i.top);
-    const b = this.groundAt(innerWidth - i.right, innerHeight - i.bottom);
+    const b = this.groundAt(fit.w - i.right, fit.h - i.bottom);
     if (!a || !b) return null;
     return { x0: a.x + this.level.w / 2, y0: this.level.h / 2 - a.z, x1: b.x + this.level.w / 2, y1: this.level.h / 2 - b.z };
   }

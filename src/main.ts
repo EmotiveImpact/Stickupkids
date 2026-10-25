@@ -11,6 +11,7 @@ import { Director } from './render/director.ts';
 import { ClipRecorder, saveFile } from './render/clip.ts';
 import { Hud, type ReplayAction } from './ui/hud.ts';
 import { Minimap } from './ui/minimap.ts';
+import { fit, watchFit } from './ui/viewport.ts';
 
 type Phase = 'title' | 'planning' | 'raid' | 'results' | 'replay';
 
@@ -84,7 +85,7 @@ function frameLevel() {
     const y1 = Math.max(...pts.map((p) => p.y)) + 10;
     // Fit it in what the HUD leaves clear (the story panel included).
     const i = view.getInsets();
-    const ppm = Math.min(28, Math.max(8, Math.min((innerWidth - i.left - i.right) / (x1 - x0), (innerHeight - i.top - i.bottom) / ((y1 - y0) * 0.81))));
+    const ppm = Math.min(28, Math.max(8, Math.min((fit.w - i.left - i.right) / (x1 - x0), (fit.h - i.top - i.bottom) / ((y1 - y0) * 0.81))));
     view.focus((x0 + x1) / 2, (y0 + y1) / 2, ppm);
     return;
   }
@@ -273,7 +274,7 @@ function watchLoading() {
         // ?zoom=2.5&at=0.3,0.6 zooms on a point given as a share of the screen (for close-up screenshots).
         if (q.get('zoom')) {
           const [fx, fy] = (q.get('at') ?? '0.5,0.5').split(',').map(Number);
-          view.zoomAt(innerWidth * fx, innerHeight * fy, Number(q.get('zoom')));
+          view.zoomAt(fit.w * fx, fit.h * fy, Number(q.get('zoom')));
         }
         // ?focus=90,115,30 centres on a map point at 30 pixels a metre (big levels).
         if (q.get('focus')) {
@@ -385,8 +386,8 @@ function followCrew(dt: number) {
   const ys = live.map((c) => c.y);
   const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
   const i = view.getInsets();
-  const w = innerWidth - i.left - i.right;
-  const h = innerHeight - i.top - i.bottom;
+  const w = fit.w - i.left - i.right;
+  const h = fit.h - i.top - i.bottom;
   // Room round the crew to see what they walk into; never so far out that people turn to specks.
   const ppm = Math.min(46, Math.max(26, Math.min(w / (x1 - x0 + 18), h / ((y1 - y0) * 0.81 + 13))));
   const k = 1 - Math.exp(-dt * 1.6);
@@ -760,7 +761,7 @@ function setHand(on: boolean) {
   hud.setHand(on);
   canvas.classList.toggle('hand', on);
   // A level that fits on screen has nowhere to go until you close in a little.
-  if (on && view.zoomLevel < 1.3) view.zoomAt(innerWidth / 2, innerHeight / 2, 1.6 / view.zoomLevel);
+  if (on && view.zoomLevel < 1.3) view.zoomAt(fit.w / 2, fit.h / 2, 1.6 / view.zoomLevel);
 }
 canvas.addEventListener('pointerdown', (e) => {
   // Middle-drag pans; with the hand, or in a replay, so does an ordinary drag.
@@ -788,8 +789,8 @@ window.addEventListener('keydown', (e) => {
     raidCamIdle = 0;
     view.panBy(PAN_KEYS[k][0] * 60, PAN_KEYS[k][1] * 60);
     e.preventDefault();
-  } else if (k === '=' || k === '+') view.zoomAt(innerWidth / 2, innerHeight / 2, 1.2);
-  else if (k === '-') view.zoomAt(innerWidth / 2, innerHeight / 2, 1 / 1.2);
+  } else if (k === '=' || k === '+') view.zoomAt(fit.w / 2, fit.h / 2, 1.2);
+  else if (k === '-') view.zoomAt(fit.w / 2, fit.h / 2, 1 / 1.2);
 });
 
 // -------------------------------------------------------------- main loop
@@ -933,6 +934,7 @@ else hud.showSplash(JOBS, job.id);
 view.setMode('planning');
 frameLevel();
 watchLoading();
+watchFit();
 
 // Hooks for headless tests and screenshots.
 const api = {
