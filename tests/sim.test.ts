@@ -397,8 +397,8 @@ test('ride out: the people they came for are known only from their posts, until 
     assert.equal(e.known, false, e.id);
     assert.ok(e.post && e.post.t < 0, `${e.id} has a post from before the job`);
   }
-  // The woman at the bus stop is not who they came for, and is seen on the plan.
-  assert.equal(sim.enemies.find((e) => e.id === 'busStop')!.known, true);
+  // Nobody else is known before the job either, the woman at the bus stop included.
+  assert.equal(sim.enemies.find((e) => e.id === 'busStop')!.known, false);
   // While Jojo is up the posts keep coming, from where they are now.
   const posts: string[] = [];
   const dt = 1 / 60;

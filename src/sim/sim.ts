@@ -492,8 +492,9 @@ export class Sim {
       fireCd: 0,
       doorT: 0,
       seen: false,
-      // Targets are only known from what they post, until someone sees them.
-      known: !(room && unscouted.includes(room.id)) && !d.story,
+      // Nobody's whereabouts are known before the job: the crew learn them by
+      // going in and seeing for themselves (targets also by what they post).
+      known: false,
       fov: s.fov,
       // On a ride out the people the crew came for are posted up and looking out.
       range: s.range * (this.mode === 'rideout' && d.target ? TARGET_SIGHT : 1),

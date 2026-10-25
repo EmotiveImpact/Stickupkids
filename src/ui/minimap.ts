@@ -120,7 +120,9 @@ export class Minimap {
       }
     };
     for (const e of sim.enemies) {
-      if (!e.known || e.state === 'gone') continue;
+      // Only who the crew can see now, and the bodies they have found.
+      const down = e.state === 'down' || e.state === 'subdued';
+      if (e.state === 'gone' || !(e.seen || (e.known && down))) continue;
       dot(e.x, e.y, 2.2, e.state === 'down' || e.state === 'subdued' ? '#5e5d59' : e.kind === 'civilian' ? '#e4ecff' : '#ff3b4e', true);
     }
     sim.crew.forEach((c, i) => {

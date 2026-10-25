@@ -228,6 +228,10 @@ interface Actor {
   tint?: string;
   last: Vec | null;
   speed: number;
+  /** Enemies: where the crew last had eyes on them, and how long ago. */
+  seenAt?: Vec & { t: number };
+  /** A faded marker left there once they are out of sight. */
+  ghost?: Mesh;
 }
 
 interface Fx {
@@ -1923,7 +1927,30 @@ export class View {
     if (sim !== this.marksFor) {
       this.marks.clear();
       this.marksFor = sim;
+      for (const a of this.enemies.values()) a.seenAt = undefined;
     }
+  }
+
+  /**
+   * Out of sight is not out of mind: a faint ring where the crew last saw
+   * someone, fading the longer it has been. Where they are now is anyone's guess.
+   */
+  private lastSeen(a: Actor, e: Enemy, planning: boolean, visible: boolean, dt: number) {
+    if (planning) a.seenAt = undefined;
+    else if (e.seen) a.seenAt = { x: e.x, y: e.y, t: 0 };
+    else if (a.seenAt) a.seenAt.t += dt;
+    const show = !!a.seenAt && !visible && e.state !== 'down' && e.state !== 'gone' && e.state !== 'subdued';
+    if (show && !a.ghost) {
+      const g = (a.ghost = MeshBuilder.CreateTorus('lastSeen', { diameter: e.kind === 'dog' ? 0.6 : 0.64, thickness: 0.035, tessellation: 40 }, this.scene));
+      g.material = mat(this.scene, PALETTE.enemy, { emissive: PALETTE.enemy, unlit: true, alpha: 0.5 });
+      g.isPickable = false;
+      this.toOverlay(g);
+    }
+    if (!a.ghost) return;
+    a.ghost.setEnabled(show);
+    if (!show) return;
+    a.ghost.position.set(this.co.X(a.seenAt!.x), 0.06, this.co.Z(a.seenAt!.y));
+    a.ghost.visibility = Math.max(0.25, 0.8 - a.seenAt!.t / 30);
   }
 
   private updateEnemy(a: Actor, e: Enemy, sim: Sim, dt: number) {
@@ -1932,6 +1959,7 @@ export class View {
     if (e.state === 'gone') visible = false;
     else if (planning) visible = e.known;
     else visible = this.reveal || e.seen || (e.known && (e.state === 'down' || e.state === 'subdued'));
+    this.lastSeen(a, e, planning, visible, dt);
     a.root.setEnabled(visible);
     a.light.setEnabled(visible);
     a.cone.setEnabled(visible && e.state !== 'down' && e.state !== 'subdued');
