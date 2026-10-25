@@ -52,7 +52,7 @@ export interface ReplayInfo {
 
 /** Menu art, made with ChatGPT (2560 by 1440 masters in /mnt/project-files/menu-art/), graded by art/grade_menu.py. */
 const TITLE_ART = 'menu/title-hero.jpg';
-/** The title montage: twelve Kling 3.0 shots (Sunra) cut on the beat at 140 BPM in black and white (art/title-loop/drill_montage.py). The poster is its first beat. */
+/** The title montage: nineteen Kling 3.0 shots (Sunra) cut on the beat at 140 BPM in black and white with red and blue lights kept (art/title-loop/drill_montage.py). The poster is its first beat. */
 const TITLE_MONTAGE = 'menu/title-montage';
 /** MP4 for Safari, WebM for browsers built without H.264. */
 const sources = (stem: string) => `<source src="${stem}.mp4" type="video/mp4"><source src="${stem}.webm" type="video/webm">`;
