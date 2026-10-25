@@ -1,5 +1,40 @@
 {
  "materials": {
+  "ph_korean_fire_extinguisher_01": {
+   "tex": "ph/ph_korean_fire_extinguisher_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_korean_fire_extinguisher_01_1": {
+   "tex": "ph/ph_korean_fire_extinguisher_01_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_korean_fire_extinguisher_01_2": {
+   "tex": "ph/ph_korean_fire_extinguisher_01_2",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_02": {
+   "tex": "ph/ph_plastic_crate_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_toolbox": {
+   "tex": "ph/ph_metal_toolbox",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
   "ph_propane_tank": {
    "tex": "ph/ph_propane_tank",
    "tint": "#ffffff",
@@ -7,22 +42,15 @@
    "rough": 0.5,
    "emissive": null
   },
-  "ph_compost_bags": {
-   "tex": "ph/ph_compost_bags",
+  "ph_small_lpg_tank": {
+   "tex": "ph/ph_small_lpg_tank",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_plastic_crate_03": {
-   "tex": "ph/ph_plastic_crate_03",
-   "tint": "#ffffff",
-   "size": 1.0,
-   "rough": 0.5,
-   "emissive": null
-  },
-  "ph_wooden_stool_01": {
-   "tex": "ph/ph_wooden_stool_01",
+  "ph_steel_frame_shelves_02": {
+   "tex": "ph/ph_steel_frame_shelves_02",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -35,22 +63,99 @@
    "rough": 0.5,
    "emissive": null
   },
-  "ph_plastic_jerrycan": {
-   "tex": "ph/ph_plastic_jerrycan",
+  "ph_compost_bag_02": {
+   "tex": "ph/ph_compost_bag_02",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_cardboard_box_01": {
-   "tex": "ph/ph_cardboard_box_01",
+  "ph_watering_can_metal_01": {
+   "tex": "ph/ph_watering_can_metal_01",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_rusted_wheel_rim_01": {
-   "tex": "ph/ph_rusted_wheel_rim_01",
+  "ph_compost_bags": {
+   "tex": "ph/ph_compost_bags",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_bottle_gallon": {
+   "tex": "ph/ph_plastic_bottle_gallon",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_trashbag": {
+   "tex": "ph/ph_trashbag",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can": {
+   "tex": "ph/ph_metal_trash_can",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_1": {
+   "tex": "ph/ph_metal_trash_can_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_2": {
+   "tex": "ph/ph_metal_trash_can_2",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_can_rusted": {
+   "tex": "ph/ph_can_rusted",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_spray_paint_bottles_02": {
+   "tex": "ph/ph_spray_paint_bottles_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_old_tyre": {
+   "tex": "ph/ph_old_tyre",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_utility_box_01": {
+   "tex": "ph/ph_utility_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_power_box_01": {
+   "tex": "ph/ph_power_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_street_rat": {
+   "tex": "ph/ph_street_rat",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -187,6 +292,97 @@
    "tint": "#b0a0c8",
    "size": 0.7,
    "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_navy": {
+   "tex": "carpet_navy",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_red": {
+   "tex": "carpet_red",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_grey": {
+   "tex": "carpet_grey",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_council": {
+   "tex": "carpet_council",
+   "tint": "#ffffff",
+   "size": 1.4,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_olive": {
+   "tex": "carpet_olive",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_teal": {
+   "tex": "carpet_teal",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "lino_check": {
+   "tex": "lino_check",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.45,
+   "emissive": null
+  },
+  "lino_marble": {
+   "tex": "lino_marble",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.45,
+   "emissive": null
+  },
+  "tiles_white": {
+   "tex": "tiles_white",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "tiles_slab": {
+   "tex": "tiles_slab",
+   "tint": "#ffffff",
+   "size": 2.4,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "boards_worn": {
+   "tex": "boards_worn",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "boards_old": {
+   "tex": "boards_old",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.65,
+   "emissive": null
+  },
+  "concrete_floor": {
+   "tex": "concrete_floor",
+   "tint": "#ffffff",
+   "size": 2.4,
+   "rough": 0.55,
    "emissive": null
   },
   "tarmac": {
@@ -759,7 +955,7 @@
    "size": 1.0,
    "rough": 0.3,
    "emissive": [
-    "#ffb070",
+    "#ff9a3c",
     22.0
    ]
   },
@@ -1063,9 +1259,9 @@
   }
  },
  "cut": 1.5,
- "lamp": "#ffb070",
+ "lamp": "#ff9a3c",
  "probe": {
-  "max": 1.1801506505737303,
+  "max": 1.168314455581665,
   "perUnit": 4
  }
 }
