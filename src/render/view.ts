@@ -299,8 +299,8 @@ export class View {
   private torchMask: RenderTargetTexture;
   private torchMat: StandardMaterial;
   private darkAmount = 0;
-  /** How far a seen room lifts out of the dark in the raid (0 to 1); ?look=lit tries 1. */
-  seenLift = new URLSearchParams(location.search).get('look') === 'lit' ? 1 : 0;
+  /** How far a seen room lifts out of the dark in the raid (0 to 1). Edem chose lit rooms (look B); ?look=dark shows the old look. */
+  seenLift = new URLSearchParams(location.search).get('look') === 'dark' ? 0 : 1;
   /** Fog of war: one pixel a cell, lit where the crew have seen, drawn into the torch mask as a dim floor. */
   private seenTex!: DynamicTexture;
   private seenGrid: Uint8Array = new Uint8Array(0);
