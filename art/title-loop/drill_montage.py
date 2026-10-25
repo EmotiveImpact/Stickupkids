@@ -1,6 +1,6 @@
 """Cut the Kling clips into the black and white drill montage for the title screen.
 
-55 beats at 140 BPM (about 24 s), every cut on a beat. London shots open, flash in between and give one breather. Effects are added per frame:
+58 beats at 140 BPM (about 25 s), every cut on a beat. London shots open, one flash and one held shot from above sit in between, and one breather. Effects are added per frame:
 black and white grade that keeps only red (tail lights) and blue (police lights) in colour, slight fisheye, (with --punch) a zoom thump on each beat and shake on the off beats,
 stutter repeats, a white flash on the feds hit, a whip blur into the run, grain and vignette.
 
@@ -40,7 +40,7 @@ SHOTS = [
     ('k-chill1', 2, 0.5, 1.0, True),
     ('k-eyes', 2, 0.6, 1.0, True),
     ('k-walk', 3, 0.2, lambda t: 0.45 * t if t < 2 * BEAT else 0.45 * 2 * BEAT + (t - 2 * BEAT), True),  # slow-mo, snaps to speed on beat 3
-    ('k-lestate', 1, 1.9, 1.0, True),  # flash from above as the red tail lights pull in
+    ('k-lestate', 4, 1.0, 1.0, False),  # from above, held so the red tail lights pull right in
     ('k-chill2', 2, 0.8, 1.0, True),
     ('k-stair', 2, 0.8, 1.0, True),
     ('k-door', 2, 0.5, 1.0, True),
@@ -60,7 +60,7 @@ SHOTS = [
     ('k-estate', 2, 0.6, 1.0, True),
     ('k-walk', 4, 0.85, 1.0, True),  # dips to black at the end so the loop meets the opener
 ]
-DRIFT = {'k-lskyline': 0.06, 'k-ltowers': 0.03, 'k-lriver': 0.05}  # slow push-in over the drawn-out London shots
+DRIFT = {'k-lskyline': 0.06, 'k-ltowers': 0.03, 'k-lestate': 0.05, 'k-lriver': 0.05}  # slow push-in over the drawn-out London shots
 
 def source_end(shot):
     _, beats, s0, speed, _ = shot
