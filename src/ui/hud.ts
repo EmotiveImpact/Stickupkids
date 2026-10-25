@@ -52,13 +52,8 @@ export interface ReplayInfo {
 
 /** Menu art, made with ChatGPT (2560 by 1440 masters in /mnt/project-files/menu-art/), graded by art/grade_menu.py. */
 const TITLE_ART = 'menu/title-hero.jpg';
-/** The title screen's crew, cut out of the pitch deck cover frame (the layer in front of the name). */
-const TITLE_CUT = 'menu/title-crew-cut.webp';
-/** The same street with the crew painted out (ChatGPT), and that plate animated into a 10 s loop (Sunra, Kling 3.0 Pro, first frame = last frame). */
-const TITLE_STREET = 'menu/street-empty.webp';
-const TITLE_LOOP = 'menu/street-loop';
-/** Rain alone, to lay over the crew cut-out (art/title-loop/make_loop.py --rain-only). */
-const TITLE_RAIN = 'menu/title-rain';
+/** The title montage: eight Kling 3.0 shots (Sunra) cut on the beat at 140 BPM in black and white (art/title-loop/drill_montage.py). The poster is its first beat. */
+const TITLE_MONTAGE = 'menu/title-montage';
 /** MP4 for Safari, WebM for browsers built without H.264. */
 const sources = (stem: string) => `<source src="${stem}.mp4" type="video/mp4"><source src="${stem}.webm" type="video/webm">`;
 /** Specks that scuff the name like a film poster, as a mask (set inline so the path is relative to the page). */
@@ -215,15 +210,13 @@ export class Hud {
 
   // ------------------------------------------------------------- modes
 
-  /** The title screen, in the pitch deck's look: the crew walk out in front of the name. A click or any key goes on to the job board. */
+  /** The title screen, in the pitch deck's look: the drill montage runs behind the name. A click or any key goes on to the job board. */
   showSplash(jobs: Job[], current: string) {
     this.overlay.className = 'overlay splash';
     this.overlay.innerHTML = `<div class="stage">
-        <video class="crew-bg" poster="${TITLE_STREET}" autoplay muted loop playsinline>${sources(TITLE_LOOP)}</video>
+        <video class="crew-bg" poster="${TITLE_MONTAGE}.webp" autoplay muted loop playsinline>${sources(TITLE_MONTAGE)}</video>
         <div class="fade-top"></div><div class="fade-bottom"></div>
         <h1 class="title-word" style="-webkit-mask-image:url(${GRIT});mask-image:url(${GRIT})">STICKUPKIDS</h1>
-        <img class="crew-cut" src="${TITLE_CUT}" alt="Four figures in balaclavas and puffer jackets walking towards you">
-        <video class="crew-rain" autoplay muted loop playsinline aria-hidden="true">${sources(TITLE_RAIN)}</video>
       </div>
       <div class="frame"></div>
       <span class="corner tl">Stickupkids</span><span class="corner tr">South London · Season One</span>
