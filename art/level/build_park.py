@@ -53,7 +53,7 @@ kit.MATS.update({
     "shrub": ("grass", "#4c6c5c", 0.7, 1.0, None),
     "mulch": ("soil", "#7a7080", 2.0, 1.0, None),
     "roof_flat": ("concrete", "#5a5e6c", 2.0, 0.8, None),
-    "emit_lamp_led": (None, "#e8eeff", 1.0, 0.3, ("#dfe8ff", 22.0)),
+    "emit_lamp_led": (None, "#ffb060", 1.0, 0.3, ("#ff9a3c", 22.0)),
 })
 kit.load_means(os.path.join(ROOT, "art", "textures", "out", "means.txt"))
 L = json.load(open(os.path.join(HERE, "burgess.json")))
@@ -62,7 +62,7 @@ W, H = L["w"], L["h"]
 T = L["tiles"]
 
 CUT = 1.5      # wall height in the game
-LAMP = "#d8e2ff"
+LAMP = "#ff9a3c"
 KILN_H = 4.4   # the kiln's real height, for the bake
 # The kiln was first drawn with its corner at (18, 4); everything about it
 # is given that way and moved to where the level has it.
@@ -701,7 +701,7 @@ def build_lights(lamps, car_front, van_front):
     bg.inputs[1].default_value = 0.6
     bpy.context.scene.world = world
     for k, p in enumerate(lamps):
-        # Burgess Park's lamps are white LED, not sodium.
+        # Sodium orange, to match the intro footage.
         # Bright enough that a pool reads at a glance: the gang see you in it.
         add_light(f"lamp{k}", "POINT", p, LAMP, 900, radius=0.12)
         LIGHT_LOG.append(("street", tuple(p + Vector((0, 0, 0.3)))))

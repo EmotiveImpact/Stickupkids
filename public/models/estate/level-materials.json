@@ -91,13 +91,6 @@
    "rough": 0.5,
    "emissive": null
   },
-  "ph_plastic_crate_02": {
-   "tex": "ph/ph_plastic_crate_02",
-   "tint": "#ffffff",
-   "size": 1.0,
-   "rough": 0.5,
-   "emissive": null
-  },
   "ph_boombox": {
    "tex": "ph/ph_boombox",
    "tint": "#ffffff",
@@ -149,6 +142,13 @@
   },
   "ph_pot_enamel_01": {
    "tex": "ph/ph_pot_enamel_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_02": {
+   "tex": "ph/ph_plastic_crate_02",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -240,6 +240,83 @@
   },
   "ph_street_rat": {
    "tex": "ph/ph_street_rat",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_broom": {
+   "tex": "ph/ph_plastic_broom",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_broom_1": {
+   "tex": "ph/ph_plastic_broom_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_bottle_gallon": {
+   "tex": "ph/ph_plastic_bottle_gallon",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_wicker_basket_01": {
+   "tex": "ph/ph_wicker_basket_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_russian_food_cans_01": {
+   "tex": "ph/ph_russian_food_cans_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_vintage_suitcase": {
+   "tex": "ph/ph_vintage_suitcase",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_vintage_suitcase_1": {
+   "tex": "ph/ph_vintage_suitcase_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_gamepad": {
+   "tex": "ph/ph_gamepad",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_can_rusted": {
+   "tex": "ph/ph_can_rusted",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_power_box_01": {
+   "tex": "ph/ph_power_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_utility_box_01": {
+   "tex": "ph/ph_utility_box_01",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -376,6 +453,97 @@
    "tint": "#b0a0c8",
    "size": 0.7,
    "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_navy": {
+   "tex": "carpet_navy",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_red": {
+   "tex": "carpet_red",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_grey": {
+   "tex": "carpet_grey",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_council": {
+   "tex": "carpet_council",
+   "tint": "#ffffff",
+   "size": 1.4,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_olive": {
+   "tex": "carpet_olive",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_teal": {
+   "tex": "carpet_teal",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "lino_check": {
+   "tex": "lino_check",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.45,
+   "emissive": null
+  },
+  "lino_marble": {
+   "tex": "lino_marble",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.45,
+   "emissive": null
+  },
+  "tiles_white": {
+   "tex": "tiles_white",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "tiles_slab": {
+   "tex": "tiles_slab",
+   "tint": "#ffffff",
+   "size": 2.4,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "boards_worn": {
+   "tex": "boards_worn",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "boards_old": {
+   "tex": "boards_old",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.65,
+   "emissive": null
+  },
+  "concrete_floor": {
+   "tex": "concrete_floor",
+   "tint": "#ffffff",
+   "size": 2.4,
+   "rough": 0.55,
    "emissive": null
   },
   "tarmac": {
@@ -959,7 +1127,7 @@
   [
    "dining",
    [
-    4.5,
+    2.5,
     -3.0,
     2.4000000953674316
    ]
@@ -967,7 +1135,7 @@
   [
    "kitchen",
    [
-    4.5,
+    2.200000047683716,
     2.700000047683716,
     2.4000000953674316
    ]
@@ -975,15 +1143,15 @@
   [
    "tv",
    [
-    -10.154999732971191,
-    -3.5,
+    -6.0,
+    -0.8450000286102295,
     1.0299999713897705
    ]
   ],
   [
    "fridge",
    [
-    9.5,
+    4.5,
     1.5,
     0.800000011920929
    ]
@@ -991,7 +1159,7 @@
   [
    "laptop",
    [
-    5.099999904632568,
+    3.0999999046325684,
     -2.9000000953674316,
     1.0
    ]
@@ -999,7 +1167,7 @@
   [
    "led",
    [
-    -8.984999656677246,
+    -6.985000133514404,
     5.099999904632568,
     1.0
    ]
@@ -1007,8 +1175,8 @@
   [
    "floorlamp",
    [
-    -9.649999618530273,
-    -5.619999885559082,
+    -7.699999809265137,
+    -2.299999952316284,
     1.2999999523162842
    ]
   ],
@@ -1081,7 +1249,7 @@
  },
  "cut": 1.5,
  "probe": {
-  "max": 1.9081044660339355,
+  "max": 1.8075885759124755,
   "perUnit": 8
  }
 }

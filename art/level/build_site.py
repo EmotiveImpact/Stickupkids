@@ -60,8 +60,8 @@ ZB = [0.0, SILL, CUT, HEAD, CEIL]
 # the job's own geometry (a function of the builder's geometry sets).
 SITES = {
     "aylesbury": {
-        # The estate's walkway and path lamps: warm white, not sodium.
-        "lamp": "#ffd8a8", "lamp_power": 850, "lamp_h": 5.0,
+        # The walkway and path lamps: sodium orange, like the intro.
+        "lamp": "#ff9a3c", "lamp_power": 850, "lamp_h": 5.0,
         "moon": ("#8aa2f0", 2.4), "sky": ("#1a2a55", 0.6),
         "wall_out": "panel",
         # Storeys above the ground floor, for the bake's shade and the far blocks.
@@ -78,7 +78,7 @@ SITES = {
     },
     "elephant": {
         # The lane's lamps are old sodium heads; the footpath has the same.
-        "lamp": "#ffb070", "lamp_power": 750, "lamp_h": 5.5,
+        "lamp": "#ff9a3c", "lamp_power": 750, "lamp_h": 5.5,
         "moon": ("#8aa2f0", 2.2), "sky": ("#1a2a55", 0.55),
         "wall_out": "brick_viaduct",
         "x_height": 7.0, "far_height": 15.0,
@@ -96,7 +96,7 @@ SITES = {
     },
     "brixton": {
         # White LED heads on the avenue and Coldharbour Lane.
-        "lamp": "#ffe4c4", "lamp_power": 800, "lamp_h": 6.0,
+        "lamp": "#ff9a3c", "lamp_power": 800, "lamp_h": 6.0,
         "moon": ("#8aa2f0", 2.3), "sky": ("#1a2a55", 0.55),
         "wall_out": "brick",
         "x_height": 9.0, "far_height": 12.0,
@@ -113,7 +113,7 @@ SITES = {
     },
     "peckham": {
         # White LED heads on Cerise Road and the railway path.
-        "lamp": "#ffe8d0", "lamp_power": 800, "lamp_h": 6.0,
+        "lamp": "#ff9a3c", "lamp_power": 800, "lamp_h": 6.0,
         "moon": ("#8aa2f0", 2.4), "sky": ("#1a2a55", 0.6),
         "wall_out": "concrete",
         "x_height": 9.0, "far_height": 12.0,
@@ -125,8 +125,8 @@ SITES = {
         "extra": "peckham",
     },
     "brockwell": {
-        # Old park lamps on the paths, warm white.
-        "lamp": "#ffdcb0", "lamp_power": 750, "lamp_h": 5.0,
+        # Old park lamps on the paths, sodium orange.
+        "lamp": "#ff9a3c", "lamp_power": 750, "lamp_h": 5.0,
         "moon": ("#8aa2f0", 2.4), "sky": ("#1a2a55", 0.6),
         "wall_out": "brick",
         "x_height": 4.0, "far_height": 10.0,
