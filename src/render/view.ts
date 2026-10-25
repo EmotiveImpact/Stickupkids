@@ -44,6 +44,7 @@ import { CHAR_SCALE, CharacterKit, type Character, type Weapon } from './charact
 import { Atmosphere, dotTexture, glowTexture } from './atmosphere.ts';
 import { sprayTags } from './graffiti.ts';
 import { lightRooms } from './roomLight.ts';
+import { Marks } from './marks.ts';
 import { Constants } from '@babylonjs/core/Engines/constants';
 
 const OVERLAY = 0x10000000;
@@ -299,6 +300,9 @@ export class View {
   private seenDirty = false;
   private seenT = 0;
   private bpTarget = 1;
+  /** Blood and debris, for the raid they came from. */
+  private marks: Marks;
+  private marksFor: Sim | null = null;
   /** The Go shot: a low, close look past the crew at the way in, before the raid camera takes over. */
   private intro: { from: Vector3; to: Vector3; look0: Vector3; look1: Vector3; t: number; dur: number } | null = null;
   private estate: Estate | null = null;
@@ -354,6 +358,7 @@ export class View {
     const scene = (this.scene = new Scene(this.engine));
     scene.clearColor = Color4.FromHexString(PALETTE.night + 'ff');
     scene.ambientColor = Color3.Black();
+    this.marks = new Marks(scene, this.co);
 
     // Fixed orthographic camera, tilted so wall faces read.
     this.cam = new FreeCamera('cam', Vector3.Zero(), scene);
@@ -1558,6 +1563,7 @@ export class View {
   handleEvents(events: SimEvent[]) {
     for (const ev of events) {
       if (ev.type === 'door' && ev.state === 'broken') {
+        this.marks.door(ev.x + 0.5, ev.y + 0.5);
         this.shake = Math.max(this.shake, 0.14);
         if (this.dust) {
           (this.dust.emitter as Vector3).set(this.co.X(ev.x + 0.5), 0, this.co.Z(ev.y + 0.5));
@@ -1585,9 +1591,11 @@ export class View {
         const sim = this.lastSim;
         if (ev.crew) {
           const c = sim?.crew.find((q) => String(q.def.slot) === ev.id);
+          if (c) this.marks.down(c.x, c.y);
           if (c) this.popup(c.x, c.y, `${c.def.name.toUpperCase()} DOWN`, this.crewColours()[c.def.slot - 1]);
         } else {
           const e = sim?.enemies.find((q) => q.id === ev.id);
+          if (e) this.marks.down(e.x, e.y);
           if (e) this.popup(e.x, e.y, e.kind === 'civilian' ? 'HURT' : 'DOWN', '#ffffff');
         }
       } else if (ev.type === 'say') {
@@ -1604,6 +1612,8 @@ export class View {
         this.toOverlay(ring);
         this.fx.push({ mesh: ring, t: 0, life: 0.7, kind: 'ring', r: ev.r });
       } else if (ev.type === 'shot') {
+        if (ev.hit) this.marks.hit(ev.from, ev.to);
+        else this.marks.miss(ev.from, ev.to);
         const a = new Vector3(this.co.X(ev.from.x), 1.25, this.co.Z(ev.from.y));
         const b = new Vector3(this.co.X(ev.to.x), 1.1, this.co.Z(ev.to.y));
         const len = Vector3.Distance(a, b);
@@ -1672,6 +1682,7 @@ export class View {
       if (r) this.atmosphere.setArea(r);
     }
     if (this.intro) this.stepIntro(dt);
+    this.marks.update(dt);
     if (this.shake > 0.002) {
       this.shake *= Math.exp(-dt * 14);
       this.placeCamera((Math.random() * 2 - 1) * this.shake, (Math.random() * 2 - 1) * this.shake);
@@ -1900,6 +1911,10 @@ export class View {
   private lastSim: Sim | null = null;
   bind(sim: Sim) {
     this.lastSim = sim;
+    if (sim !== this.marksFor) {
+      this.marks.clear();
+      this.marksFor = sim;
+    }
   }
 
   private updateEnemy(a: Actor, e: Enemy, sim: Sim, dt: number) {
