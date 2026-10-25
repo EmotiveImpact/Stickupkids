@@ -377,3 +377,29 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 @keyframes title-word { from { opacity: 0; letter-spacing: calc(60 * var(--u)); filter: blur(12px); } }
 @keyframes title-ui { from { opacity: 0; transform: translateY(8px); } }
 @keyframes press { 50% { opacity: 0.35; } }
+
+/* The Go shot: bars top and bottom, the HUD out of the way, and the job typed
+   out in green capitals like an old terminal readout. */
+#hud.intro > :not(.cine) { opacity: 0; pointer-events: none !important; }
+#hud.intro > :not(.cine) * { pointer-events: none !important; }
+.cine { position: absolute; inset: 0; pointer-events: none; --g: #47ff8f; --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace; }
+.cine::before { content: ''; position: absolute; left: 0; bottom: 0; width: min(900px, 90vw); height: 60vh; background: radial-gradient(ellipse at 0 100%, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0) 72%); opacity: 0; transition: opacity 0.4s ease; }
+.cine.on::before { opacity: 1; }
+.cine .bar { position: absolute; left: 0; right: 0; height: 11vh; background: #000; transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.cine .bar.top { top: 0; transform: translateY(-100%); }
+.cine .bar.bot { bottom: 0; transform: translateY(100%); }
+.cine.on .bar { transform: none; }
+.cine .readout {
+  position: absolute; left: calc(var(--inset) + 2vw); bottom: calc(11vh + 3vh); max-width: min(620px, 80vw);
+  font: 400 clamp(12px, 1.05vw, 17px)/1.55 var(--mono); color: var(--g); text-transform: uppercase; letter-spacing: 0.06em;
+  text-shadow: 0 0 6px rgba(71, 255, 143, 0.55), 0 0 1px rgba(71, 255, 143, 0.9);
+  opacity: 0; transition: opacity 0.3s ease 0.15s;
+}
+.cine.on .readout { opacity: 1; }
+.cine .rh { opacity: 0.6; margin-bottom: 0.6em; }
+.cine .rl { display: grid; grid-template-columns: 7.5em 1fr; }
+.cine .rk { opacity: 0.6; }
+.cine .rv.cur::after { content: ''; display: inline-block; width: 0.6em; height: 1.05em; margin-left: 0.15em; vertical-align: -0.18em; background: var(--g); animation: cine-blink 0.7s steps(1) infinite; }
+@keyframes cine-blink { 50% { opacity: 0; } }
+.cine .skip { position: absolute; right: calc(var(--inset) + 2vw); bottom: calc(11vh / 2 - 0.6em); font: 400 11px/1.2 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); opacity: 0; transition: opacity 0.3s ease 0.6s; }
+.cine.on .skip { opacity: 1; }

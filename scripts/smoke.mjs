@@ -49,6 +49,11 @@ await page.screenshot({ path: process.env.OUT ? `${process.env.OUT}/smoke-planni
 
 await page.keyboard.press('Enter');
 assert.equal(await page.evaluate(() => window.__game.phase), 'raid');
+// Go plays a short shot with the briefing first; a key cuts it, and does nothing else.
+assert.ok(await page.evaluate(() => window.__game.intro && !!document.querySelector('.cine')), 'Go plays the briefing shot');
+await page.keyboard.press(' ');
+assert.equal(await page.evaluate(() => window.__game.intro), false, 'a key skips the briefing shot');
+assert.equal(await page.evaluate(() => window.__game.paused), false, 'and does not also pause');
 // Software WebGL is slow, so wait for the clock to tick, then fast-forward.
 await page.waitForFunction(() => window.__game.sim.time > 0.1, null, { timeout: 30000 });
 await page.evaluate(() => window.__game.advance(4));

@@ -309,6 +309,8 @@ function loadSample() {
 }
 
 function enterPlanning() {
+  introT = 0;
+  hud.hideBriefing();
   phase = 'planning';
   paused = false;
   selectedWp = null;
@@ -324,6 +326,10 @@ function go() {
   sim = new Sim(level, plans, (Math.random() * 1e9) | 0, barricades);
   view.bind(sim);
   view.setMode('raid');
+  const shot = introShot();
+  view.startIntro(shot.at, shot.toward, INTRO);
+  hud.showBriefing(plans.filter((p) => p.length).length || sim.crew.length);
+  introT = INTRO;
   raidCam = view.shot();
   raidCamIdle = RAID_CAM_RESUME;
   paused = false;
@@ -331,6 +337,38 @@ function go() {
   armed = null;
   selectedWp = null;
 }
+
+/** The Go shot's length, in seconds. A click or a key cuts it short. */
+const INTRO = 4.6;
+let introT = 0;
+
+/** Where the Go shot looks from and to: the picked crew member (or the first with a route), facing their way in. */
+function introShot(): { at: Vec; toward: Vec } {
+  const order = [selected - 1, ...sim.crew.map((_, i) => i)];
+  const i = order.find((j) => plans[j]?.length) ?? 0;
+  const c = sim.crew[i];
+  const at = { x: c.x, y: c.y };
+  const wp = plans[i]?.find((w) => Math.hypot(w.x - c.x, w.y - c.y) > 1.5);
+  return { at, toward: wp ? { x: wp.x, y: wp.y } : { x: level.w / 2, y: level.h / 2 } };
+}
+
+function endIntro() {
+  if (introT <= 0 && !view.inIntro) return;
+  introT = 0;
+  view.endIntro();
+  hud.hideBriefing();
+  raidCam = view.shot();
+}
+
+// Any click or key during the Go shot cuts straight to the raid, and does nothing else.
+const skipIntro = (e: Event) => {
+  if (introT <= 0) return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  endIntro();
+};
+window.addEventListener('pointerdown', skipIntro, true);
+window.addEventListener('keydown', skipIntro, true);
 
 /** The raid camera: close on the crew still in it, easing as they spread and gather. */
 function followCrew(dt: number) {
@@ -814,7 +852,10 @@ const STEP = 1 / 60;
 let acc = 0;
 
 function tick(dt: number) {
-  if (phase === 'raid' && !paused && !sim.outcome) {
+  if (phase === 'raid' && introT > 0) {
+    introT -= dt;
+    if (introT <= 0) endIntro();
+  } else if (phase === 'raid' && !paused && !sim.outcome) {
     acc += dt * speed;
     while (acc >= STEP) {
       sim.step(STEP);
@@ -838,7 +879,7 @@ function tick(dt: number) {
     const shot = director.update(dt, sim, events, r.width, r.height);
     if (follow) view.frameShot(shot.x, shot.y, shot.ppm);
   }
-  if (phase === 'raid') followCrew(dt);
+  if (phase === 'raid' && introT <= 0) followCrew(dt);
   const overlay: PlanOverlay = { plans, version, selected, selectedWp, hover };
   view.bind(sim);
   const aiming = phase === 'planning' || phase === 'title' || (phase === 'raid' && (paused || armed !== null));
@@ -867,6 +908,7 @@ function tick(dt: number) {
     }
   }
   if (phase === 'raid' && sim.outcome) {
+    endIntro();
     phase = 'results';
     finished = sim;
     recording = record(sim, STEP);
@@ -929,6 +971,10 @@ const api = {
     return job.id;
   },
   go,
+  /** The Go shot is playing. */
+  get intro() {
+    return introT > 0;
+  },
   code,
   pause: togglePause,
   select: selectCrew,
@@ -941,6 +987,7 @@ const api = {
   },
   /** Fast-forward the raid by simulated seconds, calling codes on the way. */
   advance(seconds: number, codes: [number, GoCode][] = []) {
+    endIntro();
     const end = sim.time + seconds;
     while (sim.time < end && !sim.outcome) {
       for (const [t, c] of codes) if (sim.time < t && sim.time + STEP >= t) sim.callCode(c);

@@ -170,6 +170,7 @@ export class Hud {
   private jobMode: JobMode = 'stickup';
   /** The level being planned, for the numbers on the job board. */
   private level: Level | null = null;
+  private cine: HTMLElement | null = null;
   private stories: HTMLElement;
   /** The jobs on the board. */
   private boardJobs: Job[] = [];
@@ -698,6 +699,96 @@ export class Hud {
       box.remove();
       onClose();
     });
+  }
+
+  /**
+   * The Go shot's readout: bars top and bottom, and the job typed out in
+   * green capitals as if from an old terminal, while the rest of the HUD
+   * steps aside. `crew`: how many are going in.
+   */
+  showBriefing(crew: number) {
+    this.hideBriefing();
+    const lv = this.level;
+    if (!lv) return;
+    const loot = lv.loot.map((l) => l.name[0].toLowerCase() + l.name.slice(1));
+    const list = loot.length > 3 ? `${loot.slice(0, 2).join(', ')} and ${loot.length - 2} more` : loot.length > 1 ? `${loot.slice(0, -1).join(', ')} and ${loot[loot.length - 1]}` : (loot[0] ?? 'the lot');
+    const people = lv.enemies.filter((e) => e.kind !== 'dog' && e.kind !== 'civilian').length;
+    const dogs = lv.enemies.filter((e) => e.kind === 'dog').length;
+    const unseen = lv.unscouted.length;
+    let task: string;
+    let rules: string;
+    if (this.jobMode === 'rideout') {
+      const targets = lv.enemies.filter((e) => e.target).length;
+      task = `Catch ${targets} ${targets === 1 ? 'target' : 'targets'}. Back to the van.`;
+      rules = 'Targets only. Leave everyone else.';
+    } else if (this.jobMode === 'slid') {
+      const waves = lv.waves?.length ?? 0;
+      task = `Hold ${list} through ${waves} ${waves === 1 ? 'wave' : 'waves'}.`;
+      rules = 'Nobody gets past the doors.';
+    } else {
+      task = `Take ${list}. Back to the van.`;
+      rules = 'No civilians hurt. Gone before the police.';
+    }
+    const odds = [`${crew} crew`, `${people} ${people === 1 ? 'opp' : 'opps'}`];
+    if (dogs) odds.push(`${dogs} ${dogs === 1 ? 'dog' : 'dogs'}`);
+    if (unseen) odds.push(`${unseen} ${unseen === 1 ? 'room' : 'rooms'} unscouted`);
+    // A small hour of the night, the same every time for the same job.
+    let h = 7;
+    for (const ch of this.jobTitle) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const clock = `0${1 + (h % 3)}:${String((h >>> 4) % 60).padStart(2, '0')}`;
+    const lines: [string, string][] = [
+      ['Mission', this.jobTitle],
+      ['Task', task],
+      ['Rules', rules],
+      ['Status', odds.join(' · ')],
+    ];
+    const box = el(`<div class="cine">
+      <i class="bar top"></i><i class="bar bot"></i>
+      <div class="readout"><div class="rh">// ${this.jobMode === 'stickup' ? 'stick-up' : this.jobMode === 'rideout' ? 'ride out' : 'they slid'} · ${clock}</div></div>
+      <div class="skip">click to skip</div>
+    </div>`);
+    const out = box.querySelector('.readout')!;
+    const rows = lines.map(([k]) => {
+      const r = out.appendChild(el(`<div class="rl"><span class="rk">${k}</span><span class="rv"></span></div>`));
+      return r.querySelector('.rv') as HTMLElement;
+    });
+    this.root.appendChild(box);
+    this.root.classList.add('intro');
+    this.cine = box;
+    requestAnimationFrame(() => box.classList.add('on'));
+    // Type it out a character at a time, a line after the one before.
+    let li = 0;
+    let ci = 0;
+    const t0 = performance.now();
+    let typed = 0;
+    const type = () => {
+      if (this.cine !== box) return;
+      const want = Math.floor((performance.now() - t0 - 350) / 16);
+      while (typed < want && li < lines.length) {
+        const text = lines[li][1];
+        ci++;
+        typed++;
+        rows[li].textContent = text.slice(0, ci);
+        if (ci >= text.length) {
+          rows[li].classList.add('done');
+          li++;
+          ci = 0;
+          typed += 8;
+        }
+      }
+      for (let i = 0; i < rows.length; i++) rows[i].classList.toggle('cur', i === Math.min(li, rows.length - 1));
+      if (li < lines.length) requestAnimationFrame(type);
+    };
+    requestAnimationFrame(type);
+  }
+
+  hideBriefing() {
+    this.root.classList.remove('intro');
+    const box = this.cine;
+    this.cine = null;
+    if (!box) return;
+    box.classList.remove('on');
+    setTimeout(() => box.remove(), 500);
   }
 
   toast(text: string, color = '#f2f1ee') {

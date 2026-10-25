@@ -299,6 +299,8 @@ export class View {
   private seenDirty = false;
   private seenT = 0;
   private bpTarget = 1;
+  /** The Go shot: a low, close look past the crew at the way in, before the raid camera takes over. */
+  private intro: { from: Vector3; to: Vector3; look0: Vector3; look1: Vector3; t: number; dur: number } | null = null;
   private estate: Estate | null = null;
   private readonly kits = new Map<string, CharacterKit>();
   private atmosphere: Atmosphere | null = null;
@@ -626,6 +628,7 @@ export class View {
   }
 
   private placeCamera(jx: number, jz: number) {
+    if (this.intro) return;
     const target = new Vector3(this.pan.x + jx, 0, this.pan.z + jz);
     for (const c of [this.cam, this.ocam]) {
       const d = 60;
@@ -692,6 +695,75 @@ export class View {
     this.resize();
   }
 
+  /**
+   * The Go shot, held for `dur` seconds: down at head height behind the crew
+   * at `at`, looking the way they are about to go, pushing slowly in.
+   */
+  startIntro(at: Vec, toward: Vec, dur: number) {
+    // Aim the shadows, and the raid camera that follows, at the crew first.
+    this.focus(at.x, at.y);
+    const X = this.co.X(at.x);
+    const Z = this.co.Z(at.y);
+    let dx = this.co.X(toward.x) - X;
+    let dz = this.co.Z(toward.y) - Z;
+    const n = Math.hypot(dx, dz) || 1;
+    dx /= n;
+    dz /= n;
+    // Off one shoulder, so the shot is angled rather than square on: the
+    // shoulder with fewer walls and solid things between the lens and the crew.
+    const blockers = (side: number) => {
+      let n = 0;
+      for (let i = 1; i <= 12; i++) {
+        const k = i / 12;
+        const mx = Math.floor(at.x + (-dx * 7 - dz * side * 3.2) * k);
+        const my = Math.floor(at.y - (-dz * 7 + dx * side * 3.2) * k);
+        const t = this.level.tiles[my]?.[mx];
+        if (t === undefined || t === '#' || t === 'X' || this.level.solid[my]?.[mx]) n++;
+      }
+      return n;
+    };
+    const side = blockers(-1) < blockers(1) ? -1 : 1;
+    const sx = -dz * side;
+    const sz = dx * side;
+    this.intro = {
+      from: new Vector3(X - dx * 7 + sx * 3.2, 4.2, Z - dz * 7 + sz * 3.2),
+      to: new Vector3(X - dx * 4.6 + sx * 2.1, 2.7, Z - dz * 4.6 + sz * 2.1),
+      look0: new Vector3(X + dx * 0.8, 0.7, Z + dz * 0.8),
+      look1: new Vector3(X + dx * 2.2, 0.85, Z + dz * 2.2),
+      t: 0,
+      dur,
+    };
+    this.cam.mode = Camera.PERSPECTIVE_CAMERA;
+    this.cam.fov = 0.78;
+    // The plan's lines and markers are drawn for the overhead view; they sit this out.
+    this.scene.activeCameras = [this.cam];
+    // A cut, not a dissolve: the blueprint goes at once.
+    this.bpAmount = 0;
+    this.stepIntro(0);
+  }
+
+  /** Back to the overhead camera. */
+  endIntro() {
+    if (!this.intro) return;
+    this.intro = null;
+    this.cam.mode = Camera.ORTHOGRAPHIC_CAMERA;
+    this.scene.activeCameras = [this.cam, this.ocam];
+    this.resize();
+  }
+
+  get inIntro(): boolean {
+    return this.intro !== null;
+  }
+
+  private stepIntro(dt: number) {
+    const s = this.intro!;
+    s.t += dt;
+    const u = Math.min(1, s.t / s.dur);
+    const k = 1 - Math.pow(1 - u, 2.2);
+    this.cam.position.copyFrom(Vector3.Lerp(s.from, s.to, k));
+    this.cam.setTarget(Vector3.Lerp(s.look0, s.look1, k));
+  }
+
   /** The zoom at which the level fills the view both ways, not just one. */
   private fillZoom(): number {
     const sw = this.engine.getRenderWidth();
@@ -747,6 +819,7 @@ export class View {
   }
 
   setMode(m: Mode) {
+    if (m !== 'raid') this.endIntro();
     // Each raid starts with the inside of the place unseen.
     if (m !== this.mode) this.forgetSeen();
     this.mode = m;
@@ -1598,6 +1671,7 @@ export class View {
       const r = this.visibleRect();
       if (r) this.atmosphere.setArea(r);
     }
+    if (this.intro) this.stepIntro(dt);
     if (this.shake > 0.002) {
       this.shake *= Math.exp(-dt * 14);
       this.placeCamera((Math.random() * 2 - 1) * this.shake, (Math.random() * 2 - 1) * this.shake);
