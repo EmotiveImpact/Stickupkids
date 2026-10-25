@@ -1,5 +1,68 @@
 {
  "materials": {
+  "ph_metal_trash_can": {
+   "tex": "ph/ph_metal_trash_can",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_1": {
+   "tex": "ph/ph_metal_trash_can_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_2": {
+   "tex": "ph/ph_metal_trash_can_2",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_barrel_03": {
+   "tex": "ph/ph_barrel_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_03": {
+   "tex": "ph/ph_plastic_crate_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_old_tyre": {
+   "tex": "ph/ph_old_tyre",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_cardboard_box_01": {
+   "tex": "ph/ph_cardboard_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_bottle_gallon": {
+   "tex": "ph/ph_plastic_bottle_gallon",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_can_rusted": {
+   "tex": "ph/ph_can_rusted",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
   "brick": {
    "tex": "brick",
    "tint": "#ffffff",
@@ -131,6 +194,97 @@
    "tint": "#b0a0c8",
    "size": 0.7,
    "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_navy": {
+   "tex": "carpet_navy",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_red": {
+   "tex": "carpet_red",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_grey": {
+   "tex": "carpet_grey",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_council": {
+   "tex": "carpet_council",
+   "tint": "#ffffff",
+   "size": 1.4,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_olive": {
+   "tex": "carpet_olive",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_teal": {
+   "tex": "carpet_teal",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "lino_check": {
+   "tex": "lino_check",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.45,
+   "emissive": null
+  },
+  "lino_marble": {
+   "tex": "lino_marble",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.45,
+   "emissive": null
+  },
+  "tiles_white": {
+   "tex": "tiles_white",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "tiles_slab": {
+   "tex": "tiles_slab",
+   "tint": "#ffffff",
+   "size": 2.4,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "boards_worn": {
+   "tex": "boards_worn",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "boards_old": {
+   "tex": "boards_old",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.65,
+   "emissive": null
+  },
+  "concrete_floor": {
+   "tex": "concrete_floor",
+   "tint": "#ffffff",
+   "size": 2.4,
+   "rough": 0.55,
    "emissive": null
   },
   "tarmac": {
@@ -692,11 +846,11 @@
   },
   "emit_lamp_led": {
    "tex": null,
-   "tint": "#e8eeff",
+   "tint": "#ffb060",
    "size": 1.0,
    "rough": 0.3,
    "emissive": [
-    "#dfe8ff",
+    "#ff9a3c",
     22.0
    ]
   }
@@ -978,9 +1132,9 @@
   }
  },
  "cut": 1.5,
- "lamp": "#d8e2ff",
+ "lamp": "#ff9a3c",
  "probe": {
-  "max": 1.4239249692687987,
+  "max": 0.855912135673523,
   "perUnit": 4
  }
 }
