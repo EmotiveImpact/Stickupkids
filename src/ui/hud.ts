@@ -226,7 +226,7 @@ export class Hud {
         <button disabled>Crew<i>Soon</i></button>
         <button disabled>Settings<i>Soon</i></button>
       </nav>
-      <p class="strap">Plan it on the blueprint · Kick the door · <span>Pray nobody’s snitched</span></p>
+      <p class="strap">Plan the move · Kick off the door · Rob the ting · <span>Pray nobody snitched</span></p>
       <span class="corner br press">Press any key</span>`;
     const go = () => {
       removeEventListener('keydown', key);

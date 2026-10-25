@@ -361,7 +361,7 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .title-menu button:disabled { color: #5e5d59; cursor: default; }
 .title-menu button.on, .title-menu button:not(:disabled):hover { color: #ff7a1a; }
 .title-menu button.on::before { content: ''; position: absolute; left: -15px; top: 8px; bottom: 6px; width: 3px; background: #ff7a1a; }
-.splash .strap { position: absolute; left: 0; right: 0; bottom: 44px; margin: 0; text-align: center; font: 400 13px/1 var(--body); letter-spacing: 0.42em; text-transform: uppercase; color: #b5b4af; animation: title-ui 1s 2.6s ease-out both; }
+.splash .strap { position: absolute; left: 0; right: 0; bottom: 44px; margin: 0; text-align: center; font: 400 13px/1 var(--body); letter-spacing: 0.3em; text-transform: uppercase; color: #b5b4af; animation: title-ui 1s 2.6s ease-out both; }
 .splash .strap span { color: #ff7a1a; }
 /* A dark wash behind the menu, so it reads over the first figure's legs. */
 .splash .stage::after { content: ''; position: absolute; left: 0; bottom: 0; width: 45%; height: 55%; background: radial-gradient(ellipse at 0% 100%, rgba(5, 5, 5, 0.85), rgba(5, 5, 5, 0) 70%); }
