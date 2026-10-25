@@ -77,6 +77,13 @@ const RESULT_ART: Record<JobMode, string> = {
   rideout: 'menu/results-rideout.jpg',
   slid: 'menu/results-slid.jpg',
 };
+/** Behind each motive on the mode screen: stills from the pitch deck and the title montage, shown in black and white. */
+const MODE_ART: Record<JobMode | 'story', string> = {
+  story: 'menu/mode-story.jpg',
+  stickup: 'menu/mode-stickup.jpg',
+  rideout: 'menu/mode-rideout.jpg',
+  slid: 'menu/mode-slid.jpg',
+};
 const tileOf = (name: string) => `portraits/${name.toLowerCase()}-tile.jpg`;
 
 /** Where each job sits on the London map. */
@@ -169,6 +176,8 @@ export class Hud {
   private jobId = '';
   private jobTitle = '';
   private jobMode: JobMode = 'stickup';
+  /** Every job, for the mode screen and the board. */
+  private allJobs: Job[] = [];
   /** The level being planned, for the numbers on the job board. */
   private level: Level | null = null;
   private cine: HTMLElement | null = null;
@@ -224,7 +233,7 @@ export class Hud {
       <span class="corner tl">Stickupkids</span><span class="corner tr">South London · Season One</span>
       <nav class="title-menu">
         <button disabled>Story<i>Soon</i></button>
-        <button data-a="jobs" class="on">Jobs</button>
+        <button data-a="jobs" class="on">Play</button>
         <button disabled>Crew<i>Soon</i></button>
         <button disabled>Settings<i>Soon</i></button>
       </nav>
@@ -232,7 +241,7 @@ export class Hud {
       <span class="corner br press">Press any key</span>`;
     const go = () => {
       removeEventListener('keydown', key);
-      if (this.overlay.classList.contains('splash')) this.showTitle(jobs, current);
+      if (this.overlay.classList.contains('splash')) this.showModes(jobs, current);
     };
     const key = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey) return;
@@ -253,9 +262,85 @@ export class Hud {
     Promise.all([pictures, level, document.fonts.ready]).then(() => requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('reveal'))));
   }
 
+  /** Choose your motive: four slanted photo strips, the picked one slid open with its name outlined big behind it. A motive opens its jobs on the board. */
+  showModes(jobs: Job[], current: string) {
+    this.overlay.className = 'overlay modes';
+    this.allJobs = jobs;
+    const of = (m: JobMode) => jobs.filter((j) => (j.mode ?? 'stickup') === m);
+    const one = (m: JobMode) => of(m)[0];
+    const motives: { id: JobMode | 'story'; name: string; k: string; line: string; meta: [string, string][]; cta: string }[] = [
+      { id: 'story', name: 'Story', k: 'Season One', line: 'Two of you and a borrowed flat. Build the crew from nothing.', meta: [['Starts with', '2 of you'], ['Status', 'In the works']], cta: 'Coming soon' },
+      { id: 'stickup', name: 'Stickup', k: `Jobs · ${of('stickup').length} on the board`, line: 'Plan it, kick the door, get the bag and get out.', meta: [['On the board', String(of('stickup').length)], ['Across', 'South London']], cta: 'Open the board' },
+      { id: 'rideout', name: 'Ride Out', k: 'Hit back', line: 'They moved on yours. Find them before they find you.', meta: [['Where', one('rideout')?.place.split(',').pop()?.trim() ?? ''], ['Heat', `${one('rideout')?.heat ?? 0} of 5`]], cta: 'Ride' },
+      { id: 'slid', name: 'They Slid', k: 'Defend', line: "They're at your door. Hold the trap till it's done.", meta: [['Where', 'The trap, East Street'], ['Waves', '3']], cta: 'Hold it down' },
+    ];
+    const strips = motives
+      .map(
+        (m, i) => `<div class="mstrip${m.id === 'story' ? ' soon' : ''}" data-m="${m.id}">
+          <img src="${MODE_ART[m.id]}" alt="" draggable="false"><div class="dim"></div><div class="tint"></div>
+          <div class="side"><span>${String(i + 1).padStart(2, '0')}</span><b>${m.name}</b></div>
+          <div class="ghost">${m.name}</div>
+          <div class="open"><span class="k">${m.k}</span><h2>${m.name}</h2><p>${m.line}</p>
+            <div class="meta">${m.meta.map(([a, b]) => `<div><em>${a}</em><span>${b}</span></div>`).join('')}</div>
+            <button class="mgo"${m.id === 'story' ? ' disabled' : ''}>${m.cta}${m.id === 'story' ? '' : ' ▸'}</button></div>
+        </div>`,
+      )
+      .join('');
+    this.overlay.innerHTML = `<div class="mstrips">${strips}</div><div class="scan"></div>
+      <div class="mtab">Choose your motive</div>
+      <div class="mhead"><button class="back">◂ Back</button><span class="wm">Stickup<i>kids</i></span><span class="lab">South London · 4 crew</span></div>`;
+    const list = [...this.overlay.querySelectorAll<HTMLElement>('.mstrip')];
+    const start = list.findIndex((x) => x.dataset.m === (jobs.find((j) => j.id === current)?.mode ?? 'stickup'));
+    let at = -1;
+    const pick = (i: number) => {
+      i = (i + list.length) % list.length;
+      if (i === at) return;
+      at = i;
+      list.forEach((x, j) => x.classList.toggle('on', j === i));
+      this.overlay.classList.remove('glitch');
+      void this.overlay.offsetWidth;
+      this.overlay.classList.add('glitch');
+    };
+    const open = (m: string | undefined) => {
+      if (!m || m === 'story') return;
+      removeEventListener('keydown', key);
+      this.openBoard(m as JobMode, current);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (!this.overlay.classList.contains('modes')) return removeEventListener('keydown', key);
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') pick(at + 1);
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') pick(at - 1);
+      else if (e.key === 'Enter' || e.key === ' ') open(list[at].dataset.m);
+      else if (e.key === 'Escape') (removeEventListener('keydown', key), this.showSplash(jobs, current));
+      else return;
+      e.preventDefault();
+    };
+    addEventListener('keydown', key);
+    list.forEach((x, i) => {
+      x.addEventListener('pointerenter', () => pick(i));
+      x.addEventListener('click', () => (at === i ? open(x.dataset.m) : pick(i)));
+    });
+    this.overlay.querySelector('.back')!.addEventListener('click', () => (removeEventListener('keydown', key), this.showSplash(jobs, current)));
+    pick(start < 0 ? 1 : start);
+  }
+
+  /** A motive's jobs on the board, the first of them picked unless the current job is one. */
+  private openBoard(mode: JobMode, current: string) {
+    const jobs = this.allJobs.filter((j) => (j.mode ?? 'stickup') === mode);
+    if (!jobs.length) return;
+    const keep = jobs.some((j) => j.id === current);
+    const id = keep ? current : jobs[0].id;
+    this.showTitle(this.allJobs, id);
+    if (!keep) this.h.pickJob(id);
+  }
+
   /** The job board: London in greys with the jobs as orange pins and a list over its foot, the picked job on the right. */
   showTitle(jobs: Job[], current: string) {
     this.overlay.className = 'overlay board-screen';
+    // The board shows the jobs of one motive: the current job's.
+    this.allJobs = jobs;
+    const mode = jobs.find((j) => j.id === current)?.mode ?? 'stickup';
+    jobs = jobs.filter((j) => (j.mode ?? 'stickup') === mode);
     this.boardJobs = jobs;
     // Frame the pins, with the bottom two fifths left for the list.
     const pts = jobs.map((j) => mapXY(...PINS[j.id]));
@@ -295,7 +380,7 @@ export class Hud {
           <rect x="-40" y="${MAP_H - 60}" width="${MAP_W + 80}" height="61" fill="url(#mapfade)"/>
           ${pins}
         </svg>
-        <span class="lab corner">Stickupkids · Pick a job</span>
+        <span class="lab corner"><button class="to-modes">◂ Motives</button> ${MODE_TAG[mode]} · Pick a job</span>
         <div class="joblist">${rows}</div>
         <span class="credit">Map data © OpenStreetMap contributors</span>
       </div>
@@ -311,6 +396,7 @@ export class Hud {
         b.addEventListener('pointerleave', () => pin()?.classList.remove('hot'));
       }
     });
+    this.overlay.querySelector('.to-modes')!.addEventListener('click', () => this.showModes(this.allJobs, this.jobId || current));
     this.selectJob(current);
   }
 

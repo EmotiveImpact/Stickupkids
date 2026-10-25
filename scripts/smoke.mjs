@@ -13,7 +13,9 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 await page.goto(base);
 await page.waitForFunction(() => window.__ready === true, null, { timeout: 60000 });
-// Past the title, onto the job board. Every job's Plan button has to sit on screen.
+// Past the title to Choose your motive, then Enter opens the picked motive (Stickup) on the job board. Every job's Plan button has to sit on screen.
+await page.keyboard.press('Enter');
+await page.waitForSelector('.overlay.modes .mstrip.on[data-m="stickup"]');
 await page.keyboard.press('Enter');
 const plan = page.getByRole('button', { name: 'Plan the job' });
 const box = await plan.boundingBox();
