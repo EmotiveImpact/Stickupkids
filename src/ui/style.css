@@ -364,9 +364,12 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .overlay.splash { cursor: pointer; }
 .splash .strap { position: absolute; left: 0; right: 0; bottom: 44px; margin: 0; text-align: center; font: 400 13px/1 var(--body); letter-spacing: 0.3em; text-transform: uppercase; color: #b5b4af; animation: title-ui 1s 2.6s ease-out both; }
 .splash .strap span { color: #ff7a1a; }
-@media (max-width: 900px) { .splash .strap, .splash .corner.tr { display: none; } /* Upright screens: fit the name across the width instead of cropping it. */
+@media (max-width: 900px) { .splash .strap, .splash .corner.tr { display: none; } }
+/* Upright screens: fit the name across the width instead of cropping it. */
 @media (max-aspect-ratio: 1/1) { .overlay.splash { --sw: 104cqw; } .splash .stage { top: 42%; } }
-.splash .stage > *, .splash.reveal .stage > *, .splash.reveal /* The name is scuffed like a film poster: a speckled mask eats into the letters. */
+.splash .stage > *, .splash .strap, .splash .press { animation-play-state: paused; }
+.splash.reveal .stage > *, .splash.reveal .strap, .splash.reveal .press { animation-play-state: running; }
+/* The name is scuffed like a film poster: a speckled mask eats into the letters. */
 .splash .title-word { -webkit-mask-size: calc(420 * var(--u)); mask-size: calc(420 * var(--u)); }
 /* The reveal: the montage comes up out of black, then the name settles over it. */
 @keyframes title-bg { from { opacity: 0; transform: scale(1.08); } }
