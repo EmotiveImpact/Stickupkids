@@ -1,6 +1,6 @@
 """Cut the Kling clips into the black and white drill montage for the title screen.
 
-42 beats at 140 BPM (about 18 s), every cut on a beat. Effects are added per frame:
+55 beats at 140 BPM (about 24 s), every cut on a beat. London shots open, flash in between and give one breather. Effects are added per frame:
 black and white grade that keeps only red (tail lights) and blue (police lights) in colour, slight fisheye, (with --punch) a zoom thump on each beat and shake on the off beats,
 stutter repeats, a white flash on the feds hit, a whip blur into the run, grain and vignette.
 
@@ -35,9 +35,12 @@ def accents(f):
 
 # (clip, beats, source start s, speed, punch-ins on?)  speed may be a function of shot time t for ramps
 SHOTS = [
+    ('k-lskyline', 4, 0.3, 0.8, False),  # opener: rises out of black, slow push over the river
+    ('k-ltowers', 3, 0.4, 0.9, False),  # city to the block
     ('k-chill1', 2, 0.5, 1.0, True),
     ('k-eyes', 2, 0.6, 1.0, True),
     ('k-walk', 3, 0.2, lambda t: 0.45 * t if t < 2 * BEAT else 0.45 * 2 * BEAT + (t - 2 * BEAT), True),  # slow-mo, snaps to speed on beat 3
+    ('k-lestate', 1, 1.9, 1.0, True),  # flash from above as the red tail lights pull in
     ('k-chill2', 2, 0.8, 1.0, True),
     ('k-stair', 2, 0.8, 1.0, True),
     ('k-door', 2, 0.5, 1.0, True),
@@ -47,14 +50,17 @@ SHOTS = [
     ('k-policerun', 2, 0.6, 1.0, True),
     ('k-runcar', 2, 0.1, 1.0, True),  # ends before the number plate Kling invented comes into view
     ('k-driveoff', 2, 1.0, 1.0, True),
+    ('k-lstreet', 1, 0.6, 2.2, True),  # flash: the junction from above, sped up so the buses streak
     ('k-incar', 2, 0.6, 1.0, True),
     ('k-lookback', 2, 0.8, 1.0, True),
     ('k-moped1', 2, 0.2, 1.0, True),
     ('k-moped2', 2, 0.6, 1.0, True),
     ('k-roof', 4, 0.4, 0.9, False),
+    ('k-lriver', 4, 0.5, 0.8, False),  # breather: comes out of the roof's white-out, the whole city at night
     ('k-estate', 2, 0.6, 1.0, True),
-    ('k-walk', 4, 0.85, 1.0, True),
+    ('k-walk', 4, 0.85, 1.0, True),  # dips to black at the end so the loop meets the opener
 ]
+DRIFT = {'k-lskyline': 0.06, 'k-ltowers': 0.03, 'k-lriver': 0.05}  # slow push-in over the drawn-out London shots
 
 def source_end(shot):
     _, beats, s0, speed, _ = shot
@@ -121,7 +127,7 @@ for f in range(N):
 
     gb = T / BEAT  # global beat position
     ph = gb - np.floor(gb)
-    zoom = 1.0
+    zoom = 1.0 + DRIFT.get(name, 0) * t / (beats * BEAT)
     if PUNCH and punch:
         zoom += 0.07 * np.exp(-ph * 9)
     dx = dy = 0.0
@@ -135,8 +141,15 @@ for f in range(N):
         L, keep = np.full_like(L, 1.0), keep * 0  # white flash on the hit
     if name == 'k-roof' and beat_in_shot > beats - 0.25:
         L = L + (beat_in_shot - (beats - 0.25)) / 0.25 * 0.9  # burn out to white
+    if name == 'k-lriver' and beat_in_shot < 0.75:
+        L = L + (1 - beat_in_shot / 0.75) ** 2 * 0.9  # and back out of the white
+    fade = 1.0
+    if i == 0 and beat_in_shot < 1.5:
+        fade = (beat_in_shot / 1.5) ** 1.5  # rise out of black
+    if i == len(SHOTS) - 1 and beat_in_shot > beats - 0.5:
+        fade = (beats - beat_in_shot) / 0.5  # and dip back to black for the loop
     grain = rng.normal(0, 0.04, (H // 2, W // 2)).astype(np.float32)  # half-res grain: reads as film, keeps the file small
-    out_ = (L[..., None] * (1 - keep) + colour * keep) * vignette[..., None] + np.repeat(np.repeat(grain, 2, 0), 2, 1)[..., None]
+    out_ = (L[..., None] * (1 - keep) + colour * keep) * vignette[..., None] * fade + np.repeat(np.repeat(grain, 2, 0), 2, 1)[..., None]
     if CAPTION and name == 'k-eyes' and beat_in_shot > 1:
         out_ = out_ * (1 - cap_mask[..., None]) + (np.asarray(cap, np.float32) / 255)[..., None] * cap_mask[..., None]
     enc.stdin.write((np.clip(out_, 0, 1) * 255).astype(np.uint8).tobytes())
