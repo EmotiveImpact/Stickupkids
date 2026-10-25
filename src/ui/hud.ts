@@ -221,7 +221,7 @@ export class Hud {
 
   // ------------------------------------------------------------- modes
 
-  /** The title screen, in the pitch deck's look: the drill montage runs behind the name. A click or any key goes on to the job board. */
+  /** The title screen, in the pitch deck's look: the drill montage runs behind the name. A click or any key goes on to Choose your motive. */
   showSplash(jobs: Job[], current: string) {
     this.overlay.className = 'overlay splash';
     this.overlay.innerHTML = `<div class="stage">
@@ -231,14 +231,8 @@ export class Hud {
       </div>
       <div class="frame"></div>
       <span class="corner tl">Stickupkids</span><span class="corner tr">South London · Season One</span>
-      <nav class="title-menu">
-        <button disabled>Story<i>Soon</i></button>
-        <button data-a="jobs" class="on">Play</button>
-        <button disabled>Crew<i>Soon</i></button>
-        <button disabled>Settings<i>Soon</i></button>
-      </nav>
       <p class="strap">Plan the move · Kick off the door · Rob the ting · <span>Pray nobody snitched</span></p>
-      <span class="corner br press">Press any key</span>`;
+      <span class="press">Press any key to continue</span>`;
     const go = () => {
       removeEventListener('keydown', key);
       if (this.overlay.classList.contains('splash')) this.showModes(jobs, current);
@@ -249,7 +243,8 @@ export class Hud {
       go();
     };
     addEventListener('keydown', key);
-    this.overlay.querySelector('[data-a="jobs"]')!.addEventListener('click', go);
+    // A click anywhere counts as a key.
+    this.overlay.addEventListener('click', go, { once: true });
     // Hold the reveal until the pictures are in and the level has loaded, so the page is not too busy to play it.
     const overlay = this.overlay;
     const pictures = Promise.all([...overlay.querySelectorAll('img')].map((i) => i.decode().catch(() => undefined)));
