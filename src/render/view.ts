@@ -1599,7 +1599,7 @@ export class View {
       }
       if (ev.type === 'surrender') {
         const e = this.lastSim?.enemies.find((q) => q.id === ev.id);
-        if (e) this.popup(e.x, e.y, 'HANDS UP', '#ffffff');
+        if (e && (e.seen || this.reveal)) this.popup(e.x, e.y, 'HANDS UP', '#ffffff');
       } else if (ev.type === 'down') {
         const sim = this.lastSim;
         if (ev.crew) {
@@ -1613,6 +1613,8 @@ export class View {
         }
       } else if (ev.type === 'say') {
         const e = ev.slot ? null : this.lastSim?.enemies.find((q) => q.id === ev.id);
+        // Nobody hears what is said in a room the crew cannot see into.
+        if (!ev.slot && !this.reveal && !e?.seen) continue;
         const col = ev.slot ? this.crewColours()[ev.slot - 1] : colourOf(e?.kind ?? 'enemy');
         // A little north of the head, so it clears HANDS UP and DOWN.
         this.popup(ev.x, ev.y - 1.1, ev.text, col, 3.2);
@@ -1939,7 +1941,7 @@ export class View {
     if (planning) a.seenAt = undefined;
     else if (e.seen) a.seenAt = { x: e.x, y: e.y, t: 0 };
     else if (a.seenAt) a.seenAt.t += dt;
-    const show = !!a.seenAt && !visible && e.state !== 'down' && e.state !== 'gone' && e.state !== 'subdued';
+    const show = !!a.seenAt && !visible && e.state !== 'down' && e.state !== 'gone';
     if (show && !a.ghost) {
       const g = (a.ghost = MeshBuilder.CreateTorus('lastSeen', { diameter: e.kind === 'dog' ? 0.6 : 0.64, thickness: 0.035, tessellation: 40 }, this.scene));
       g.material = mat(this.scene, PALETTE.enemy, { emissive: PALETTE.enemy, unlit: true, alpha: 0.5 });
@@ -1958,7 +1960,8 @@ export class View {
     let visible: boolean;
     if (e.state === 'gone') visible = false;
     else if (planning) visible = e.known;
-    else visible = this.reveal || e.seen || (e.known && (e.state === 'down' || e.state === 'subdued'));
+    // Only who the crew can see now. Bodies they have found stay where they fell.
+    else visible = this.reveal || e.seen || (e.known && e.state === 'down');
     this.lastSeen(a, e, planning, visible, dt);
     a.root.setEnabled(visible);
     a.light.setEnabled(visible);
@@ -1978,7 +1981,8 @@ export class View {
       a.ring.material = mat(this.scene, tint, { emissive: tint, unlit: true });
     }
     if (e.state === 'down') {
-      a.ring.visibility = 0.3;
+      // The blood under them marks the spot; a ring would say they are still about.
+      a.ring.visibility = 0;
       this.layDown(a, e.kind === 'dog');
     } else if (e.state === 'subdued') {
       a.ring.visibility = 0.45;
