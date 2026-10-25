@@ -18,6 +18,7 @@ import {
   MeshBuilder,
   MirrorTexture,
   RenderTargetTexture,
+  Texture,
   ParticleSystem,
   PBRMaterial,
   Plane,
@@ -42,6 +43,7 @@ import { loadEstate, type Estate } from './estate.ts';
 import { CHAR_SCALE, CharacterKit, type Character, type Weapon } from './characters.ts';
 import { Atmosphere, dotTexture, glowTexture } from './atmosphere.ts';
 import { sprayTags } from './graffiti.ts';
+import { lightRooms } from './roomLight.ts';
 import { Constants } from '@babylonjs/core/Engines/constants';
 
 const OVERLAY = 0x10000000;
@@ -96,7 +98,9 @@ vec3 grade(vec3 c) {
   float l = luma(c);
   float warm = smoothstep(0.03, 0.22, c.r - c.b) * smoothstep(-0.05, 0.12, c.r - c.g);
   float red = smoothstep(0.5, 0.25, c.g / max(c.r, 0.0001)) * smoothstep(0.05, 0.2, c.r - c.b);
-  float sat = mix(mix(0.3, 0.92, warm), mix(mix(0.08, 0.45, warm), 1.0, red), dark);
+  // Strongly coloured light (a room's lamp, a telly, a tag) keeps some colour; drab surfaces go grey.
+  float vivid = smoothstep(0.22, 0.5, max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b)));
+  float sat = mix(mix(0.3, 0.92, warm), max(mix(mix(0.08, 0.45, warm), 1.0, red), vivid * 0.75), dark);
   vec3 g = mix(vec3(l), c, sat);
   vec3 teal = vec3(0.78, 0.97, 0.95);
   g *= mix(teal, vec3(1.0), clamp(smoothstep(0.3, 0.85, l) + warm * 0.7 + dark * 0.5, 0.0, 1.0));
@@ -152,9 +156,14 @@ void main(void) {
   if (dark > 0.001) {
     // Outside the torch beams the night takes over; lamps, lit windows and
     // screens hold their own.
-    float t = smoothstep(0.0, 0.7, torchAt(vUV));
-    float own = smoothstep(0.1, 0.42, luma(col));
-    col *= mix(1.0, mix(0.3, 1.0, max(t, own)) * (1.0 + 0.9 * t), dark);
+    // The mask: 0 never seen, about 0.3 seen before, up to 1 in a beam now.
+    float m = torchAt(vUV);
+    float known = smoothstep(0.04, 0.24, m);
+    float t = smoothstep(0.3, 0.9, m);
+    // Lamps, lit windows and screens hold their own, but only where the crew have looked.
+    float own = smoothstep(0.1, 0.42, luma(col)) * known;
+    float keep = max(max(known * 0.32, t), own);
+    col *= mix(1.0, mix(0.045, 1.0, keep) * (1.0 + 0.9 * t), dark);
     // The beam itself, a cold white wash on whatever it falls on.
     col += vec3(0.82, 0.88, 1.0) * t * 0.06 * dark;
   }
@@ -203,6 +212,8 @@ interface Actor {
   char: Character | null;
   ring: Mesh;
   cone: Mesh;
+  /** A thin circle at the edge of how far they can see. */
+  reach?: Mesh;
   bag?: Mesh;
   torch?: SpotLight;
   icon?: { plane: Mesh; tex: DynamicTexture; key: string };
@@ -282,6 +293,11 @@ export class View {
   private torchMask: RenderTargetTexture;
   private torchMat: StandardMaterial;
   private darkAmount = 0;
+  /** Fog of war: one pixel a cell, lit where the crew have seen, drawn into the torch mask as a dim floor. */
+  private seenTex!: DynamicTexture;
+  private seenGrid: Uint8Array = new Uint8Array(0);
+  private seenDirty = false;
+  private seenT = 0;
   private bpTarget = 1;
   private estate: Estate | null = null;
   private readonly kits = new Map<string, CharacterKit>();
@@ -412,6 +428,7 @@ export class View {
     // Screen blending, so overlapping beams add up without blowing out.
     tm.alpha = 0.999;
     tm.alphaMode = Constants.ALPHA_SCREENMODE;
+    this.makeSeenFloor();
     this.bp = new PostProcess('blueprint', 'blueprint', ['amount', 'screenSize', 'depthRange', 'dark', 'paint'], ['depthSampler', 'torchSampler'], 1, this.cam);
     this.bp.onApply = (e) => {
       e.setTexture('torchSampler', torch);
@@ -452,6 +469,7 @@ export class View {
     this.shadowLight.includedOnlyMeshes = estate.receivers;
     this.wetGround(estate);
     sprayTags(scene, lv, this.co, lv.w * 7919 + lv.h);
+    lightRooms(scene, lv, this.co);
 
     // A soft moon key so characters keep their shape between pools of light.
     const key = (this.keyLight = new DirectionalLight('key', new Vector3(0.35, -0.85, 0.55), scene));
@@ -729,6 +747,8 @@ export class View {
   }
 
   setMode(m: Mode) {
+    // Each raid starts with the inside of the place unseen.
+    if (m !== this.mode) this.forgetSeen();
     this.mode = m;
     this.atmosphere?.setRain(m === 'raid');
     this.bpTarget = m === 'planning' ? 1 : 0;
@@ -803,7 +823,7 @@ export class View {
     torch.specular = torch.diffuse.scale(0.4);
     torch.range = 10;
     torch.intensity = 0;
-    const ring = MeshBuilder.CreateTorus('ring', { diameter: 0.6 / CHAR_SCALE, thickness: 0.035 / CHAR_SCALE, tessellation: 32 }, scene);
+    const ring = MeshBuilder.CreateTorus('ring', { diameter: 0.6 / CHAR_SCALE, thickness: 0.022 / CHAR_SCALE, tessellation: 32 }, scene);
     ring.material = mat(scene, color, { emissive: color, unlit: true });
     ring.parent = root;
     ring.position.y = 0.04;
@@ -827,7 +847,15 @@ export class View {
       this.torchMask.renderList!.push(m);
       this.torchMask.setMaterialForRendering(m, this.torchMat);
     }
-    return { root, body, light: char.light, char, ring, cone, bag, torch, last: null, speed: 0 };
+    const circle: Vector3[] = [];
+    for (let k = 0; k <= 96; k++) circle.push(new Vector3(Math.cos((k / 96) * Math.PI * 2), 0.05, Math.sin((k / 96) * Math.PI * 2)));
+    const reach = MeshBuilder.CreateLines('reach', { points: circle }, scene);
+    reach.color = Color3.FromHexString('#f2f1ee');
+    reach.alpha = 0.28;
+    reach.parent = root;
+    reach.isPickable = false;
+    this.toOverlay(reach);
+    return { root, body, light: char.light, char, ring, cone, reach, bag, torch, last: null, speed: 0 };
   }
 
   private makeEnemyActor(kind: string, model = kind): Actor {
@@ -958,6 +986,91 @@ export class View {
     ring.position.set(this.co.X(x), 0.08, this.co.Z(y));
     this.toOverlay(ring);
     this.fx.push({ mesh: ring, t: 0, life: 1.1, kind: 'ring', r });
+  }
+
+  // ------------------------------------------------------- fog of war
+
+  /** Inside a building: hidden until someone sees it. Streets, gardens and walls are known from the start. */
+  private hiddenCell(x: number, y: number): boolean {
+    const t = this.level.tiles[y][x];
+    return t === '.' || t === 'D' || t === 'O' || t === 'W';
+  }
+
+  private makeSeenFloor() {
+    const { w, h } = this.level;
+    const tex = (this.seenTex = new DynamicTexture('seen', { width: w, height: h }, this.scene, false, Texture.BILINEAR_SAMPLINGMODE));
+    tex.wrapU = tex.wrapV = Texture.CLAMP_ADDRESSMODE;
+    this.seenGrid = new Uint8Array(w * h);
+    const floor = MeshBuilder.CreateGround('seenFloor', { width: w, height: h }, this.scene);
+    floor.position.y = 0.02;
+    floor.layerMask = 0;
+    floor.isPickable = false;
+    const m = new StandardMaterial('seenMat', this.scene);
+    m.emissiveTexture = tex;
+    m.diffuseColor = Color3.Black();
+    m.specularColor = Color3.Black();
+    m.disableLighting = true;
+    m.disableDepthWrite = true;
+    m.alpha = 0.999;
+    m.alphaMode = Constants.ALPHA_SCREENMODE;
+    floor.material = m;
+    this.torchMask.renderList!.push(floor);
+    this.forgetSeen();
+  }
+
+  /** Back to knowing only the outside. */
+  private forgetSeen() {
+    const { w, h } = this.level;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) this.seenGrid[y * w + x] = this.hiddenCell(x, y) ? 0 : 1;
+    this.seenDirty = true;
+  }
+
+  /** Remember every cell inside a vision fan, and a little round the person. */
+  private markSeen(fan: Vec[], ox: number, oy: number) {
+    const { w, h } = this.level;
+    const poly = [{ x: ox, y: oy }, ...fan];
+    let x0 = ox, x1 = ox, y0 = oy, y1 = oy;
+    for (const p of poly) {
+      x0 = Math.min(x0, p.x);
+      x1 = Math.max(x1, p.x);
+      y0 = Math.min(y0, p.y);
+      y1 = Math.max(y1, p.y);
+    }
+    const near = 1.6;
+    for (let y = Math.max(0, Math.floor(Math.min(y0, oy - near))); y <= Math.min(h - 1, Math.floor(Math.max(y1, oy + near))); y++) {
+      for (let x = Math.max(0, Math.floor(Math.min(x0, ox - near))); x <= Math.min(w - 1, Math.floor(Math.max(x1, ox + near))); x++) {
+        const k = y * w + x;
+        if (this.seenGrid[k]) continue;
+        const cx = x + 0.5;
+        const cy = y + 0.5;
+        let inside = Math.hypot(cx - ox, cy - oy) < near;
+        for (let i = 0, j = poly.length - 1; !inside && i < poly.length; j = i++) {
+          const a = poly[i];
+          const b = poly[j];
+          if (a.y > cy !== b.y > cy && cx < ((b.x - a.x) * (cy - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+        }
+        if (inside) {
+          this.seenGrid[k] = 1;
+          this.seenDirty = true;
+        }
+      }
+    }
+  }
+
+  /** Push the seen grid to its texture: seen cells a dim grey (155 is about 0.3 once the texture is read as sRGB), unseen black. */
+  private flushSeen() {
+    if (!this.seenDirty) return;
+    this.seenDirty = false;
+    const { w, h } = this.level;
+    const g = this.seenTex.getContext() as unknown as CanvasRenderingContext2D;
+    const img = g.createImageData(w, h);
+    for (let k = 0; k < w * h; k++) {
+      const v = this.seenGrid[k] ? 155 : 0;
+      img.data[k * 4] = img.data[k * 4 + 1] = img.data[k * 4 + 2] = v;
+      img.data[k * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    this.seenTex.update(true);
   }
 
   private makeCone(color: string, alpha: number): Mesh {
@@ -1267,8 +1380,8 @@ export class View {
       const uy = (b.y - a.y) / len;
       let t = 0;
       while (t < len) {
-        const on = phase.d % 0.34 < 0.11;
-        const step = Math.min(len - t, on ? 0.11 - (phase.d % 0.34) : 0.34 - (phase.d % 0.34));
+        const on = phase.d % 0.26 < 0.08;
+        const step = Math.min(len - t, on ? 0.08 - (phase.d % 0.26) : 0.26 - (phase.d % 0.26));
         if (on) {
           const x0 = a.x + ux * t;
           const y0 = a.y + uy * t;
@@ -1312,18 +1425,18 @@ export class View {
           for (const seg of planSegments(sim.grid, wps.slice(startIdx))) pts.push(...seg.slice(1));
         }
       }
-      for (let k = 1; k < pts.length; k++) dash(pts[k - 1], pts[k], col, phase, 0.055);
+      for (let k = 1; k < pts.length; k++) dash(pts[k - 1], pts[k], col, phase, 0.034);
       // Waypoint dots and go-code circles.
       wps.forEach((w, k) => {
         if (this.mode === 'raid' && k < startIdx) return;
         const sel = plan && plan.selected === i + 1 && plan.selectedWp === k;
         if (w.hold) {
-          const d = this.iconPlane(0.95, (g, s) => drawCode(g, s, w.hold!, !!sel), 128);
+          const d = this.iconPlane(0.72, (g, s) => drawCode(g, s, w.hold!, !!sel), 128);
           d.rotation.x = Math.PI / 2;
           d.position.set(this.co.X(w.x), 0.12, this.co.Z(w.y));
           d.parent = this.markers;
         } else if (k > 0) {
-          const dot = MeshBuilder.CreateDisc('wp', { radius: sel ? 0.19 : 0.13, tessellation: 20 }, this.scene);
+          const dot = MeshBuilder.CreateDisc('wp', { radius: sel ? 0.15 : 0.09, tessellation: 20 }, this.scene);
           dot.rotation.x = Math.PI / 2;
           dot.position.set(this.co.X(w.x), 0.09, this.co.Z(w.y));
           dot.material = mat(this.scene, colours[i], { emissive: colours[i], unlit: true });
@@ -1331,7 +1444,7 @@ export class View {
           this.toOverlay(dot);
         }
         if (sel && k > 0) {
-          const halo = MeshBuilder.CreateTorus('halo', { diameter: w.hold ? 0.95 : 0.55, thickness: 0.04, tessellation: 24 }, this.scene);
+          const halo = MeshBuilder.CreateTorus('halo', { diameter: w.hold ? 0.78 : 0.42, thickness: 0.025, tessellation: 24 }, this.scene);
           halo.position.set(this.co.X(w.x), 0.09, this.co.Z(w.y));
           halo.material = mat(this.scene, '#ffffff', { emissive: '#ffffff', unlit: true });
           halo.parent = this.markers;
@@ -1464,6 +1577,10 @@ export class View {
     this.darkAmount += ((this.mode === 'raid' ? 1 : 0) - this.darkAmount) * Math.min(1, dt * 3);
     if (this.darkAmount < 0.002) this.darkAmount = 0;
     this.torchMask.refreshRate = this.darkAmount > 0 ? 1 : 0;
+    // What the crew have seen, gathered a few times a second.
+    this.seenT -= dt;
+    if (this.seenT < -0.12) this.seenT = 0.12;
+    this.flushSeen();
     const est = this.estate;
     if (!est) {
       this.scene.render();
@@ -1682,6 +1799,7 @@ export class View {
     a.char?.update(dt);
     if (c.state === 'down') {
       a.ring.visibility = 0.35;
+      a.reach?.setEnabled(false);
       this.layDown(a, false);
       return;
     }
@@ -1691,9 +1809,18 @@ export class View {
     this.animate(a, c.state === 'pick' || c.state === 'loot' ? 'crouch' : c.state === 'fight' ? 'aim' : c.state === 'moving' ? 'move' : 'idle');
     const sel = plan && plan.selected === i + 1;
     a.ring.scaling.setAll(sel ? 1.25 : 1);
+    if (a.reach) {
+      // Only for whoever is picked: four at once swamp the map.
+      a.reach.setEnabled(!!sel);
+      a.reach.scaling.setAll(c.range / CHAR_SCALE);
+    }
     a.bag!.setEnabled(c.carrying.length > 0);
     const sim = this.lastSim;
-    if (sim) this.setCone(a.cone, sim.grid.visionFan(c.x, c.y, c.facing, c.fov, c.range, 36), c.x, c.y, 0.05, c.range);
+    if (sim) {
+      const fan = sim.grid.visionFan(c.x, c.y, c.facing, c.fov, c.range, 36);
+      this.setCone(a.cone, fan, c.x, c.y, 0.05, c.range);
+      if (this.mode === 'raid' && this.seenT <= 0) this.markSeen(fan, c.x, c.y);
+    }
   }
 
   private lastSim: Sim | null = null;
