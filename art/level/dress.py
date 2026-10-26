@@ -34,6 +34,49 @@ FIX = {
 }
 DEFAULT_TRIS = 1200   # big things; smaller ones get less (see _load)
 
+# Meshy models ("mk:<name>"), made from our own reference pictures in
+# art/meshy-refs/. Meshy sizes them to about 1.9 units, so each gets its real
+# size: "len" is the longest side on the ground, "h" the height, in metres.
+# Vehicles come out with the bonnet at -X, so they turn a quarter. "cut"
+# trims an indoor thing at the walls' 1.5 m, like the walls themselves.
+MESHY_DIR = os.environ.get("MESHY_PROPS", "/mnt/project-files/ai-models/props-meshy")
+MESHY = {
+    "fiesta": {"len": 3.96, "turn": math.pi / 2, "tris": 3500},
+    "bmw-1series": {"len": 4.32, "turn": math.pi / 2, "tris": 3500},
+    "police-car": {"len": 4.63, "turn": math.pi / 2, "tris": 3500},
+    "transit-van": {"len": 5.53, "turn": math.pi / 2, "tris": 3500},
+    "moped": {"len": 1.85, "turn": math.pi / 2, "tris": 2500},
+    "wheelie-bin": {"h": 1.07},
+    "eurobin": {"h": 1.45},
+    "phone-box": {"h": 2.5},
+    "bus-shelter": {"len": 3.5, "tris": 2500},
+    "shopping-trolley": {"h": 1.0},
+    "traffic-cone": {"h": 0.75, "tris": 600},
+    "sofa": {"len": 2.0},
+    "mattress": {"len": 1.9},
+    "kitchen-run": {"len": 2.4, "tris": 2500},
+    "fridge-freezer": {"h": 1.8, "cut": True},
+    "washing-machine": {"h": 0.85},
+    "grow-tent": {"h": 2.0, "cut": True},
+    "scales-table": {"h": 0.75},
+    # The grow kit for the Elephant arches (art/meshy-refs/grow/).
+    "carbon-filter": {"h": 0.6, "tris": 500},
+    "dehumidifier": {"h": 0.65, "tris": 600},
+    "floor-fan": {"h": 0.5, "tris": 500},
+    "weed-plant-big": {"h": 1.3, "tris": 900},
+    "weed-plant-small": {"h": 0.75, "tris": 700},
+    "flood-table": {"len": 1.9, "tris": 1500},
+    "nutrient-bottles": {"len": 0.6, "tris": 500},
+    "water-tank": {"h": 1.25, "tris": 800},
+    "soil-bags": {"len": 1.1, "tris": 600},
+    "messy-bed": {"len": 2.2, "tris": 2000},
+    "bedside-lamp": {"h": 0.85, "tris": 600},
+    "supply-shelf": {"h": 1.4, "tris": 1500, "cut": True},
+    "grow-light": {"len": 1.2, "tris": 400},
+    "extractor-duct": {"len": 2.0, "tris": 800},
+}
+CUT = 1.45
+
 _base = {}
 _placed = []
 _mats = {}
@@ -61,8 +104,11 @@ def _texture(mat, name, big):
         if node and node.type == "TEX_IMAGE" and node.image:
             from PIL import Image
             os.makedirs(TEX_OUT, exist_ok=True)
-            src = bpy.path.abspath(node.image.filepath)
-            im = Image.open(src).convert("RGB")
+            if node.image.packed_file:
+                import io
+                im = Image.open(io.BytesIO(node.image.packed_file.data)).convert("RGB")
+            else:
+                im = Image.open(bpy.path.abspath(node.image.filepath)).convert("RGB")
             side = 1024 if big else 512
             if im.width > side:
                 im = im.resize((side, side * im.height // im.width), Image.LANCZOS)
@@ -78,7 +124,8 @@ def _texture(mat, name, big):
 def _load(asset):
     if asset in _base:
         return _base[asset]
-    path = polyhaven.fetch(asset)
+    mk = MESHY.get(asset[3:]) if asset.startswith("mk:") else None
+    path = os.path.join(MESHY_DIR, asset[3:] + ".glb") if mk is not None else polyhaven.fetch(asset)
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
@@ -95,7 +142,11 @@ def _load(asset):
     for name in [o.name for o in bpy.data.objects if o not in before]:
         if name != keep:
             bpy.data.objects.remove(bpy.data.objects[name])
-    fix = FIX.get(asset, {})
+    fix = FIX.get(asset, mk or {})
+    if mk is not None:
+        bpy.context.view_layer.update()
+        d = obj.dimensions
+        fix = dict(mk, scale=mk["len"] / max(d.x, d.y) if "len" in mk else mk["h"] / d.z)
     obj.scale = (fix.get("scale", 1.0),) * 3
     obj.rotation_mode = "XYZ"
     obj.rotation_euler.z += fix.get("turn", 0.0)
@@ -114,15 +165,27 @@ def _load(asset):
     lo = Vector([min((v.co[i] for v in me.vertices)) for i in range(3)])
     hi = Vector([max((v.co[i] for v in me.vertices)) for i in range(3)])
     me.transform(Matrix.Translation(-Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z))))
+    if fix.get("cut") and hi.z - lo.z > CUT:
+        import bmesh
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        res = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, 0, CUT), plane_no=(0, 0, 1), clear_outer=True)
+        edges = [e for e in res["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
+        if edges:
+            bmesh.ops.holes_fill(bm, edges=edges)
+        bm.to_mesh(me)
+        bm.free()
+        hi = Vector((hi.x, hi.y, lo.z + CUT))
     big = max(hi - lo) > 1.0
     for k, m in enumerate(me.materials):
-        name = f"ph_{asset.lower()}" + (f"_{k}" if k else "")
+        name = f"ph_{asset.lower().replace(':', '_').replace('-', '_')}" + (f"_{k}" if k else "")
         m.name = name
         _texture(m, name, big)
     for c in list(obj.users_collection):
         c.objects.unlink(obj)
     _library().objects.link(obj)
-    obj.name = f"ph_{asset}"
+    obj.name = f"ph_{asset.replace(':', '_')}"
     _base[asset] = (obj, hi - lo)
     return _base[asset]
 
@@ -184,6 +247,9 @@ KITS = {
     "grow": ["compost_bags", "plastic_crate_03", "seeding_tray_01", "plastic_jerrycan", "barrel_03", "plastic_bottle_gallon",
              "wooden_stool_01", "propane_tank", "hand_truck", "portable_generator", "compost_bag_02", "watering_can_metal_01",
              "steel_frame_shelves_02", "small_lpg_tank"],
+    "clone": ["seeding_tray_01", "plastic_jerrycan", "plastic_bottle_gallon", "watering_can_metal_01", "plastic_crate_03"],
+    "bedroom": ["trashbag", "painted_wooden_nightstand", "vintage_suitcase", "cardboard_box_01", "plastic_monobloc_chair_01",
+                "wine_bottles_01", "gamepad"],
     "shop": ["cardboard_box_01", "plastic_crate_02", "WetFloorSign_01", "plastic_monobloc_chair_01"],
     "stock": ["cardboard_box_01", "wooden_crate_02", "plastic_crate_01", "hand_truck", "plastic_crate_03",
               "steel_frame_shelves_03", "worn_metal_rack", "russian_food_cans_01", "trashbag"],
@@ -210,7 +276,7 @@ MESS = {
     "street": ["trashbag", "trashbag", "can_rusted", "cardboard_box_01", "plastic_crate_03"],
 }
 MESS_OF = {"living": "home", "kitchen": "home", "stash": "home", "hall": "home", "back": "home",
-           "office": "work", "grow": "work", "shop": "work", "stock": "work", "store": "work", "plant": "work",
+           "office": "work", "grow": "work", "clone": "work", "bedroom": "home", "shop": "work", "stock": "work", "store": "work", "plant": "work",
            "cafe": "work", "kiln": "work", "lobby": "street", "bins": "street", "row": "street", "passage": "street",
            "deck": "street", "stairs": "street"}
 

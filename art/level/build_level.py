@@ -737,15 +737,35 @@ def build_street():
     for x in (6.0, 21.0):
         g.aabb(BX(x), BY(24.5), -0.099, BX(x + 0.5), BY(24.15), -0.095, "metal_dark")
     g.cyl(P(15.0, 23.0, 0.0), 0.32, 0.012, "metal_dark", segs=16)
-    # Parked cars.
-    van_front = props.car(P, g, emit, 0.6, 24.15, 4.9, 1.9, "van_paint", facing=1, lights=True, van=True)
-    props.car(P, g, emit, 16.6, 24.15, 4.0, 1.75, "car_paint", facing=-1)
-    props.car(P, gf, emit, -9.0, 24.15, 4.1, 1.75, "car_paint2", facing=1)
-    props.car(P, gf, emit, 36.0, 24.15, 4.2, 1.8, "bin_blue", facing=1)
-    props.car(P, gf, emit, 8.0, 26.1, 4.1, 1.75, "car_paint2", facing=-1)
-    props.car(P, gf, emit, 25.0, 26.1, 4.0, 1.75, "car_paint", facing=-1)
-    props.car(P, gf, emit, -16.0, 26.1, 4.0, 1.75, "metal", facing=-1)
+    # Parked cars: Meshy models when dressing, drawn boxes otherwise.
+    car = real_car if DRESS else props.car
+    van_front = car(P, g, emit, 0.6, 24.15, 4.9, 1.9, "van_paint", facing=1, lights=True, van=True)
+    car(P, g, emit, 16.6, 24.15, 4.0, 1.75, "car_paint", facing=-1)
+    car(P, gf, emit, -9.0, 24.15, 4.1, 1.75, "car_paint2", facing=1)
+    car(P, gf, emit, 36.0, 24.15, 4.2, 1.8, "bin_blue", facing=1)
+    car(P, gf, emit, 8.0, 26.1, 4.1, 1.75, "car_paint2", facing=-1)
+    car(P, gf, emit, 25.0, 26.1, 4.0, 1.75, "car_paint", facing=-1)
+    car(P, gf, emit, -16.0, 26.1, 4.0, 1.75, "metal", facing=-1)
     return g, gf, emit, lamps, van_front
+
+
+# Which Meshy model stands in for each drawn car, by its paint.
+CAR_MODEL = {"car_paint": "mk:fiesta", "car_paint2": "mk:bmw-1series", "bin_blue": "mk:fiesta", "metal": "mk:bmw-1series"}
+
+
+def real_car(P, g, emit, x0, y0, length, width, mat, facing=1, lights=False, van=False, zb=-0.1):
+    """props.car's footprint and lights, with a Meshy car or van in it."""
+    asset = "mk:transit-van" if van else CAR_MODEL.get(mat, "mk:fiesta")
+    cx, cy = x0 + length / 2, y0 + width / 2
+    dress.place(asset, P(cx, cy, zb + 0.1), face=0.0 if facing > 0 else math.pi, coll=C_STATIC)
+    real = dress.size(asset).y          # the model's length, now along x
+    fx = cx + facing * (real / 2 + 0.005)
+    if lights:
+        for s in (-1, 1):
+            emit.box(P(fx, cy + s * (width / 2 - 0.3), zb + (0.9 if van else 0.72)), (0.03, 0.22, 0.1), "emit_headlight", bevel=0.01)
+            emit.box(P(cx - facing * (real / 2 + 0.005), cy + s * (width / 2 - 0.15), zb + (1.1 if van else 0.8)),
+                     (0.03, 0.12, 0.18), "emit_tail", bevel=0.01)
+    return P(fx, cy, zb + 0.75)
 
 
 # =================================================================== props
@@ -1135,7 +1155,7 @@ def centre(p):
 
 def real_sofa(g, e, p):
     x, y = centre(p)
-    ph("sofa_03", x, y, face=p.get("facing", 0))
+    ph("mk:sofa", x, y, face=p.get("facing", 0))
     ph("side_table_01", p["x"] + p["w"] + 0.3, y)
 
 
@@ -1174,12 +1194,53 @@ def real_shelves(g, e, p):
     ph("cardboard_box_01", x - 0.5, p["y"] + 0.3, z=0.34, spin=-0.3)
 
 
+def against_wall(p, inset):
+    """Map point `inset` metres out from the wall behind prop `p`, mid-footprint."""
+    f = p.get("facing", math.pi / 2)
+    fx, fy = round(math.cos(f)), round(math.sin(f))
+    x, y = centre(p)
+    deep = p["h"] if fx == 0 else p["w"]
+    return x - fx * (deep / 2 - inset), y - fy * (deep / 2 - inset), (fx, fy)
+
+
+def real_counter(g, e, p):
+    """A 2.4 m Meshy kitchen run with the washing machine on the end; drawn if it will not fit."""
+    span = max(p["w"], p["h"])
+    if span < 3.0:
+        return prop_counter(g, e, p)
+    x, y, (fx, fy) = against_wall(p, 0.33)
+    ax, ay = -fy, fx
+    f = p.get("facing", math.pi / 2)
+    ph("mk:kitchen-run", x + ax * (1.2 - span / 2 + 0.02), y + ay * (1.2 - span / 2 + 0.02), face=f)
+    ph("mk:washing-machine", x + ax * (span / 2 - 0.31), y + ay * (span / 2 - 0.31), face=f)
+
+
+def real_fridge(g, e, p):
+    x, y, (fx, fy) = against_wall(p, 0.4)
+    ph("mk:fridge-freezer", x, y, face=p.get("facing", math.pi / 2))
+    e.append(("fridge", P(x + fx * 0.5, y + fy * 0.5, 0.8)))
+
+
+def real_bins(g, e, p):
+    for k in range(p["h"]):
+        ph("mk:wheelie-bin", p["x"] + 0.5, p["y"] + k + 0.5, face=math.pi if p["x"] > 20 else 0.0, spin=0.15 * (k % 2))
+
+
 DRESSED = {"sofa": real_sofa, "armchair": real_armchair, "coffeeTable": real_coffee_table, "table": real_table,
-           "shelves": real_shelves}
+           "shelves": real_shelves, "counter": real_counter, "fridge": real_fridge, "bins": real_bins}
 
 
 def dress_clutter():
     """The mess that makes a room look lived in. Kept clear of doors and walkways."""
+    # Meshy pieces made for this game: the street, the garden, the stash.
+    ph("mk:phone-box", 3.0, 22.7, face=-math.pi / 2)
+    ph("mk:bus-shelter", 31.0, 23.0, face=-math.pi / 2)
+    ph("mk:eurobin", 26.6, 22.6, face=-math.pi / 2, spin=0.1)
+    ph("mk:moped", 19.4, 22.7, face=0.0, spin=0.2)
+    ph("mk:traffic-cone", 13.6, 23.75, spin=0.4)
+    ph("mk:shopping-trolley", 6.2, 22.8, face=0.0, spin=0.7)
+    ph("mk:mattress", 11.6, 2.9, face=0.0, spin=0.12)
+    ph("mk:scales-table", 9.8, 10.6, face=math.pi)
     # Front room: the console by the telly, a crate of games, a speaker.
     ph("gaming_console", 10.0, 14.35, face=0, spin=0.3)
     ph("boombox", 10.55, 17.55, face=math.pi, spin=-0.5)

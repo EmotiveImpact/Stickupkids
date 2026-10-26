@@ -1,14 +1,28 @@
 {
  "materials": {
-  "ph_sofa_03": {
-   "tex": "ph/ph_sofa_03",
+  "ph_mk_transit_van": {
+   "tex": "ph/ph_mk_transit_van",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_sofa_03_1": {
-   "tex": "ph/ph_sofa_03_1",
+  "ph_mk_fiesta": {
+   "tex": "ph/ph_mk_fiesta",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_bmw_1series": {
+   "tex": "ph/ph_mk_bmw_1series",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_sofa": {
+   "tex": "ph/ph_mk_sofa",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -49,6 +63,27 @@
    "rough": 0.5,
    "emissive": null
   },
+  "ph_mk_kitchen_run": {
+   "tex": "ph/ph_mk_kitchen_run",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_washing_machine": {
+   "tex": "ph/ph_mk_washing_machine",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_fridge_freezer": {
+   "tex": "ph/ph_mk_fridge_freezer",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
   "ph_dining_table": {
    "tex": "ph/ph_dining_table",
    "tint": "#ffffff",
@@ -79,6 +114,69 @@
   },
   "ph_cardboard_box_01": {
    "tex": "ph/ph_cardboard_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_wheelie_bin": {
+   "tex": "ph/ph_mk_wheelie_bin",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_phone_box": {
+   "tex": "ph/ph_mk_phone_box",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_bus_shelter": {
+   "tex": "ph/ph_mk_bus_shelter",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_eurobin": {
+   "tex": "ph/ph_mk_eurobin",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_moped": {
+   "tex": "ph/ph_mk_moped",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_traffic_cone": {
+   "tex": "ph/ph_mk_traffic_cone",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_shopping_trolley": {
+   "tex": "ph/ph_mk_shopping_trolley",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_mattress": {
+   "tex": "ph/ph_mk_mattress",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_scales_table": {
+   "tex": "ph/ph_mk_scales_table",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -1151,7 +1249,7 @@
   [
    "fridge",
    [
-    4.5,
+    4.099999904632568,
     1.5,
     0.800000011920929
    ]
@@ -1191,7 +1289,7 @@
   [
    "van",
    [
-    -9.494999885559082,
+    -9.169235229492188,
     -12.100000381469727,
     0.6499999761581421
    ]
@@ -1249,7 +1347,7 @@
  },
  "cut": 1.5,
  "probe": {
-  "max": 1.8075885759124755,
+  "max": 1.8193845735321044,
   "perUnit": 8
  }
 }
