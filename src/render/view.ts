@@ -40,6 +40,7 @@ import { BARRICADE_TIME, CALL_TIME, TALK_TIME, planSegments, type Crew, type Ene
 import { PALETTE, WALL_H } from './palette.ts';
 import { Coords, mat } from './world.ts';
 import { loadEstate, type Estate } from './estate.ts';
+import { Stills } from './still.ts';
 import { CHAR_SCALE, CharacterKit, type Character, type Weapon } from './characters.ts';
 import { Atmosphere, dotTexture, glowTexture } from './atmosphere.ts';
 import { sprayTags } from './graffiti.ts';
@@ -355,6 +356,8 @@ export class View {
   /** The Go shot: a low, close look past the crew at the way in, before the raid camera takes over. */
   private intro: { from: Vector3; to: Vector3; look0: Vector3; look1: Vector3; t: number; dur: number } | null = null;
   private estate: Estate | null = null;
+  /** The level drawn ahead of time, when it has the pictures (src/render/still.ts). */
+  private stills: Stills | null = null;
   private readonly kits = new Map<string, CharacterKit>();
   private atmosphere: Atmosphere | null = null;
   private shadowLight: DirectionalLight;
@@ -525,12 +528,20 @@ export class View {
       loadEstate(scene, this.assets),
       ...kinds.map((k) => CharacterKit.load(scene, `models/ai/${k}`, CREW_MODELS.includes(k) ? MESHY_SPEEDS : {})),
     ]);
+    // Before the level counts as loaded: the frame loop starts drawing once it is.
+    this.stills = await Stills.load(scene, this.assets, estate);
     this.estate = estate;
+    if (this.stills) {
+      // Picture white comes out white after the pipeline's exposure.
+      this.stills.gain = 1 / this.pipeline.imageProcessing.exposure;
+      this.stills.setView(this.angled ? 'angled' : 'overhead');
+    }
     kinds.forEach((k, i) => this.kits.set(k, kits[i]));
     // A bake shared between jobs holds loot this job does not have.
     for (const [id, node] of estate.loot) if (!lv.loot.some((l) => l.id === id)) node.setEnabled(false);
     this.shadowLight.includedOnlyMeshes = estate.receivers;
-    this.wetGround(estate);
+    // The pictures have their own wet shine.
+    if (!this.stills) this.wetGround(estate);
     sprayTags(scene, lv, this.co, lv.w * 7919 + lv.h);
     lightRooms(scene, lv, this.co);
 
@@ -720,6 +731,18 @@ export class View {
    * frame it the same way.
    */
   private placeAngled(target: Vector3) {
+    if (this.stills?.has('angled')) {
+      // Flat on, like the overhead view, so the level's picture lines up wherever the camera is.
+      const { ahead } = this.axes;
+      const d = 60;
+      for (const c of [this.cam, this.ocam]) {
+        c.mode = Camera.ORTHOGRAPHIC_CAMERA;
+        c.maxZ = 400;
+        c.position.copyFrom(target.subtract(ahead.scale(d * Math.cos(ANGLE_PITCH))).add(new Vector3(0, d * Math.sin(ANGLE_PITCH), 0)));
+        c.setTarget(target);
+      }
+      return;
+    }
     const sw = this.engine.getRenderWidth();
     const sh = this.engine.getRenderHeight();
     const dpr = sw / Math.max(1, this.engine.getRenderingCanvas()!.clientWidth);
@@ -747,6 +770,7 @@ export class View {
     if (on === this.angled) return;
     const mid = this.groundAt(this.insets.left + (fit.w - this.insets.left - this.insets.right) / 2, this.insets.top + (fit.h - this.insets.top - this.insets.bottom) / 2);
     this.angled = on;
+    this.stills?.setView(on ? 'angled' : 'overhead');
     if (mid) this.pan = { x: mid.x, z: mid.z };
     this.clampPan();
     this.resize();
@@ -844,6 +868,8 @@ export class View {
     };
     this.cam.mode = Camera.PERSPECTIVE_CAMERA;
     this.cam.fov = 0.78;
+    // Down among the crew the pictures would smear: live shading for the shot.
+    this.stills?.setOn(false);
     // The plan's lines and markers are drawn for the overhead view; they sit this out.
     this.scene.activeCameras = [this.cam];
     // A cut, not a dissolve: the blueprint goes at once.
@@ -878,6 +904,7 @@ export class View {
   endIntro() {
     if (!this.intro) return;
     this.intro = null;
+    this.stills?.setOn(true);
     this.cam.mode = Camera.ORTHOGRAPHIC_CAMERA;
     this.scene.activeCameras = [this.cam, this.ocam];
     this.resize();

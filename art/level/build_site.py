@@ -47,9 +47,10 @@ OUT = args[args.index("--out") + 1] if "--out" in args else os.path.join(ROOT, "
 DRESS = "--dress" in args     # litter the rooms with real models (art/level/dress.py)
 BAKE = "--bake" in args
 PREVIEW = "--preview" in args
-# --still X Y: a full-quality Cycles render of the angled view centred on map
-# point (X, Y), instead of the bake and export (a pre-rendered background test).
-STILL = tuple(float(v) for v in args[args.index("--still") + 1:args.index("--still") + 3]) if "--still" in args else None
+# --still [overhead|angled]: full-quality Cycles renders of the whole level from
+# the game's camera angles, instead of the bake and export (pre-rendered backgrounds).
+STILL = (tuple(a for a in args[args.index("--still") + 1:] if a in ("overhead", "angled")) or ("overhead", "angled")) \
+    if "--still" in args else None
 SAMPLES = int(args[args.index("--samples") + 1]) if "--samples" in args else 96
 LM_SIZE = int(args[args.index("--size") + 1]) if "--size" in args else 4096
 
@@ -1232,79 +1233,399 @@ def build_lights(lamps, extra, cars, van):
 
 
 # =================================================================== still
-WET = {"paving", "tarmac", "tarmac_alley", "kerb", "concrete", "concrete_floor", "patio", "tiles_slab", "path_edge", "lino_marble"}
+# Pre-rendered backgrounds: the whole level drawn once in Cycles from each of
+# the game's two camera angles, flat on (orthographic), at full detail. The
+# game paints these over the level's own shapes (src/render/still.ts), so
+# the crew, enemies and doors move live on top of a picture like the renders.
+STILL_VIEWS = {
+    # Direction from the ground to the camera, as the game's view.ts has it.
+    "overhead": (54.0, 0.0),
+    "angled": (50.0, -28.0),
+}
+WET = {"paving", "tarmac", "tarmac_alley", "kerb", "concrete", "concrete_floor", "patio", "tiles_slab", "path_edge", "lino_marble",
+       "road", "paint_road", "paint_yellow", "path", "coping"}
+INDOOR_WET = {"concrete_floor", "lino_marble", "tiles", "tiles_slab"}
+# Poly Haven surfaces (art/assets/polyhaven_tex.py) for the big surfaces: colour,
+# normal and roughness, and how much to darken the colour.
+PH_SURF = {
+    "brick_viaduct": ("brick_wall_001", 0.55), "brick": ("brick_wall_001", 0.6),
+    "cap": ("brick_wall_10", 0.35),
+    "tarmac_alley": ("cobblestone_square", 0.45), "paving": ("cobblestone_square", 0.5),
+    "tarmac": ("asphalt_03", 0.5), "road": ("asphalt_03", 0.5),
+    "concrete_floor": ("concrete_floor_worn_001", 0.85), "concrete": ("concrete_floor_02", 0.5),
+    "patio": ("concrete_floor_02", 0.5), "tiles_slab": ("concrete_floor_02", 0.55),
+}
+PH_TEX = os.path.join(ROOT, "art", "assets", "polyhaven_tex")
+_images = {}
 
 
-def _shade(m, b, k):
-    """Darken a material's base colour (through its texture, if it has one)."""
-    nt = m.node_tree
-    src = b.inputs["Base Color"]
-    if src.is_linked:
-        mul = nt.nodes.new("ShaderNodeMix")
-        mul.data_type = "RGBA"
-        mul.blend_type = "MULTIPLY"
-        mul.inputs["Factor"].default_value = 1.0
-        mul.inputs[7].default_value = (k, k, k, 1)
-        nt.links.new(src.links[0].from_socket, mul.inputs[6])
-        nt.links.new(mul.outputs[2], src)
-    else:
-        c = src.default_value
-        src.default_value = (c[0] * k, c[1] * k, c[2] * k, c[3])
+def _img(path, colour=True):
+    if path not in _images:
+        im = bpy.data.images.load(path, check_existing=True)
+        im.colorspace_settings.name = "sRGB" if colour else "Non-Color"
+        _images[path] = im
+    return _images[path]
 
 
-def render_still(at, coll, pitch=50.0, yaw=28.0, dist=38.0, lens=40.0, size=(1920, 1080)):
-    """Render the game's angled view from above the map point `at` with
-    Cycles: walls above the cut and ceilings hidden, wet ground glossy."""
-    C_STATIC, C_EXPORT, C_BLOCK, C_DYN = coll
-    scene = bpy.context.scene
+def _tex(nt, path, vec, colour=True):
+    n = nt.nodes.new("ShaderNodeTexImage")
+    n.image = _img(path, colour)
+    n.interpolation = "Cubic"
+    nt.links.new(vec, n.inputs["Vector"])
+    return n
+
+
+def _puddles(nt, outdoor):
+    """0 dry, 1 standing water: big soft blobs in world space."""
+    geo = nt.nodes.new("ShaderNodeNewGeometry")
+    nz = nt.nodes.new("ShaderNodeTexNoise")
+    nz.inputs["Scale"].default_value = 0.22 if outdoor else 0.3
+    nz.inputs["Detail"].default_value = 4.0
+    nz.inputs["Roughness"].default_value = 0.55
+    nt.links.new(geo.outputs["Position"], nz.inputs["Vector"])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    lo = 0.5 if outdoor else 0.56
+    ramp.color_ramp.elements[0].position = lo
+    ramp.color_ramp.elements[1].position = lo + 0.05
+    nt.links.new(nz.outputs["Fac"], ramp.inputs["Fac"])
+    # Only on floors: walls do not hold water.
+    up = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(geo.outputs["Normal"], up.inputs[0])
+    flat = nt.nodes.new("ShaderNodeMath")
+    flat.operation = "GREATER_THAN"
+    flat.inputs[1].default_value = 0.9
+    nt.links.new(up.outputs["Z"], flat.inputs[0])
+    m = nt.nodes.new("ShaderNodeMath")
+    m.operation = "MULTIPLY"
+    nt.links.new(ramp.outputs["Color"], m.inputs[0])
+    nt.links.new(flat.outputs[0], m.inputs[1])
+    return m.outputs[0]
+
+
+def _mix(nt, a, b, fac, kind="FLOAT"):
+    n = nt.nodes.new("ShaderNodeMix")
+    n.data_type = kind
+    if kind == "RGBA":
+        nt.links.new(fac, n.inputs["Factor"])
+        for sock, v in ((n.inputs[6], a), (n.inputs[7], b)):
+            if isinstance(v, tuple):
+                sock.default_value = v
+            else:
+                nt.links.new(v, sock)
+        return n.outputs[2]
+    nt.links.new(fac, n.inputs["Factor"])
+    for sock, v in ((n.inputs[2], a), (n.inputs[3], b)):
+        if isinstance(v, (int, float)):
+            sock.default_value = v
+        else:
+            nt.links.new(v, sock)
+    return n.outputs[0]
+
+
+def still_materials():
+    """Give the flat bake colours their real surfaces: textures on the box
+    UVs, Poly Haven brick, setts and concrete with normals, and wet ground
+    with puddles that mirror the lights."""
+    tex_dir = os.path.join(ROOT, "public", "textures")
     for m in bpy.data.materials:
-        b = m.node_tree.nodes.get("Principled BSDF") if m.use_nodes else None
+        name = m.name.split(".")[0]
+        if not m.use_nodes or name not in kit.MATS:
+            continue
+        nt = m.node_tree
+        b = nt.nodes.get("Principled BSDF")
         if not b:
             continue
-        if m.name in WET:
-            # Wet: glossy and a shade darker, so the lights pool in it.
-            b.inputs["Roughness"].default_value = 0.1
-            _shade(m, b, 0.6)
-        elif m.name.startswith("plaster_") or m.name in ("brick_viaduct", "render_n"):
-            _shade(m, b, 0.55)
-    # Punchier practicals than the bake wants: grow light more magenta, sodium lamps brighter.
+        tex, tint, _size, rough, em = kit.MATS[name]
+        if em:
+            continue
+        uv = nt.nodes.new("ShaderNodeUVMap")
+        uv.uv_map = "UVMap"
+        wet = name in WET
+        outdoor = wet and name not in INDOOR_WET
+        base = rgh = nor = None
+        if name in PH_SURF:
+            asset, k = PH_SURF[name]
+            d = os.path.join(PH_TEX, asset)
+            mp = nt.nodes.new("ShaderNodeMapping")
+            s = kit.uv_size(name) / float(open(os.path.join(d, "size.txt")).read())
+            mp.inputs["Scale"].default_value = (s, s, 1)
+            nt.links.new(uv.outputs["UV"], mp.inputs["Vector"])
+            c = _tex(nt, os.path.join(d, "diff.jpg"), mp.outputs[0]).outputs["Color"]
+            mul = nt.nodes.new("ShaderNodeMix")
+            mul.data_type = "RGBA"
+            mul.blend_type = "MULTIPLY"
+            mul.inputs["Factor"].default_value = 1.0
+            nt.links.new(c, mul.inputs[6])
+            mul.inputs[7].default_value = (k, k, k, 1)
+            base = mul.outputs[2]
+            rgh = _tex(nt, os.path.join(d, "rough.jpg"), mp.outputs[0], False).outputs["Color"]
+            nm = nt.nodes.new("ShaderNodeNormalMap")
+            nm.inputs["Strength"].default_value = 1.0
+            nt.links.new(_tex(nt, os.path.join(d, "nor.jpg"), mp.outputs[0], False).outputs["Color"], nm.inputs["Color"])
+            nor = nm
+        elif tex and os.path.exists(os.path.join(tex_dir, f"{tex}.jpg")):
+            t = _tex(nt, os.path.join(tex_dir, f"{tex}.jpg"), uv.outputs["UV"])
+            mul = nt.nodes.new("ShaderNodeMix")
+            mul.data_type = "RGBA"
+            mul.blend_type = "MULTIPLY"
+            mul.inputs["Factor"].default_value = 1.0
+            nt.links.new(t.outputs["Color"], mul.inputs[6])
+            mul.inputs[7].default_value = (*kit.hex_lin(tint), 1)
+            base = mul.outputs[2]
+            bump = nt.nodes.new("ShaderNodeBump")
+            bump.inputs["Strength"].default_value = 0.25
+            bump.inputs["Distance"].default_value = 0.01
+            nt.links.new(t.outputs["Color"], bump.inputs["Height"])
+            nor = bump
+        if name.startswith("plaster_") or name == "render_n":
+            base = None
+            c = b.inputs["Base Color"].default_value
+            b.inputs["Base Color"].default_value = (c[0] * 0.55, c[1] * 0.55, c[2] * 0.55, 1)
+        if wet:
+            pud = _puddles(nt, outdoor)
+            if base is None:
+                c = b.inputs["Base Color"].default_value
+                base_c = (c[0], c[1], c[2], 1)
+                base = _mix(nt, base_c, (c[0] * 0.65, c[1] * 0.65, c[2] * 0.7, 1), pud, "RGBA")
+            else:
+                dark = nt.nodes.new("ShaderNodeMix")
+                dark.data_type = "RGBA"
+                dark.blend_type = "MULTIPLY"
+                dark.inputs[7].default_value = (0.65, 0.65, 0.7, 1)
+                nt.links.new(pud, dark.inputs["Factor"])
+                nt.links.new(base, dark.inputs[6])
+                base = dark.outputs[2]
+            # Damp all over, glassy in the puddles.
+            damp = nt.nodes.new("ShaderNodeMath")
+            damp.operation = "MULTIPLY"
+            damp.inputs[1].default_value = 0.55 if outdoor else 0.7
+            if rgh is not None:
+                nt.links.new(rgh, damp.inputs[0])
+            else:
+                damp.inputs[0].default_value = rough
+            r = _mix(nt, damp.outputs[0], 0.03, pud)
+            nt.links.new(r, b.inputs["Roughness"])
+            if nor is not None:
+                inv = nt.nodes.new("ShaderNodeMath")
+                inv.operation = "SUBTRACT"
+                inv.inputs[0].default_value = 1.0
+                nt.links.new(pud, inv.inputs[1])
+                nt.links.new(inv.outputs[0], nor.inputs["Strength"])
+        elif rgh is not None:
+            nt.links.new(rgh, b.inputs["Roughness"])
+        if base is not None:
+            nt.links.new(base, b.inputs["Base Color"])
+        if nor is not None:
+            nt.links.new(nor.outputs["Normal"], b.inputs["Normal"])
+
+
+def _curve(name, pts, radius, mat, res=4):
+    cu = bpy.data.curves.new(name, "CURVE")
+    cu.dimensions = "3D"
+    cu.bevel_depth = radius
+    cu.bevel_resolution = res
+    cu.use_fill_caps = True
+    sp = cu.splines.new("BEZIER")
+    sp.bezier_points.add(len(pts) - 1)
+    for bp, p in zip(sp.bezier_points, pts):
+        bp.co = p
+        bp.handle_left_type = bp.handle_right_type = "AUTO"
+    o = bpy.data.objects.new(name, cu)
+    o.data.materials.append(mat)
+    bpy.context.scene.collection.objects.link(o)
+    return o
+
+
+def _still_mat(name, colour, rough, metal=0.0, ribs=0.0):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = nt.nodes.get("Principled BSDF")
+    b.inputs["Base Color"].default_value = (*kit.hex_lin(colour), 1)
+    b.inputs["Roughness"].default_value = rough
+    b.inputs["Metallic"].default_value = metal
+    if ribs:
+        # Flexible ducting: rings every few centimetres along its length.
+        wv = nt.nodes.new("ShaderNodeTexWave")
+        wv.wave_type = "RINGS"
+        wv.inputs["Scale"].default_value = ribs
+        bump = nt.nodes.new("ShaderNodeBump")
+        bump.inputs["Strength"].default_value = 0.6
+        nt.links.new(wv.outputs["Fac"], bump.inputs["Height"])
+        nt.links.new(bump.outputs["Normal"], b.inputs["Normal"])
+    return m
+
+
+def still_dressing():
+    """Small things only the still has: ducting from the tents to the walls
+    and cables snaking over the floor."""
+    if JOB != "elephant":
+        return
+    duct = _still_mat("still_duct", "#c8ccd4", 0.32, metal=1.0, ribs=60.0)
+    cable = _still_mat("still_cable", "#0c0c0e", 0.45)
+    rng = random.Random(11)
+    for p in L["props"]:
+        x0, y0, x1, y1 = p["x"], p["y"], p["x"] + p["w"], p["y"] + p["h"]
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        if p["kind"] == "tent":
+            # Up out of the tent, over and down to a fan on the back or side wall.
+            if y0 <= 23:
+                pts = [P(cx + 0.5, cy, 1.2), P(cx + 0.5, cy - 0.5, 1.75), P(cx + 0.2, y0 + 0.1, 1.95), P(cx - 0.4, 22.75, 2.0)]
+            else:
+                pts = [P(cx, cy - 0.4, 1.2), P(cx + 0.6, cy - 0.6, 1.75), P(x1 + 0.1, cy - 1.2, 1.95), P(x1 + 0.1, cy - 2.6, 2.0)]
+            _curve("duct", pts, 0.16, duct, res=6)
+        elif p["kind"] == "flood":
+            # Power to each light bar, and a feed line down to the floor.
+            for k in range(2):
+                a = P(x0 + 0.2 + k * (x1 - x0 - 0.4), cy, 1.44)
+                pts = [a, a + Vector((0, 0.05, -0.7)),
+                       Vector((a.x + rng.uniform(-0.3, 0.3), a.y - rng.uniform(0.6, 1.0), 0.012)),
+                       Vector((a.x + rng.uniform(-1.5, 1.5), a.y - rng.uniform(1.0, 2.0), 0.012))]
+                _curve("cable", pts, 0.012, cable, res=2)
+    # A few long runs across the hall floor, as in the render.
+    for k in range(7):
+        y = 24 + k * 2.6 + rng.uniform(-0.5, 0.5)
+        pts = [P(65.2 + rng.uniform(0, 1.0), y, 0.012)]
+        x = pts[0].x
+        while x < BX(80.5):
+            x += rng.uniform(1.2, 2.4)
+            pts.append(Vector((x, BY(y + rng.uniform(-0.6, 0.6)), 0.012)))
+        _curve("cable", pts, 0.01, cable, res=2)
+
+
+def action_box(margin=6.0):
+    """Where the job is played, in map cells: rooms, doors, loot, the crew's
+    start, the van, the exit and every guard's beat, with a margin."""
+    xs, ys = [], []
+    for r in L["rooms"]:
+        xs += [r["x0"], r["x1"] + 1]
+        ys += [r["y0"], r["y1"] + 1]
+    for o in L["doors"] + L["loot"] + L["crewStarts"]:
+        xs.append(o["x"])
+        ys.append(o["y"])
+    for e in L["enemies"]:
+        for q in [e] + (e.get("patrol") or []):
+            xs.append(q["x"])
+            ys.append(q["y"])
+    for r in (L["exit"], L["van"]):
+        xs += [r["x0"], r["x1"] + 1]
+        ys += [r["y0"], r["y1"] + 1]
+    return (max(0, min(xs) - margin), max(0, min(ys) - margin), min(W, max(xs) + margin), min(H, max(ys) + margin))
+
+
+def _still_camera(view, box):
+    """An orthographic camera looking the game's way, framing the map box
+    (x0, y0, x1, y1) from the ground to 3 m, and the numbers the game needs
+    to line the picture up."""
+    pitch, yaw = (math.radians(a) for a in STILL_VIEWS[view])
+    # Babylon's ahead (sin yaw, 0, cos yaw) is Blender (sin yaw, cos yaw, 0).
+    to_cam = Vector((-math.sin(yaw) * math.cos(pitch), -math.cos(yaw) * math.cos(pitch), math.sin(pitch)))
+    rot = (-to_cam).to_track_quat("-Z", "Y")
+    right = rot @ Vector((1, 0, 0))
+    up = rot @ Vector((0, 1, 0))
+    corners = [P(x, y, z) for x in (box[0], box[2]) for y in (box[1], box[3]) for z in (0.0, 3.0)]
+    us = [c.dot(right) for c in corners]
+    vs = [c.dot(up) for c in corners]
+    u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+    cam = bpy.data.cameras.new("still")
+    cam.type = "ORTHO"
+    cam.ortho_scale = max(u1 - u0, v1 - v0)
+    cam.clip_start = 1
+    cam.clip_end = 600
+    co = bpy.data.objects.new("still", cam)
+    mid = right * ((u0 + u1) / 2) + up * ((v0 + v1) / 2)
+    co.location = mid + to_cam * 250
+    co.rotation_euler = rot.to_euler()
+    bpy.context.scene.collection.objects.link(co)
+    # In the game's frame (Blender x, z, y): u = (p . right - u0) / width, v likewise up.
+    b = lambda v: [round(v.x, 6), round(v.z, 6), round(v.y, 6)]  # noqa: E731
+    frame = {"right": b(right), "up": b(up), "u0": u0, "v0": v0, "w": u1 - u0, "h": v1 - v0}
+    return co, frame
+
+
+def render_still(coll, objs, views=("overhead", "angled")):
+    """Render the level from each game view at full quality, into
+    public/models/<job>/still-<view>-<tier>.jpg with still.json beside it:
+    "detail" sharp over where the job is played, "wide" softer over the whole map."""
+    C_STATIC, C_EXPORT, C_BLOCK, C_DYN = coll
+    scene = bpy.context.scene
+    statics, door_objs, emitters, hidden, loot = objs
+    for o in statics + door_objs + emitters + hidden + loot:
+        bake.box_uvs(o)
+    still_materials()
+    still_dressing()
+    # Live in the game, so not in the picture: doors, loot.
+    for o in door_objs + loot:
+        o.hide_render = True
+    C_BLOCK.hide_render = True
+    gain = {"grow": float(os.environ.get("GROW_GAIN", "4")), "lamp": float(os.environ.get("LAMP_GAIN", "3.5")),
+            "tube": 2.0, "redlamp": 2.0, "moon": float(os.environ.get("MOON_GAIN", "0.4"))}
     for o in bpy.data.objects:
         if o.type != "LIGHT":
             continue
-        if o.name.startswith("grow"):
-            o.data.energy *= 1.6
+        kind = next((k for k in gain if o.name.startswith(k)), None)
+        if kind:
+            o.data.energy *= gain[kind]
+        if kind == "grow":
             o.data.color = kit.hex_lin("#d040ff")
-        elif o.name.startswith("lamp"):
-            o.data.energy *= 2.5
-    w = scene.world.node_tree.nodes.get("Background") if scene.world else None
-    if w:
-        w.inputs[1].default_value *= 0.35
+    if scene.world:
+        # A dark sky to light by, but a low glow of cloud for the wet ground to mirror.
+        nt = scene.world.node_tree
+        bg = nt.nodes.get("Background")
+        bg.inputs[1].default_value *= 0.35
+        out = nt.nodes.get("World Output")
+        lp = nt.nodes.new("ShaderNodeLightPath")
+        glow = nt.nodes.new("ShaderNodeBackground")
+        glow.inputs["Color"].default_value = (*kit.hex_lin("#3a4660"), 1)
+        glow.inputs["Strength"].default_value = float(os.environ.get("SKY_GLOSS", "1.4"))
+        mix = nt.nodes.new("ShaderNodeMixShader")
+        nt.links.new(lp.outputs["Is Glossy Ray"], mix.inputs[0])
+        nt.links.new(bg.outputs[0], mix.inputs[1])
+        nt.links.new(glow.outputs[0], mix.inputs[2])
+        nt.links.new(mix.outputs[0], out.inputs["Surface"])
     bake.setup_cycles(SAMPLES)
     scene.cycles.use_denoising = True
+    scene.cycles.denoiser = "OPENIMAGEDENOISE"
     scene.cycles.glossy_bounces = 3
-    C_BLOCK.hide_render = True
-    cam = bpy.data.cameras.new("still")
-    cam.lens = lens
-    co = bpy.data.objects.new("still", cam)
-    t = P(at[0], at[1], 0)
-    p, y = math.radians(pitch), math.radians(yaw)
-    # From the south, turned `yaw` towards the east (map y runs south; Blender y north).
-    off = Vector((math.sin(y) * math.cos(p), -math.cos(y) * math.cos(p), math.sin(p))) * dist
-    co.location = t + off
-    co.rotation_euler = (-off).to_track_quat("-Z", "Y").to_euler()
-    scene.collection.objects.link(co)
-    scene.camera = co
-    scene.render.resolution_x, scene.render.resolution_y = size
-    scene.render.filepath = os.path.join(OUT, f"still-{JOB}.png")
+    scene.cycles.use_auto_tile = True
+    scene.cycles.tile_size = 1024
     scene.view_settings.view_transform = "AgX"
     try:
         scene.view_settings.look = "AgX - Punchy"
     except TypeError:
         pass
     scene.view_settings.exposure = float(os.environ.get("EXPOSURE", "0.2"))
-    t0 = time.time()
-    bpy.ops.render.render(write_still=True)
-    print(f"still {time.time() - t0:.0f}s -> {scene.render.filepath}")
+    scene.render.image_settings.file_format = "JPEG"
+    scene.render.image_settings.quality = 85
+    meta_path = os.path.join(OUT, "still.json")
+    meta = json.load(open(meta_path)) if os.path.exists(meta_path) else {}
+    os.makedirs(OUT, exist_ok=True)
+    tiers = [("wide", (0, 0, W, H), 4096), ("detail", action_box(), 8192)]
+    only = os.environ.get("STILL_TIER")
+    for view in views:
+        for tier, box, long_side in tiers:
+            if only and tier != only:
+                continue
+            co, frame = _still_camera(view, box)
+            scene.camera = co
+            k = long_side / max(frame["w"], frame["h"])
+            scene.render.resolution_x = round(frame["w"] * k)
+            scene.render.resolution_y = round(frame["h"] * k)
+            scene.render.resolution_percentage = int(os.environ.get("STILL_PERCENT", "100"))
+            # STILL_BORDER=x0,y0,x1,y1 (fractions, y up): render only that part, for a quick look.
+            if os.environ.get("STILL_BORDER"):
+                b = [float(v) for v in os.environ["STILL_BORDER"].split(",")]
+                scene.render.use_border = scene.render.use_crop_to_border = True
+                scene.render.border_min_x, scene.render.border_min_y, scene.render.border_max_x, scene.render.border_max_y = b
+            name = f"still-{view}-{tier}.jpg"
+            scene.render.filepath = os.path.join(OUT, name)
+            t0 = time.time()
+            bpy.ops.render.render(write_still=True)
+            print(f"still {name} {scene.render.resolution_x}x{scene.render.resolution_y} {time.time() - t0:.0f}s")
+            meta.setdefault(view, {})[tier] = {"image": name, **frame}
+            with open(meta_path, "w") as f:
+                json.dump(meta, f, indent=1)
+            bpy.data.objects.remove(co)
 
 
 # =================================================================== main
@@ -1354,7 +1675,7 @@ def main():
     build_lights(lamps, extra, cars, van)
 
     if STILL:
-        render_still(STILL, COLL)
+        render_still(COLL, (statics, door_objs + canopies, emitters, hidden, loot), views=STILL)
         return
     bake.finish(OUT, W, H, P, statics, door_objs + canopies, emitters, hidden, loot, doors, COLL, CUT,
                 bake=BAKE, samples=SAMPLES, lm_size=LM_SIZE,
