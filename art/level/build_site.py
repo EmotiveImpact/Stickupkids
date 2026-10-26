@@ -82,12 +82,16 @@ SITES = {
         "moon": ("#8aa2f0", 2.2), "sky": ("#1a2a55", 0.55),
         "wall_out": "brick_viaduct",
         "x_height": 7.0, "far_height": 15.0,
+        # The hall under purple grow light, white tubes in the side rooms,
+        # one red lamp in the grower's bedroom.
         "rooms": {
-            "office": ("#a8a098", ("#ffe0b0", 90)),
-            "grow": ("#d8dce4", ("#ffc8f0", 260)),
+            "stock": ("#c4c8d0", ("#e8f0ff", 110)),
+            "clone": ("#ccd0d8", ("#e8f0ff", 100)),
+            "bedroom": ("#8c8490", ("#ff3a2a", 60)),
+            "grow": ("#c8c4d4", ("#c070ff", 180)),
         },
         "floors": {"lino": "lino_marble", "tiles": "concrete_floor"},
-        "room_floor": {},
+        "room_floor": {"bedroom": "carpet_grey"},
         "paved": "paving",
         "car_paint": "car_paint",
         "extra": "elephant",
@@ -163,7 +167,11 @@ kit.MATS.update({
     "tent_black": ("fabric", "#3a3c48", 0.6, 0.9, None),
     "plant": ("grass", "#86b06a", 0.6, 1.0, None),
     "plant_dry": ("grass", "#a89a70", 0.6, 1.0, None),
-    "emit_grow": (None, "#ffd8f4", 1.0, 0.3, ("#ffa8ec", 6.0)),
+    "emit_grow": (None, "#f4c8ff", 1.0, 0.3, ("#d060ff", 7.0)),
+    "emit_tube": (None, "#e8f0ff", 1.0, 0.3, ("#e0ecff", 3.0)),
+    "emit_red": (None, "#ff6050", 1.0, 0.3, ("#ff2a1a", 8.0)),
+    "duct": (None, "#c8ccd4", 0.2, 0.35, None),
+    "tray": (None, "#202228", 1.0, 0.6, None),
     "emit_pool": (None, "#1c78b0", 1.0, 0.05, ("#1a70b0", 0.7)),
     "pool_line": (None, "#1a3a78", 1.0, 0.1, ("#1a4a90", 0.6)),
     "coping": ("concrete", "#e8e4dc", 1.5, 0.7, None),
@@ -895,9 +903,32 @@ def dashes(g, pts, mat="paint_road", length=1.6, gap=2.6, width=0.12):
 
 
 # =================================================================== each job's own pieces
+def _mk(name):
+    """A Meshy model of ours, if it has been made yet."""
+    return name in dress.MESHY and os.path.exists(os.path.join(dress.MESHY_DIR, f"{name}.glb"))
+
+
+def _put(name, x, y, face=math.pi / 2, z=0.0, spin=0.0):
+    dress.place(f"mk:{name}", P(x, y, z), face=face, coll=C_STATIC, spin=spin)
+
+
+def _plant(ext, x, y, z, s=1.0, seed=0, big=False):
+    """A weed plant in its pot: the Meshy one when we have it."""
+    name = "weed-plant-big" if big else "weed-plant-small"
+    if _mk(name):
+        _put(name, x, y, z=z, spin=seed * 1.7)
+        return
+    ext.cyl(P(x, y, z), 0.13 * s, 0.2 * s, "plant_pot", segs=8, r2=0.11 * s)
+    for k in range(3):
+        ext.ico(P(x + rnd.uniform(-0.06, 0.06), y + rnd.uniform(-0.06, 0.06), z + (0.32 + k * 0.17) * s), (0.2 - k * 0.04) * s, "plant",
+                subdiv=1, noise=0.35, seed=seed * 3 + k)
+
+
 def extra_elephant(ext, emit, block, extra):
-    """The viaduct carried on past the map, the grow's tents and rack, the
-    car wash's kit."""
+    """The viaduct carried on past the map, and the grow made to look like
+    design/game-look/grow-arches.jpg: tents with ducting, flood tables of
+    plants under purple bars, the stockroom, the clone room and the bedroom.
+    Meshy models where we have them, drawn stand-ins where not yet."""
     vy0, vy1 = 22, 43
     for x0, x1 in ((GX0 - 10, 0), (W, GX1 + 10)):
         ext.aabb(BX(x0), BY(vy1), 0, BX(x1), BY(vy0), 7.2, "brick_viaduct")
@@ -907,20 +938,86 @@ def extra_elephant(ext, emit, block, extra):
     for p in L["props"]:
         k = p["kind"]
         x0, y0, x1, y1 = p["x"], p["y"], p["x"] + p["w"], p["y"] + p["h"]
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         if k == "tent":
-            # A grow tent with its sides rolled to the cut, plants under a light bar.
+            # A black tent with its top open to the camera, mylar inside, plants under a light bar.
             ext.aabb(BX(x0 + 0.05), BY(y1 - 0.05), 0, BX(x1 - 0.05), BY(y0 + 0.05), 0.03, "mylar")
-            for (a, b, c, d) in ((x0, y0, x1, y0 + 0.05), (x0, y1 - 0.05, x1, y1), (x0, y0, x0 + 0.05, y1), (x1 - 0.05, y0, x1, y1)):
-                ext.aabb(BX(a + 0.05), BY(d - 0.05 if d == y1 else d), 0, BX(c - 0.05 if c == x1 else c), BY(b + 0.05 if b == y0 else b), 1.25,
-                         "mylar" if (b + d) / 2 > y0 + 0.5 else "tent_black")
-            for cx in (x0 + 0.5, x0 + 1.5):
-                for cy in (y0 + 0.5, y0 + 1.5, y0 + 2.5):
-                    ext.cyl(P(cx, cy, 0), 0.18, 0.28, "plant_pot", segs=10, r2=0.15)
-                    for k2 in range(3):
-                        ext.ico(P(cx + rnd.uniform(-0.1, 0.1), cy + rnd.uniform(-0.1, 0.1), 0.55 + k2 * 0.25), 0.28 - k2 * 0.05, "plant",
-                                subdiv=1, noise=0.3, seed=int(cx * 10 + cy * 100 + k2))
-            emit.aabb(BX(x0 + 0.3), BY((y0 + y1) / 2 + 0.6), 1.9, BX(x1 - 0.3), BY((y0 + y1) / 2 - 0.6), 1.94, "emit_grow")
-            extra.append(("grow", P((x0 + x1) / 2, (y0 + y1) / 2, 1.8)))
+            for (a, b, c, d) in ((x0, y0, x1, y0 + 0.06), (x0, y1 - 0.06, x1, y1), (x0, y0, x0 + 0.06, y1), (x1 - 0.06, y0, x1, y1)):
+                ext.aabb(BX(a + 0.05), BY(d - 0.05 if d == y1 else d), 0, BX(c - 0.05 if c == x1 else c), BY(b + 0.05 if b == y0 else b), 1.4,
+                         "tent_black")
+            for i in range(3):
+                for j in range(3):
+                    _plant(ext, x0 + 0.55 + i * 0.95, y0 + 0.55 + j * 0.95, 0.03, s=1.25, seed=int(x0 * 10 + y0 * 100 + i * 3 + j), big=True)
+            for by in (cy - 0.6, cy + 0.6):
+                emit.aabb(BX(x0 + 0.4), BY(by + 0.04), 1.34, BX(x1 - 0.4), BY(by - 0.04), 1.37, "emit_grow")
+            extra.append(("grow", P(cx, cy, 1.3), (2.4, 2.4), 55))
+            # Ducting from the tent's top to the wall behind it, a carbon filter beside it.
+            wall_y = y0 - 0.2 if y0 <= vy0 + 1 else None
+            if wall_y is not None:
+                ext.cyl(P(cx, wall_y, 1.15), 0.16, y1 - y0 - 0.6, "duct", segs=12, axis="Y")
+            else:
+                ext.cyl(P(x1 + 0.1, cy, 1.15), 0.16, 0.5, "duct", segs=12, axis="X", rot=math.pi)
+            if _mk("carbon-filter"):
+                _put("carbon-filter", x0 - 0.35 if x0 > 72 else x1 + 0.35, y1 + 0.4, face=math.pi / 2)
+        elif k == "flood":
+            # A flood table: a black tray on legs, two rows of plants, a light bar over.
+            for a in (x0 + 0.1, x1 - 0.1):
+                for b in (y0 + 0.1, y1 - 0.1):
+                    ext.cyl(P(a, b, 0), 0.03, 0.6, "metal", segs=6, smooth=False)
+            ext.aabb(BX(x0 + 0.02), BY(y1 - 0.02), 0.6, BX(x1 - 0.02), BY(y0 + 0.02), 0.66, "tray")
+            for (a, b, c, d) in ((x0, y0, x1, y0 + 0.05), (x0, y1 - 0.05, x1, y1)):
+                ext.aabb(BX(a + 0.02), BY(d - 0.02 if d == y1 else d), 0.66, BX(c - 0.02), BY(b + 0.02 if b == y0 else b), 0.72, "tray")
+            for i in range(int((x1 - x0) / 0.5)):
+                for j in (0, 1):
+                    _plant(ext, x0 + 0.25 + i * 0.5, y0 + 0.27 + j * 0.46, 0.66, s=0.95, seed=int(x0 * 7 + y0 * 31 + i * 2 + j))
+            for a in (x0 + 0.05, x1 - 0.05):
+                ext.cyl(P(a, cy, 0.66), 0.02, 0.8, "metal", segs=6, smooth=False)
+            ext.aabb(BX(x0 + 0.05), BY(cy + 0.06), 1.44, BX(x1 - 0.05), BY(cy - 0.06), 1.47, "metal")
+            emit.aabb(BX(x0 + 0.1), BY(cy + 0.05), 1.42, BX(x1 - 0.1), BY(cy - 0.05), 1.44, "emit_grow")
+            extra.append(("grow", P(cx, cy, 1.4), (x1 - x0 - 0.2, 0.8)))
+        elif k == "tank":
+            if _mk("water-tank"):
+                _put("water-tank", cx, cy)
+            else:
+                ext.cyl(P(cx, cy, 0), 0.85, 1.25, "plastic_black", segs=20)
+                ext.cyl(P(cx, cy, 1.25), 0.3, 0.05, "plastic_grey", segs=14)
+            if _mk("nutrient-bottles"):
+                _put("nutrient-bottles", x0 - 0.4, cy + 0.5, face=0.0)
+        elif k == "scales":
+            _put("scales-table", cx, cy, face=p.get("facing", 0.0))
+        elif k == "supply":
+            if _mk("supply-shelf"):
+                _put("supply-shelf", cx + 0.05, cy, face=p.get("facing", 0.0))
+            else:
+                furniture.shelves(ext, extra, p)
+        elif k == "clones":
+            # Cuttings on a flood table (Meshy's, when made), or a bench of seed trays, under a white tube.
+            emit.aabb(BX(x0 + 0.2), BY(cy + 0.05), 1.42, BX(x1 - 0.2), BY(cy - 0.05), 1.45, "emit_strip")
+            if _mk("flood-table"):
+                _put("flood-table", cx, cy, face=math.pi / 2)
+                continue
+            ext.aabb(BX(x0 + 0.05), BY(y1 - 0.05), 0.0, BX(x1 - 0.05), BY(y0 + 0.05), 0.78, "metal_dark")
+            ext.aabb(BX(x0 + 0.02), BY(y1 - 0.02), 0.78, BX(x1 - 0.02), BY(y0 + 0.02), 0.8, "metal")
+            for i in range(3):
+                for j in range(2):
+                    tx, ty = x0 + 0.35 + i * 0.65, y0 + 0.5 + j * 1.0
+                    ext.aabb(BX(tx - 0.27), BY(ty + 0.4), 0.8, BX(tx + 0.27), BY(ty - 0.4), 0.86, "tray")
+                    for m in range(8):
+                        ext.ico(P(tx - 0.18 + (m % 2) * 0.36, ty - 0.3 + (m // 2) * 0.2, 0.92), 0.07, "plant", subdiv=1, noise=0.3,
+                                seed=i * 40 + j * 8 + m)
+        elif k == "growbed":
+            if _mk("messy-bed"):
+                _put("messy-bed", cx, cy, face=p.get("facing", 0.0))
+            else:
+                _put("mattress", cx, cy, face=p.get("facing", 0.0) + math.pi / 2, spin=0.08)
+        elif k == "lampside":
+            if _mk("bedside-lamp"):
+                _put("bedside-lamp", cx, cy)
+            else:
+                ext.aabb(BX(x0 + 0.15), BY(y1 - 0.15), 0, BX(x1 - 0.15), BY(y0 + 0.15), 0.5, "wood_dark")
+                ext.cyl(P(cx, cy, 0.5), 0.05, 0.3, "metal_dark", segs=8)
+                emit.cyl(P(cx, cy, 0.78), 0.16, 0.2, "emit_red", segs=12, r2=0.1)
+            extra.append(("redlamp", P(cx, cy, 0.9)))
         elif k == "rack":
             for z in (0.4, 0.9, 1.4):
                 ext.aabb(BX(x0 + 0.1), BY(y1 - 0.1), z, BX(x1 - 0.1), BY(y0 + 0.1), z + 0.03, "metal")
@@ -939,6 +1036,36 @@ def extra_elephant(ext, emit, block, extra):
             for k2 in range(p["h"] * 3):
                 cy = y0 + 0.5 + (k2 // 3)
                 ext.cyl(P(x0 + 0.5, cy, (k2 % 3) * 0.24), 0.36, 0.22, "tyre", segs=16)
+    # The arch's outer walls carried up to 2.4 m with a dark cap, as in the
+    # render; the partitions inside stay at the 1.5 m cut so no one hides.
+    gx0, gx1 = 64, 82
+    gy0, gy1 = 22, 42
+    t = 0.3
+    openings = {(d["x"], d["y"]) for d in L["doors"]} | {(x, y) for y in (gy0, gy1) for x in range(gx0, gx1 + 1) if tile(x, y) == "W"}
+    for gy in (gy0, gy1):
+        for x in range(gx0, gx1 + 1):
+            ax, ay, bx, by = x + 0.5 - (x > gx0) * 0.5, gy + 0.5 - t / 2, x + 0.5 + (x < gx1) * 0.5, gy + 0.5 + t / 2
+            cell = (x, gy)
+            z0 = 2.1 if cell in openings else CUT
+            ext.aabb(BX(ax), BY(by), z0, BX(bx), BY(ay), 2.4, "brick_viaduct")
+            ext.aabb(BX(ax), BY(by), 2.4, BX(bx), BY(ay), 2.46, "cap")
+    for x in (gx0, gx1):
+        a, b = x + 0.5 - t / 2, x + 0.5 + t / 2
+        ext.aabb(BX(a), BY(gy1 + 0.5), CUT, BX(b), BY(gy0 + 0.5), 2.4, "brick_viaduct")
+        ext.aabb(BX(a), BY(gy1 + 0.5), 2.4, BX(b), BY(gy0 + 0.5), 2.46, "cap")
+    # The grow's kit along the walls: dehumidifiers, fans, soil bags, cable on the floor.
+    kit_spots = [("dehumidifier", 81.4, 26.8, math.pi), ("dehumidifier", 65.5, 36.6, 0.0), ("floor-fan", 81.3, 35.4, math.pi),
+                 ("floor-fan", 76.5, 26.6, math.pi / 2), ("soil-bags", 69.0, 23.7, math.pi / 2), ("nutrient-bottles", 69.3, 26.8, math.pi)]
+    for name, x, y, f in kit_spots:
+        if _mk(name):
+            _put(name, x, y, face=f)
+    # White tubes on the walls, as in the render.
+    for x, y, rot, wall in ((65.15, 33.0, math.pi / 2, "w"), (81.85, 27.5, math.pi / 2, "e"), (67.5, 23.15, 0.0, "n"),
+                            (74.0, 41.85, 0.0, "s"), (73.5, 35.85, 0.0, "s"), (66.5, 41.85, 0.0, "s")):
+        along = Vector((math.cos(rot), math.sin(rot), 0))
+        a, b = P(x, y, 1.38) - along * 0.6, P(x, y, 1.42) + along * 0.6
+        emit.aabb(min(a.x, b.x) - 0.03, min(a.y, b.y) - 0.03, 1.38, max(a.x, b.x) + 0.03, max(a.y, b.y) + 0.03, 1.42, "emit_tube")
+        extra.append(("tube", P(x, y, 1.35), rot))
     # Puddles of light from the shutters and a strip light in the car wash.
     emit.aabb(BX(57.5), BY(28.1), 5.6, BX(62.5), BY(27.9), 5.65, "emit_strip")
     extra.append(("wash", P(60, 28, 5.3)))
@@ -1084,7 +1211,11 @@ def build_lights(lamps, extra, cars, van):
         elif kind == "led":
             add_light("led", "POINT", p, "#ff2d9b", 35, radius=0.3)
         elif kind == "grow":
-            add_light("grow", "AREA", p, "#ffb8ee", 160, size=(1.4, 2.4), rot=(0, 0, 0))
+            add_light("grow", "AREA", p, "#d070ff", rest[1] if len(rest) > 1 else 150, size=rest[0] if rest else (1.4, 2.4), rot=(0, 0, 0))
+        elif kind == "redlamp":
+            add_light("redlamp", "POINT", p, "#ff2a1a", 120, radius=0.15)
+        elif kind == "tube":
+            add_light("tube", "AREA", p, "#e8f0ff", 22, size=(1.2, 0.1), rot=(0, 0, rest[0] if rest else 0))
         elif kind == "wash":
             add_light("wash", "AREA", p, "#e8f0ff", 260, size=(5.0, 0.3), rot=(0, 0, 0))
         LIGHT_LOG.append((kind, tuple(p)))

@@ -11,8 +11,8 @@ import { mulberry32 } from './sim.ts';
 
 /** The viaduct's rows, north and south face. */
 export const VIADUCT = { y0: 22, y1: 42 };
-/** The grow arch and the car wash, west pier to east pier. */
-export const GROW = { x0: 64, x1: 72 };
+/** The grow (three arches knocked through) and the car wash, west pier to east pier. */
+export const GROW = { x0: 64, x1: 82 };
 export const WASH = { x0: 56, x1: 64 };
 
 export function buildElephant(): Level {
@@ -36,48 +36,71 @@ export function buildElephant(): Level {
   // The car wash: an open arch, piers either side, the back bricked up.
   fill(WASH.x0 + 1, vy0 + 1, WASH.x1 - 1, vy1, 'p');
 
-  // The grow: shutter and office at the front, the grow room behind, a fire
-  // door out to the footpath at the back.
+  // The grow: one long hall behind a roller shutter, the stockroom in the
+  // back corner, the clone room and the grower's bedroom partitioned off
+  // along the front, a fire door out to the footpath at the back.
   const { x0: gx0, x1: gx1 } = GROW;
   fill(gx0, vy0, gx1, vy1, '#');
   fill(gx0 + 1, vy0 + 1, gx1 - 1, vy1 - 1, '.');
-  fill(gx0 + 1, 36, gx1 - 1, 36, '#');
-  set(69, vy1, 'W');
-  set(70, vy1, 'W');
+  // Stockroom partition.
+  fill(gx0 + 1, 28, 70, 28, '#');
+  fill(70, vy0 + 1, 70, 28, '#');
+  // Clone room and bedroom partitions.
+  fill(71, 36, gx1 - 1, 36, '#');
+  fill(71, 37, 71, vy1 - 1, '#');
+  fill(76, 37, 76, vy1 - 1, '#');
+  set(74, vy1, 'W');
 
   const doors: DoorDef[] = [
     { x: 67, y: vy1, locked: true, axis: 'h', name: 'Shutter' },
-    { x: 66, y: 36, locked: false, axis: 'h', name: 'Grow room' },
-    { x: 68, y: vy0, locked: true, axis: 'h', name: 'Fire door' },
+    { x: 71, y: vy0, locked: true, axis: 'h', name: 'Fire door' },
+    { x: 67, y: 28, locked: false, axis: 'h', name: 'Stockroom' },
+    { x: 73, y: 36, locked: false, axis: 'h', name: 'Clone room' },
+    { x: 79, y: 36, locked: false, axis: 'h', name: 'Bedroom' },
   ];
   for (const d of doors) set(d.x, d.y, 'D');
 
+  // Small rooms first: the grow's rectangle takes in the whole arch.
   const rooms: Room[] = [
-    { id: 'office', name: 'Front office', x0: 65, y0: 37, x1: 71, y1: 41, floor: 'lino' },
-    { id: 'grow', name: 'Grow room', x0: 65, y0: 23, x1: 71, y1: 35, floor: 'tiles' },
+    { id: 'stock', name: 'Stockroom', x0: 65, y0: 23, x1: 69, y1: 27, floor: 'tiles' },
+    { id: 'clone', name: 'Clone room', x0: 72, y0: 37, x1: 75, y1: 41, floor: 'tiles' },
+    { id: 'bedroom', name: 'Bedroom', x0: 77, y0: 37, x1: 81, y1: 41, floor: 'lino' },
+    { id: 'grow', name: 'Grow room', x0: 65, y0: 23, x1: 81, y1: 41, floor: 'tiles' },
   ];
 
   const props: PropDef[] = [
-    // Four grow tents either side of an aisle, a drying rack at the front.
-    { kind: 'tent', x: 65, y: 24, w: 2, h: 3, solid: true },
-    { kind: 'tent', x: 70, y: 24, w: 2, h: 3, solid: true },
-    { kind: 'tent', x: 65, y: 28, w: 2, h: 3, solid: true },
-    { kind: 'tent', x: 70, y: 28, w: 2, h: 3, solid: true },
-    { kind: 'rack', x: 70, y: 32, w: 2, h: 2, solid: true },
-    { kind: 'shelves', x: 65, y: 33, w: 1, h: 2, facing: 0, solid: true },
-    // The office: a desk, a sofa, a fridge.
-    { kind: 'table', x: 69, y: 38, w: 2, h: 1, solid: true },
-    { kind: 'sofa', x: 65, y: 39, w: 1, h: 2, facing: 0, solid: true },
-    { kind: 'fridge', x: 71, y: 37, w: 1, h: 1, facing: Math.PI, solid: true },
+    // Three tents along the back wall, a fourth on the east wall, ducting over them.
+    { kind: 'tent', x: 72, y: 23, w: 3, h: 3, solid: true },
+    { kind: 'tent', x: 75, y: 23, w: 3, h: 3, solid: true },
+    { kind: 'tent', x: 78, y: 23, w: 3, h: 3, solid: true },
+    { kind: 'tent', x: 79, y: 29, w: 3, h: 3, solid: true },
+    // Six flood tables of plants under light bars, aisles between.
+    { kind: 'flood', x: 65, y: 30, w: 4, h: 1, solid: true },
+    { kind: 'flood', x: 65, y: 32, w: 4, h: 1, solid: true },
+    { kind: 'flood', x: 65, y: 34, w: 4, h: 1, solid: true },
+    { kind: 'flood', x: 72, y: 30, w: 4, h: 1, solid: true },
+    { kind: 'flood', x: 72, y: 32, w: 4, h: 1, solid: true },
+    { kind: 'flood', x: 72, y: 34, w: 4, h: 1, solid: true },
+    // The water tank, and the bagging table by the shutter.
+    { kind: 'tank', x: 80, y: 33, w: 2, h: 2, solid: true },
+    { kind: 'scales', x: 65, y: 38, w: 2, h: 1, facing: 0, solid: true },
+    // Stockroom: a drying rack, supply shelving.
+    { kind: 'rack', x: 66, y: 23, w: 2, h: 2, solid: true },
+    { kind: 'supply', x: 65, y: 25, w: 1, h: 3, facing: 0, solid: true },
+    // Clone room: trays of cuttings on a bench.
+    { kind: 'clones', x: 72, y: 39, w: 2, h: 2, solid: true },
+    // Bedroom: the grower's bed and the lamp by it.
+    { kind: 'growbed', x: 79, y: 38, w: 2, h: 3, facing: Math.PI, solid: true },
+    { kind: 'lampside', x: 81, y: 37, w: 1, h: 1, solid: true },
     // The car wash: their car under the arch, a pressure washer, a stack of tyres.
     { kind: 'car', x: 59, y: 30, w: 2, h: 4, facing: Math.PI / 2, solid: true },
     { kind: 'washer', x: 57, y: 38, w: 1, h: 1, solid: true },
     { kind: 'tyres', x: 62, y: 25, w: 1, h: 2, solid: true },
-    { kind: 'bigBin', x: 76, y: 44, w: 2, h: 1, solid: true },
+    { kind: 'bigBin', x: 84, y: 44, w: 2, h: 1, solid: true },
     { kind: 'bigBin', x: 51, y: 44, w: 2, h: 1, solid: true },
     // Parked along the lane.
-    { kind: 'parked', x: 82, y: 46, w: 4, h: 2, facing: 0, solid: true },
-    { kind: 'parked', x: 90, y: 46, w: 4, h: 2, facing: Math.PI, solid: true },
+    { kind: 'parked', x: 86, y: 46, w: 4, h: 2, facing: 0, solid: true },
+    { kind: 'parked', x: 93, y: 46, w: 4, h: 2, facing: Math.PI, solid: true },
   ];
   const add = (p: PropDef) => props.push(p);
   const free = (x: number, y: number) =>
@@ -110,19 +133,19 @@ export function buildElephant(): Level {
   const solid = solidMask(w, h, props);
 
   const loot: LootDef[] = [
-    { id: 'product', name: 'Bagged-up in the aisle', x: 68.5, y: 31.5, value: 6000, time: 3, heavy: false },
+    { id: 'product', name: 'Bagged-up by the scales', x: 67.5, y: 39.5, value: 6000, time: 3, heavy: false },
     { id: 'product2', name: 'The drying crop', x: 68.5, y: 25.5, value: 5000, time: 3, heavy: false },
-    { id: 'cash', name: 'Takings on the office floor', x: 67.5, y: 39.5, value: 4000, time: 2, heavy: false },
-    { id: 'bag', name: 'The float in the office', x: 70.5, y: 40.5, value: 9000, time: 4, heavy: true },
+    { id: 'cash', name: 'Takings by the bed', x: 78.5, y: 40.5, value: 4000, time: 2, heavy: false },
+    { id: 'bag', name: 'The float in the bedroom', x: 77.5, y: 37.5, value: 9000, time: 4, heavy: true },
     { id: 'product3', name: 'The re-up in the car boot', x: 59.5, y: 29.5, value: 3500, time: 2.5, heavy: false },
   ];
 
   const loop = (...pts: [number, number][]) => pts.map(([x, y]) => ({ x: x + 0.5, y: y + 0.5 }));
   const enemies: EnemyDef[] = [
     // In the arch.
-    { id: 'boss', kind: 'dealer', model: 'gang-leader', name: 'Grower', x: 68.5, y: 39.5, facing: Math.PI / 2, patrol: [] },
-    { id: 'tender', kind: 'runner', model: 'gang-runner', name: 'Tender', x: 68.5, y: 28.5, facing: Math.PI / 2, patrol: loop([68, 24], [68, 34]) },
-    { id: 'guard', kind: 'soldier', model: 'gang-muscle-a', name: 'Guard', x: 67.5, y: 35.5, facing: Math.PI / 2, patrol: [] },
+    { id: 'boss', kind: 'dealer', model: 'gang-leader', name: 'Grower', x: 78.5, y: 39.5, facing: Math.PI / 2, patrol: [] },
+    { id: 'tender', kind: 'runner', model: 'gang-runner', name: 'Tender', x: 70.5, y: 29.5, facing: Math.PI / 2, patrol: loop([70, 29], [70, 35], [77, 35], [77, 29]) },
+    { id: 'guard', kind: 'soldier', model: 'gang-muscle-a', name: 'Guard', x: 68.5, y: 40.5, facing: Math.PI / 2, patrol: [] },
     // The car wash.
     { id: 'washer', kind: 'soldier', model: 'gang-muscle-b', name: 'Washer', x: 60.5, y: 39.5, facing: Math.PI / 2, patrol: [] },
     { id: 'driver', kind: 'dealer', model: 'gang-muscle-a', name: 'Driver', x: 61.5, y: 31.5, facing: Math.PI, patrol: [] },
@@ -136,9 +159,12 @@ export function buildElephant(): Level {
 
   const lights: LightDef[] = [
     ...lamps.map((l) => ({ kind: 'street' as const, x: l.x + 0.5, y: l.y + 0.5 })),
-    { kind: 'ceiling', x: 68.5, y: 29 },
-    { kind: 'ceiling', x: 68.5, y: 39 },
-    { kind: 'fridge', x: 71.4, y: 37.6 },
+    { kind: 'ceiling', x: 70.5, y: 31 },
+    { kind: 'ceiling', x: 77.5, y: 27 },
+    { kind: 'ceiling', x: 67.5, y: 38.5 },
+    { kind: 'ceiling', x: 67.5, y: 25.5 },
+    { kind: 'ceiling', x: 74, y: 39 },
+    { kind: 'ceiling', x: 79, y: 39 },
     { kind: 'car', x: 60, y: 34 },
     { kind: 'van', x: 107, y: 46 },
   ];
