@@ -354,7 +354,8 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .splash .crew-bg { top: 0; height: 100%; object-fit: cover; filter: brightness(0.62); animation: title-bg 2.4s ease-out both; }
 .splash .fade-top { top: 0; height: calc(560 * var(--u)); background: linear-gradient(180deg, rgba(5, 5, 5, 0.8), rgba(5, 5, 5, 0)); }
 .splash .fade-bottom { top: calc(700 * var(--u)); height: calc(380 * var(--u)); background: linear-gradient(180deg, rgba(5, 5, 5, 0), #050505 92%); }
-.splash .title-word { top: calc(130 * var(--u)); font: 400 calc(360 * var(--u))/1 'Anton', Impact, sans-serif; letter-spacing: calc(6 * var(--u)); text-align: center; color: #f2f1ee; animation: title-word 1.6s 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+/* The name is about 4.8 times as wide as it is tall: never wider than the frame (24px in), with a margin inside it. */
+.splash .title-word { top: calc(130 * var(--u)); font: 400 min(calc(360 * var(--u)), calc((100cqw - 96px) / 4.85))/1 'Anton', Impact, sans-serif; white-space: nowrap; letter-spacing: calc(6 * var(--u)); text-align: center; color: #f2f1ee; animation: title-word 1.6s 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 .splash .frame { position: absolute; inset: 24px; border: 1px solid #262626; pointer-events: none; }
 .splash .corner { position: absolute; font: 400 12px/1 var(--body); letter-spacing: 0.32em; text-transform: uppercase; color: #8a8984; }
 .splash .corner.tl { top: 44px; left: 48px; }
@@ -414,10 +415,10 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .modes .mstrip::after { content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 0; background: var(--accent); box-shadow: 0 0 calc(3 * var(--u)) rgba(255, 122, 26, 0.6); transition: width 0.3s; }
 .modes .mstrip:last-child::after { right: auto; left: 0; }
 .modes .mstrip.on::after { width: calc(0.7 * var(--u)); }
-.modes .mstrip img { position: absolute; top: 0; left: -20%; width: 140%; height: 100%; object-fit: cover; transform: skewX(9deg); filter: grayscale(1) brightness(0.3) contrast(1.3); transition: filter 0.5s; }
-.modes .mstrip.on img { filter: grayscale(1) brightness(0.72) contrast(1.35); }
-.modes .mstrip .dim { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.85), transparent 60%); }
-.modes .mstrip .tint { position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s; background: linear-gradient(0deg, rgba(0, 0, 0, 0.92), transparent 55%), linear-gradient(0deg, rgba(255, 122, 26, 0.16), transparent 40%); }
+.modes .mstrip img { position: absolute; top: 0; left: -20%; width: 140%; height: 100%; object-fit: cover; transform: skewX(9deg); filter: grayscale(1) brightness(0.58) contrast(1.12); transition: filter 0.5s; }
+.modes .mstrip.on img { filter: grayscale(1) brightness(1.05) contrast(1.1); }
+.modes .mstrip .dim { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(5, 5, 5, 0.6), transparent 45%); }
+.modes .mstrip .tint { position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s; background: linear-gradient(0deg, rgba(5, 5, 5, 0.78), transparent 50%), linear-gradient(0deg, rgba(255, 122, 26, 0.16), transparent 40%); }
 .modes .mstrip.on .tint { opacity: 1; }
 .modes .side { position: absolute; left: 50%; bottom: calc(5 * var(--u)); transform: translateX(-50%) skewX(9deg); display: flex; flex-direction: column; align-items: center; gap: calc(1 * var(--u)); transition: opacity 0.25s; }
 .modes .mstrip:first-child .side { left: calc(50% + 3.5 * var(--u)); }
@@ -426,7 +427,7 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .modes .side span { font: 400 calc(0.9 * var(--u))/1 var(--mono); color: #4a4a48; }
 .modes .mstrip:not(.on):hover .side b { color: var(--accent); }
 .modes .mstrip.on .side { opacity: 0; }
-.modes .ghost { position: absolute; right: calc(8 * var(--u)); top: calc(7.5 * var(--u)); transform: skewX(9deg); font: italic 700 calc(11 * var(--u))/0.8 var(--cond); text-transform: uppercase; color: transparent; -webkit-text-stroke: 1px rgba(255, 122, 26, 0.45); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+.modes .ghost { position: absolute; right: calc(8 * var(--u)); top: calc(7.5 * var(--u)); transform: skewX(9deg); font: italic 700 calc(11 * var(--u))/0.8 var(--cond); text-transform: uppercase; color: transparent; -webkit-text-stroke: 1px rgba(255, 122, 26, 0.75); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
 .modes .mstrip:last-child .ghost { right: calc(15 * var(--u)); }
 .modes .mstrip.on .ghost { opacity: 1; }
 .modes .open { position: absolute; left: calc(9 * var(--u)); bottom: calc(4.5 * var(--u)); width: calc(44 * var(--u)); transform: skewX(9deg); opacity: 0; transition: opacity 0.35s 0.15s; pointer-events: none; }
@@ -446,9 +447,10 @@ body.clip-rec #hud > *:not(.rec-note) { display: none !important; }
 .modes .mtab { position: absolute; left: 50%; top: 0; transform: translateX(-50%); padding: calc(0.5 * var(--u)) calc(3 * var(--u)); background: #000; border: 1px solid #2a2a2a; border-top: 0; font: italic 700 max(12px, calc(1.3 * var(--u)))/1.2 var(--cond); letter-spacing: 0.25em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
 .modes .mhead { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: calc(2.5 * var(--u)); padding: calc(2.6 * var(--u)) calc(3.5 * var(--u)); background: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent); pointer-events: none; }
 .modes .mhead > * { pointer-events: auto; }
-.modes .mhead .back { font: 400 max(11px, calc(1 * var(--u)))/1 var(--mono); letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); cursor: pointer; }
-.modes .mhead .wm { font: 600 max(12px, calc(1.25 * var(--u)))/1 var(--body); letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink); }
-.modes .mhead .wm i { font-style: normal; color: var(--accent); }
+.modes .mhead .back { font: 400 12px/1 var(--mono); letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); cursor: pointer; }
+/* Same as the title screen's corner name. */
+.modes .mhead .wm { font: 400 12px/1 var(--body); letter-spacing: 0.32em; text-transform: uppercase; color: #8a8984; }
+.modes .mhead .wm i { font-style: normal; }
 .modes .mhead .lab { margin-left: auto; }
 .modes.glitch .mstrip.on img { animation: m-glitch 0.32s steps(2, end); }
 .modes.glitch .mstrip.on .ghost { animation: m-ghost 0.32s steps(3, end); }
