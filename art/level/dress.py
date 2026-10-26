@@ -157,7 +157,8 @@ def _load(asset):
     tris = sum(len(p.vertices) - 2 for p in me.polygons)
     ext = max(max(v.co[i] for v in me.vertices) - min(v.co[i] for v in me.vertices) for i in range(3))
     budget = fix.get("tris", DEFAULT_TRIS if ext > 1.0 else 700 if ext > 0.45 else 250)
-    if tris > budget:
+    # FULL_DETAIL keeps every face, for pre-rendered stills (build_site.py --still).
+    if tris > budget and not os.environ.get("FULL_DETAIL"):
         mod = obj.modifiers.new("cut", "DECIMATE")
         mod.ratio = budget / tris
         bpy.ops.object.modifier_apply(modifier=mod.name)

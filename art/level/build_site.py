@@ -47,6 +47,9 @@ OUT = args[args.index("--out") + 1] if "--out" in args else os.path.join(ROOT, "
 DRESS = "--dress" in args     # litter the rooms with real models (art/level/dress.py)
 BAKE = "--bake" in args
 PREVIEW = "--preview" in args
+# --still X Y: a full-quality Cycles render of the angled view centred on map
+# point (X, Y), instead of the bake and export (a pre-rendered background test).
+STILL = tuple(float(v) for v in args[args.index("--still") + 1:args.index("--still") + 3]) if "--still" in args else None
 SAMPLES = int(args[args.index("--samples") + 1]) if "--samples" in args else 96
 LM_SIZE = int(args[args.index("--size") + 1]) if "--size" in args else 4096
 
@@ -1228,6 +1231,82 @@ def build_lights(lamps, extra, cars, van):
         LIGHT_LOG.append(("van" if k == len(cars) else "car", tuple(front)))
 
 
+# =================================================================== still
+WET = {"paving", "tarmac", "tarmac_alley", "kerb", "concrete", "concrete_floor", "patio", "tiles_slab", "path_edge", "lino_marble"}
+
+
+def _shade(m, b, k):
+    """Darken a material's base colour (through its texture, if it has one)."""
+    nt = m.node_tree
+    src = b.inputs["Base Color"]
+    if src.is_linked:
+        mul = nt.nodes.new("ShaderNodeMix")
+        mul.data_type = "RGBA"
+        mul.blend_type = "MULTIPLY"
+        mul.inputs["Factor"].default_value = 1.0
+        mul.inputs[7].default_value = (k, k, k, 1)
+        nt.links.new(src.links[0].from_socket, mul.inputs[6])
+        nt.links.new(mul.outputs[2], src)
+    else:
+        c = src.default_value
+        src.default_value = (c[0] * k, c[1] * k, c[2] * k, c[3])
+
+
+def render_still(at, coll, pitch=50.0, yaw=28.0, dist=38.0, lens=40.0, size=(1920, 1080)):
+    """Render the game's angled view from above the map point `at` with
+    Cycles: walls above the cut and ceilings hidden, wet ground glossy."""
+    C_STATIC, C_EXPORT, C_BLOCK, C_DYN = coll
+    scene = bpy.context.scene
+    for m in bpy.data.materials:
+        b = m.node_tree.nodes.get("Principled BSDF") if m.use_nodes else None
+        if not b:
+            continue
+        if m.name in WET:
+            # Wet: glossy and a shade darker, so the lights pool in it.
+            b.inputs["Roughness"].default_value = 0.1
+            _shade(m, b, 0.6)
+        elif m.name.startswith("plaster_") or m.name in ("brick_viaduct", "render_n"):
+            _shade(m, b, 0.55)
+    # Punchier practicals than the bake wants: grow light more magenta, sodium lamps brighter.
+    for o in bpy.data.objects:
+        if o.type != "LIGHT":
+            continue
+        if o.name.startswith("grow"):
+            o.data.energy *= 1.6
+            o.data.color = kit.hex_lin("#d040ff")
+        elif o.name.startswith("lamp"):
+            o.data.energy *= 2.5
+    w = scene.world.node_tree.nodes.get("Background") if scene.world else None
+    if w:
+        w.inputs[1].default_value *= 0.35
+    bake.setup_cycles(SAMPLES)
+    scene.cycles.use_denoising = True
+    scene.cycles.glossy_bounces = 3
+    C_BLOCK.hide_render = True
+    cam = bpy.data.cameras.new("still")
+    cam.lens = lens
+    co = bpy.data.objects.new("still", cam)
+    t = P(at[0], at[1], 0)
+    p, y = math.radians(pitch), math.radians(yaw)
+    # From the south, turned `yaw` towards the east (map y runs south; Blender y north).
+    off = Vector((math.sin(y) * math.cos(p), -math.cos(y) * math.cos(p), math.sin(p))) * dist
+    co.location = t + off
+    co.rotation_euler = (-off).to_track_quat("-Z", "Y").to_euler()
+    scene.collection.objects.link(co)
+    scene.camera = co
+    scene.render.resolution_x, scene.render.resolution_y = size
+    scene.render.filepath = os.path.join(OUT, f"still-{JOB}.png")
+    scene.view_settings.view_transform = "AgX"
+    try:
+        scene.view_settings.look = "AgX - Punchy"
+    except TypeError:
+        pass
+    scene.view_settings.exposure = float(os.environ.get("EXPOSURE", "0.2"))
+    t0 = time.time()
+    bpy.ops.render.render(write_still=True)
+    print(f"still {time.time() - t0:.0f}s -> {scene.render.filepath}")
+
+
 # =================================================================== main
 def main():
     t0 = time.time()
@@ -1274,6 +1353,9 @@ def main():
     loot = props.build_loot(L["loot"], P, C_DYN)
     build_lights(lamps, extra, cars, van)
 
+    if STILL:
+        render_still(STILL, COLL)
+        return
     bake.finish(OUT, W, H, P, statics, door_objs + canopies, emitters, hidden, loot, doors, COLL, CUT,
                 bake=BAKE, samples=SAMPLES, lm_size=LM_SIZE,
                 preview=os.path.join(HERE, f"preview-{JOB}.png") if PREVIEW else None, ortho=max(W, H) * 0.6, t0=t0,
