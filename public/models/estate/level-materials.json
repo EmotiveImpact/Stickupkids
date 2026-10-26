@@ -1,0 +1,1353 @@
+{
+ "materials": {
+  "ph_mk_transit_van": {
+   "tex": "ph/ph_mk_transit_van",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_fiesta": {
+   "tex": "ph/ph_mk_fiesta",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_bmw_1series": {
+   "tex": "ph/ph_mk_bmw_1series",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_sofa": {
+   "tex": "ph/ph_mk_sofa",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_side_table_01": {
+   "tex": "ph/ph_side_table_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_modern_coffee_table_01": {
+   "tex": "ph/ph_modern_coffee_table_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_cigarette_pack": {
+   "tex": "ph/ph_cigarette_pack",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_modern_arm_chair_01": {
+   "tex": "ph/ph_modern_arm_chair_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_modern_arm_chair_01_1": {
+   "tex": "ph/ph_modern_arm_chair_01_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_kitchen_run": {
+   "tex": "ph/ph_mk_kitchen_run",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_washing_machine": {
+   "tex": "ph/ph_mk_washing_machine",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_fridge_freezer": {
+   "tex": "ph/ph_mk_fridge_freezer",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_dining_table": {
+   "tex": "ph/ph_dining_table",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_monobloc_chair_01": {
+   "tex": "ph/ph_plastic_monobloc_chair_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_dining_chair_02": {
+   "tex": "ph/ph_dining_chair_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_steel_frame_shelves_01": {
+   "tex": "ph/ph_steel_frame_shelves_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_cardboard_box_01": {
+   "tex": "ph/ph_cardboard_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_wheelie_bin": {
+   "tex": "ph/ph_mk_wheelie_bin",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_phone_box": {
+   "tex": "ph/ph_mk_phone_box",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_bus_shelter": {
+   "tex": "ph/ph_mk_bus_shelter",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_eurobin": {
+   "tex": "ph/ph_mk_eurobin",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_moped": {
+   "tex": "ph/ph_mk_moped",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_traffic_cone": {
+   "tex": "ph/ph_mk_traffic_cone",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_shopping_trolley": {
+   "tex": "ph/ph_mk_shopping_trolley",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_mattress": {
+   "tex": "ph/ph_mk_mattress",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_scales_table": {
+   "tex": "ph/ph_mk_scales_table",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_gaming_console": {
+   "tex": "ph/ph_gaming_console",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_boombox": {
+   "tex": "ph/ph_boombox",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_boombox_1": {
+   "tex": "ph/ph_boombox_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_bleach_bottle": {
+   "tex": "ph/ph_bleach_bottle",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_multi_cleaner_bottle": {
+   "tex": "ph/ph_multi_cleaner_bottle",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_01": {
+   "tex": "ph/ph_plastic_crate_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_long_life_food": {
+   "tex": "ph/ph_long_life_food",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_wooden_cutting_board": {
+   "tex": "ph/ph_wooden_cutting_board",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_pot_enamel_01": {
+   "tex": "ph/ph_pot_enamel_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_02": {
+   "tex": "ph/ph_plastic_crate_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_toolbox": {
+   "tex": "ph/ph_metal_toolbox",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_baseball_bat": {
+   "tex": "ph/ph_baseball_bat",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_compost_bags": {
+   "tex": "ph/ph_compost_bags",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_old_tyre": {
+   "tex": "ph/ph_old_tyre",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_rusted_wheel_rim_01": {
+   "tex": "ph/ph_rusted_wheel_rim_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_barrel_03": {
+   "tex": "ph/ph_barrel_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_crate_03": {
+   "tex": "ph/ph_plastic_crate_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_wooden_stool_01": {
+   "tex": "ph/ph_wooden_stool_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can": {
+   "tex": "ph/ph_metal_trash_can",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_1": {
+   "tex": "ph/ph_metal_trash_can_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_trash_can_2": {
+   "tex": "ph/ph_metal_trash_can_2",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_spray_paint_bottles_02": {
+   "tex": "ph/ph_spray_paint_bottles_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_street_rat": {
+   "tex": "ph/ph_street_rat",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_broom": {
+   "tex": "ph/ph_plastic_broom",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_broom_1": {
+   "tex": "ph/ph_plastic_broom_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_bottle_gallon": {
+   "tex": "ph/ph_plastic_bottle_gallon",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_wicker_basket_01": {
+   "tex": "ph/ph_wicker_basket_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_russian_food_cans_01": {
+   "tex": "ph/ph_russian_food_cans_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_vintage_suitcase": {
+   "tex": "ph/ph_vintage_suitcase",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_vintage_suitcase_1": {
+   "tex": "ph/ph_vintage_suitcase_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_gamepad": {
+   "tex": "ph/ph_gamepad",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_can_rusted": {
+   "tex": "ph/ph_can_rusted",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_power_box_01": {
+   "tex": "ph/ph_power_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_utility_box_01": {
+   "tex": "ph/ph_utility_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "brick": {
+   "tex": "brick",
+   "tint": "#ffffff",
+   "size": 0.9,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "brick_n1": {
+   "tex": "brick",
+   "tint": "#d8c8d0",
+   "size": 0.9,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "brick_n2": {
+   "tex": "brick_dark",
+   "tint": "#ffffff",
+   "size": 0.9,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "brick_n3": {
+   "tex": "brick",
+   "tint": "#b8a8b8",
+   "size": 0.9,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "render_n": {
+   "tex": "plaster",
+   "tint": "#a8b0c0",
+   "size": 2.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "plaster_stash": {
+   "tex": "plaster",
+   "tint": "#9a86a6",
+   "size": 2.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "plaster_living": {
+   "tex": "plaster",
+   "tint": "#8fa4b0",
+   "size": 2.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "plaster_hall": {
+   "tex": "plaster",
+   "tint": "#b8b6c8",
+   "size": 2.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "plaster_kitchen": {
+   "tex": "plaster",
+   "tint": "#a9b8cc",
+   "size": 2.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "plaster_dining": {
+   "tex": "plaster",
+   "tint": "#a898b8",
+   "size": 2.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "ceiling": {
+   "tex": null,
+   "tint": "#d0d0d8",
+   "size": 1.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "cap": {
+   "tex": null,
+   "tint": "#15161c",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "frame_white": {
+   "tex": null,
+   "tint": "#c4c7d2",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "sill": {
+   "tex": "concrete",
+   "tint": "#d0d4dc",
+   "size": 1.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "boards": {
+   "tex": "boards",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "carpet_living": {
+   "tex": "carpet",
+   "tint": "#a8b4d0",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_stash": {
+   "tex": "carpet",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "tiles": {
+   "tex": "tiles",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.35,
+   "emissive": null
+  },
+  "rug": {
+   "tex": "fabric",
+   "tint": "#b0a0c8",
+   "size": 0.7,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_navy": {
+   "tex": "carpet_navy",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_red": {
+   "tex": "carpet_red",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_grey": {
+   "tex": "carpet_grey",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_council": {
+   "tex": "carpet_council",
+   "tint": "#ffffff",
+   "size": 1.4,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_olive": {
+   "tex": "carpet_olive",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "carpet_teal": {
+   "tex": "carpet_teal",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "lino_check": {
+   "tex": "lino_check",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.45,
+   "emissive": null
+  },
+  "lino_marble": {
+   "tex": "lino_marble",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.45,
+   "emissive": null
+  },
+  "tiles_white": {
+   "tex": "tiles_white",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "tiles_slab": {
+   "tex": "tiles_slab",
+   "tint": "#ffffff",
+   "size": 2.4,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "boards_worn": {
+   "tex": "boards_worn",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "boards_old": {
+   "tex": "boards_old",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.65,
+   "emissive": null
+  },
+  "concrete_floor": {
+   "tex": "concrete_floor",
+   "tint": "#ffffff",
+   "size": 2.4,
+   "rough": 0.55,
+   "emissive": null
+  },
+  "tarmac": {
+   "tex": "tarmac",
+   "tint": "#ffffff",
+   "size": 3.0,
+   "rough": 0.35,
+   "emissive": null
+  },
+  "tarmac_alley": {
+   "tex": "tarmac",
+   "tint": "#c8ccd8",
+   "size": 3.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "paving": {
+   "tex": "paving",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "patio": {
+   "tex": "patio",
+   "tint": "#ffffff",
+   "size": 1.6,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "concrete": {
+   "tex": "concrete",
+   "tint": "#ffffff",
+   "size": 3.0,
+   "rough": 0.7,
+   "emissive": null
+  },
+  "kerb": {
+   "tex": "concrete",
+   "tint": "#c8ccd4",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "grass": {
+   "tex": "grass",
+   "tint": "#ffffff",
+   "size": 2.5,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "soil": {
+   "tex": "soil",
+   "tint": "#ffffff",
+   "size": 2.0,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "gravel": {
+   "tex": "tarmac",
+   "tint": "#9a9cb0",
+   "size": 1.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "fence": {
+   "tex": "fence",
+   "tint": "#ffffff",
+   "size": 1.2,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "slate": {
+   "tex": "slate",
+   "tint": "#ffffff",
+   "size": 1.5,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "leaves": {
+   "tex": "grass",
+   "tint": "#7a9a80",
+   "size": 0.8,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "bark": {
+   "tex": "fence",
+   "tint": "#7a6a70",
+   "size": 0.6,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "paint_yellow": {
+   "tex": null,
+   "tint": "#b8962a",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "paint_road": {
+   "tex": null,
+   "tint": "#b8bcc0",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "fabric_sofa": {
+   "tex": "fabric",
+   "tint": "#8890b8",
+   "size": 0.6,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "fabric_chair": {
+   "tex": "fabric",
+   "tint": "#7a6a90",
+   "size": 0.6,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "fabric_bed": {
+   "tex": "fabric",
+   "tint": "#9aa8c8",
+   "size": 0.8,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "fabric_pillow": {
+   "tex": "fabric",
+   "tint": "#d0d4e0",
+   "size": 0.8,
+   "rough": 1.0,
+   "emissive": null
+  },
+  "wood_dark": {
+   "tex": "boards",
+   "tint": "#8a8098",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "wood_light": {
+   "tex": "boards",
+   "tint": "#c0b8c8",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "door_int": {
+   "tex": null,
+   "tint": "#cfcfd8",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "door_front": {
+   "tex": null,
+   "tint": "#1c3444",
+   "size": 1.0,
+   "rough": 0.4,
+   "emissive": null
+  },
+  "metal_dark": {
+   "tex": null,
+   "tint": "#2a2d36",
+   "size": 1.0,
+   "rough": 0.4,
+   "emissive": null
+  },
+  "metal": {
+   "tex": null,
+   "tint": "#7e8594",
+   "size": 1.0,
+   "rough": 0.35,
+   "emissive": null
+  },
+  "chrome": {
+   "tex": null,
+   "tint": "#b8bfcc",
+   "size": 1.0,
+   "rough": 0.15,
+   "emissive": null
+  },
+  "plastic_black": {
+   "tex": null,
+   "tint": "#16171c",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "plastic_white": {
+   "tex": null,
+   "tint": "#c6cad4",
+   "size": 1.0,
+   "rough": 0.4,
+   "emissive": null
+  },
+  "plastic_grey": {
+   "tex": null,
+   "tint": "#5a5e6a",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "bin_green": {
+   "tex": null,
+   "tint": "#22423a",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "bin_black": {
+   "tex": null,
+   "tint": "#1c1e24",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "bin_blue": {
+   "tex": null,
+   "tint": "#1e3050",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "car_paint": {
+   "tex": null,
+   "tint": "#2c3a5a",
+   "size": 1.0,
+   "rough": 0.25,
+   "emissive": null
+  },
+  "car_paint2": {
+   "tex": null,
+   "tint": "#4a4e58",
+   "size": 1.0,
+   "rough": 0.25,
+   "emissive": null
+  },
+  "van_paint": {
+   "tex": null,
+   "tint": "#15171c",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "tyre": {
+   "tex": null,
+   "tint": "#121216",
+   "size": 1.0,
+   "rough": 0.8,
+   "emissive": null
+  },
+  "car_glass": {
+   "tex": null,
+   "tint": "#0e1420",
+   "size": 1.0,
+   "rough": 0.05,
+   "emissive": null
+  },
+  "worktop": {
+   "tex": null,
+   "tint": "#3a3e4a",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "cupboard": {
+   "tex": null,
+   "tint": "#d0d2da",
+   "size": 1.0,
+   "rough": 0.4,
+   "emissive": null
+  },
+  "appliance": {
+   "tex": null,
+   "tint": "#c8ccd6",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "cardboard": {
+   "tex": null,
+   "tint": "#6a6270",
+   "size": 1.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "paper": {
+   "tex": null,
+   "tint": "#d8d8e0",
+   "size": 1.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "plant_pot": {
+   "tex": null,
+   "tint": "#3a3442",
+   "size": 1.0,
+   "rough": 0.8,
+   "emissive": null
+  },
+  "can_red": {
+   "tex": null,
+   "tint": "#8a2030",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "can_silver": {
+   "tex": null,
+   "tint": "#a0a8b8",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "glass": {
+   "tex": null,
+   "tint": "#1a2840",
+   "size": 1.0,
+   "rough": 0.05,
+   "emissive": null
+  },
+  "loot_note": {
+   "tex": null,
+   "tint": "#7ab89a",
+   "size": 1.0,
+   "rough": 0.8,
+   "emissive": null
+  },
+  "loot_band": {
+   "tex": null,
+   "tint": "#d8c8f0",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
+  },
+  "loot_wrap": {
+   "tex": null,
+   "tint": "#c8d0dc",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": null
+  },
+  "loot_bag": {
+   "tex": null,
+   "tint": "#1a1d24",
+   "size": 1.0,
+   "rough": 0.7,
+   "emissive": null
+  },
+  "emit_tv": {
+   "tex": null,
+   "tint": "#6c9cff",
+   "size": 1.0,
+   "rough": 0.2,
+   "emissive": [
+    "#6c9cff",
+    6.0
+   ]
+  },
+  "emit_lamp": {
+   "tex": null,
+   "tint": "#ffb060",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#ff9a3e",
+    25.0
+   ]
+  },
+  "emit_window_warm": {
+   "tex": null,
+   "tint": "#ffb46a",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#ffb46a",
+    1.3
+   ]
+  },
+  "emit_window_cool": {
+   "tex": null,
+   "tint": "#a8c0ff",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#9ab8ff",
+    0.95
+   ]
+  },
+  "emit_window_tv": {
+   "tex": null,
+   "tint": "#7aa0ff",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#7aa0ff",
+    0.85
+   ]
+  },
+  "emit_fridge": {
+   "tex": null,
+   "tint": "#e0f0ff",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#d8ecff",
+    4.0
+   ]
+  },
+  "emit_bulb": {
+   "tex": null,
+   "tint": "#ffe6c0",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#ffe0b0",
+    12.0
+   ]
+  },
+  "emit_strip": {
+   "tex": null,
+   "tint": "#e8f0ff",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#e0ecff",
+    10.0
+   ]
+  },
+  "emit_led": {
+   "tex": null,
+   "tint": "#ff2d9b",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#ff2d9b",
+    5.0
+   ]
+  },
+  "emit_headlight": {
+   "tex": null,
+   "tint": "#fff4e0",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#fff0d8",
+    20.0
+   ]
+  },
+  "emit_tail": {
+   "tex": null,
+   "tint": "#ff2030",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#ff1828",
+    0.9
+   ]
+  },
+  "emit_screen": {
+   "tex": null,
+   "tint": "#9ab8ff",
+   "size": 1.0,
+   "rough": 0.2,
+   "emissive": [
+    "#9ab8ff",
+    3.0
+   ]
+  },
+  "emit_hob": {
+   "tex": null,
+   "tint": "#ff4020",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#ff3818",
+    2.0
+   ]
+  }
+ },
+ "lights": [
+  [
+   "street",
+   [
+    -6.5,
+    -11.100000381469727,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    8.5,
+    -11.100000381469727,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    -8.899999618530273,
+    12.5,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    -23.5,
+    -11.100000381469727,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    23.5,
+    -11.100000381469727,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    37.0,
+    -11.100000381469727,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    -31.0,
+    -15.0,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    1.0,
+    -15.0,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    31.0,
+    -15.0,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    16.100000381469727,
+    12.5,
+    4.050000190734863
+   ]
+  ],
+  [
+   "street",
+   [
+    -30.899999618530273,
+    12.5,
+    4.050000190734863
+   ]
+  ],
+  [
+   "hall",
+   [
+    -2.0999999046325684,
+    -1.600000023841858,
+    2.4000000953674316
+   ]
+  ],
+  [
+   "dining",
+   [
+    2.5,
+    -3.0,
+    2.4000000953674316
+   ]
+  ],
+  [
+   "kitchen",
+   [
+    2.200000047683716,
+    2.700000047683716,
+    2.4000000953674316
+   ]
+  ],
+  [
+   "tv",
+   [
+    -6.0,
+    -0.8450000286102295,
+    1.0299999713897705
+   ]
+  ],
+  [
+   "fridge",
+   [
+    4.099999904632568,
+    1.5,
+    0.800000011920929
+   ]
+  ],
+  [
+   "laptop",
+   [
+    3.0999999046325684,
+    -2.9000000953674316,
+    1.0
+   ]
+  ],
+  [
+   "led",
+   [
+    -6.985000133514404,
+    5.099999904632568,
+    1.0
+   ]
+  ],
+  [
+   "floorlamp",
+   [
+    -7.699999809265137,
+    -2.299999952316284,
+    1.2999999523162842
+   ]
+  ],
+  [
+   "monitor",
+   [
+    -4.900000095367432,
+    0.6000000238418579,
+    1.0
+   ]
+  ],
+  [
+   "van",
+   [
+    -9.169235229492188,
+    -12.100000381469727,
+    0.6499999761581421
+   ]
+  ]
+ ],
+ "doors": {
+  "door_19_7": {
+   "hinge": [
+    4.03000020980835,
+    0.0,
+    5.5
+   ],
+   "axis": "h"
+  },
+  "door_12_19": {
+   "hinge": [
+    -2.9700000286102295,
+    0.0,
+    -6.5
+   ],
+   "axis": "h"
+  },
+  "door_11_10": {
+   "hinge": [
+    -3.5,
+    0.0,
+    2.9700000286102295
+   ],
+   "axis": "v"
+  },
+  "door_11_16": {
+   "hinge": [
+    -3.5,
+    0.0,
+    -3.0299999713897705
+   ],
+   "axis": "v"
+  },
+  "door_14_10": {
+   "hinge": [
+    -0.5,
+    0.0,
+    2.9700000286102295
+   ],
+   "axis": "v"
+  },
+  "door_14_16": {
+   "hinge": [
+    -0.5,
+    0.0,
+    -3.0299999713897705
+   ],
+   "axis": "v"
+  }
+ },
+ "cut": 1.5,
+ "probe": {
+  "max": 1.8193845735321044,
+  "perUnit": 8
+ }
+}
