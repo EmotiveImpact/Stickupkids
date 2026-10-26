@@ -16,7 +16,7 @@ import { fit } from './viewport.ts';
 
 export interface HudHandlers {
   selectCrew(slot: number): void;
-  tool(name: 'kick' | 'undo' | 'clear' | 'sample' | 'hand'): void;
+  tool(name: 'kick' | 'undo' | 'clear' | 'sample' | 'hand' | 'view'): void;
   code(code: GoCode): void;
   go(): void;
   pause(): void;
@@ -467,6 +467,7 @@ export class Hud {
     const codes = (title: string) =>
       (['A', 'B', 'C'] as const).map((c) => `<button class="tool code" data-c="${c}" title="${title} ${c}"><span>${c}</span></button>`).join('');
     const handBtn = `<button class="tool${this.handOn ? ' on' : ''}" data-t="hand" title="Hand: drag to move round the map (H)">${ICONS.hand}<span class="k">H</span></button>`;
+    const viewBtn = `<button class="tool${this.viewOn ? ' on' : ''}" data-t="view" title="Angled view: look in at the rooms (Tab)">${ICONS.angle}<span class="k">Tab</span></button>`;
     if (mode === 'planning') {
       this.topLeft.innerHTML = `<span class="lab">Planning · time is frozen</span><span class="t">${where}${what ? ` <span>${what}</span>` : ''}</span>`;
       this.topBar.innerHTML = '';
@@ -476,6 +477,7 @@ export class Hud {
           : `<span class="lab">Noise</span><div class="segs">${'<i></i>'.repeat(8)}</div><span class="val">Quiet</span>`;
       this.bar.innerHTML = `
         ${handBtn}
+        ${viewBtn}
         <span class="sep"></span>
         <button class="tool" data-t="kick" title="Kick locked doors after this point (K)">${ICONS.boot}<span class="k">K</span></button>
         <span class="sep"></span>
@@ -498,6 +500,7 @@ export class Hud {
       this.topRight.innerHTML = '';
       this.bar.innerHTML = `
         ${handBtn}
+        ${viewBtn}
         <span class="sep"></span>
         <button class="tool" data-r="pause" title="Pause (Space)">${ICONS.pause}</button>
         <button class="tool" data-r="speed" title="Speed (F)">${ICONS.fast}<span class="k">1x</span></button>
@@ -538,6 +541,13 @@ export class Hud {
       }),
     );
     this.layout();
+  }
+
+  private viewOn = false;
+  /** Light the view button while the camera looks in at an angle. */
+  setView(on: boolean) {
+    this.viewOn = on;
+    this.bar.querySelector('[data-t="view"]')?.classList.toggle('on', on);
   }
 
   private handOn = false;

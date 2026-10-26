@@ -52,6 +52,13 @@ const OVERLAY = 0x10000000;
 const WORLD = 0x0fffffff;
 const TILT = (54 * Math.PI) / 180;
 /**
+ * The angled view, like the concept renders: a perspective look in from one
+ * corner, steep enough to see into the cut-away rooms.
+ */
+const ANGLE_PITCH = (50 * Math.PI) / 180;
+const ANGLE_YAW = (-28 * Math.PI) / 180;
+const ANGLE_FOV = 0.7;
+/**
  * How much each wet surface mirrors, as a multiple of a dry dielectric's
  * reflection (about 4% looking down at this angle): roads and paving
  * shine like the deck's street shots, hard floors indoors a little.
@@ -378,6 +385,8 @@ export class View {
   private insets = { left: 250, right: 10, top: 30, bottom: 70 };
   private time = 0;
   private zoom = 1;
+  /** Looking in at an angle rather than straight down the overhead tilt. */
+  private angled = false;
   private pan = { x: 0, z: 0 };
   private scale = 1;
   /** CSS pixels per metre with the whole level in view. */
@@ -682,17 +691,65 @@ export class View {
   private placeCamera(jx: number, jz: number) {
     if (this.intro) return;
     const target = new Vector3(this.pan.x + jx, 0, this.pan.z + jz);
-    for (const c of [this.cam, this.ocam]) {
-      const d = 60;
-      c.position.set(target.x, Math.sin(TILT) * d, target.z - Math.cos(TILT) * d);
-      c.setTarget(target);
-    }
+    if (this.angled) this.placeAngled(target);
+    else
+      for (const c of [this.cam, this.ocam]) {
+        const d = 60;
+        c.mode = Camera.ORTHOGRAPHIC_CAMERA;
+        c.maxZ = 400;
+        c.position.set(target.x, Math.sin(TILT) * d, target.z - Math.cos(TILT) * d);
+        c.setTarget(target);
+      }
     if (this.big) {
       // Character shadows only where the camera is looking, at full sharpness.
       const sl = this.shadowLight;
       sl.position.copyFrom(target.subtract(sl.direction.normalizeToNew().scale(30)));
       sl.shadowFrustumSize = Math.min(120, Math.max(30, (this.engine.getRenderWidth() / this.scale) * 1.3));
     }
+  }
+
+  /** Ground directions for the angled view: across the screen, and into it. */
+  private get axes(): { right: Vector3; ahead: Vector3 } {
+    const yaw = this.angled ? ANGLE_YAW : 0;
+    return { right: new Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), ahead: new Vector3(Math.sin(yaw), 0, Math.cos(yaw)) };
+  }
+
+  /**
+   * Perspective, far enough back that the ground at the centre shows at the
+   * same metres a pixel as the overhead view, and shifted so the HUD margins
+   * frame it the same way.
+   */
+  private placeAngled(target: Vector3) {
+    const sw = this.engine.getRenderWidth();
+    const sh = this.engine.getRenderHeight();
+    const dpr = sw / Math.max(1, this.engine.getRenderingCanvas()!.clientWidth);
+    const i = this.insets;
+    const dx = (i.left - i.right) * dpr * 0.5;
+    const dy = (i.top - i.bottom) * dpr * 0.5;
+    const { right, ahead } = this.axes;
+    const look = target.subtract(right.scale(dx / this.scale)).add(ahead.scale(dy / this.scale / Math.sin(ANGLE_PITCH)));
+    const d = sh / (this.scale * 2 * Math.tan(ANGLE_FOV / 2));
+    for (const c of [this.cam, this.ocam]) {
+      c.mode = Camera.PERSPECTIVE_CAMERA;
+      c.fov = ANGLE_FOV;
+      c.maxZ = Math.max(400, d * 4);
+      c.position.copyFrom(look.subtract(ahead.scale(d * Math.cos(ANGLE_PITCH))).add(new Vector3(0, d * Math.sin(ANGLE_PITCH), 0)));
+      c.setTarget(look);
+    }
+  }
+
+  get isAngled(): boolean {
+    return this.angled;
+  }
+
+  /** Switch between the overhead view and the angled one, keeping the same spot in the middle. */
+  setAngled(on: boolean) {
+    if (on === this.angled) return;
+    const mid = this.groundAt(this.insets.left + (fit.w - this.insets.left - this.insets.right) / 2, this.insets.top + (fit.h - this.insets.top - this.insets.bottom) / 2);
+    this.angled = on;
+    if (mid) this.pan = { x: mid.x, z: mid.z };
+    this.clampPan();
+    this.resize();
   }
 
   /** A level too big to play with all of it in view. */
@@ -878,8 +935,11 @@ export class View {
   /** Pan by a screen distance in CSS pixels. */
   panBy(dxPx: number, dyPx: number) {
     const dpr = this.engine.getRenderWidth() / Math.max(1, this.engine.getRenderingCanvas()!.clientWidth);
-    this.pan.x -= (dxPx * dpr) / this.scale;
-    this.pan.z += (dyPx * dpr) / (this.scale * Math.sin(TILT));
+    const { right, ahead } = this.axes;
+    const across = (dxPx * dpr) / this.scale;
+    const into = (dyPx * dpr) / (this.scale * Math.sin(this.angled ? ANGLE_PITCH : TILT));
+    this.pan.x += -right.x * across + ahead.x * into;
+    this.pan.z += -right.z * across + ahead.z * into;
     this.clampPan();
     this.resize();
   }
