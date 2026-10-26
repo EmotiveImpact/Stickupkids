@@ -159,12 +159,20 @@ export class Stills {
       return null;
     }
     const state = new State();
-    const loads: Promise<void>[] = [];
+    const loads: Promise<boolean>[] = [];
+    const textures: Texture[] = [];
     const tier = (f: Frame): Tier => {
-      const tex = new Texture(base + f.image, scene, { noMipmap: false, samplingMode: Texture.TRILINEAR_SAMPLINGMODE });
+      let done: (ok: boolean) => void = () => {};
+      loads.push(new Promise((r) => (done = r)));
+      const tex = new Texture(base + f.image, scene, {
+        noMipmap: false,
+        samplingMode: Texture.TRILINEAR_SAMPLINGMODE,
+        onLoad: () => done(true),
+        onError: () => done(false),
+      });
       tex.wrapU = tex.wrapV = Texture.CLAMP_ADDRESSMODE;
       tex.anisotropicFilteringLevel = 8;
-      loads.push(new Promise((ok) => (tex.isReady() ? ok() : tex.onLoadObservable.addOnce(() => ok()))));
+      textures.push(tex);
       return { tex, right: new Vector3(...f.right), up: new Vector3(...f.up), frame: [f.u0, f.v0, f.w, f.h] };
     };
     for (const view of ['overhead', 'angled'] as const) {
@@ -175,7 +183,11 @@ export class Stills {
       state.tiers.set(view, { detail, wide: m!.wide && m!.detail ? tier(m!.wide) : detail });
     }
     if (!state.tiers.size) return null;
-    await Promise.all(loads);
+    // A picture that will not load: the level plays with live shading instead.
+    if (!(await Promise.all(loads)).every(Boolean)) {
+      for (const t of textures) t.dispose();
+      return null;
+    }
 
     // Doors and loot move, so they keep live shading: their own material copies.
     const live = new Set([...estate.doors.values()].map((d) => d.pivot as unknown as object));
