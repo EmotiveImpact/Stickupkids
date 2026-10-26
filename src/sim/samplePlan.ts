@@ -93,21 +93,24 @@ export function rideOutPlans(): Waypoint[][] {
  * A plan for the grow under the Elephant arches. The crew leave the van at the
  * east end of the lane, go under the viaduct on the road and come back along
  * the footpath behind it, out of the lane lookout's sight. On A they take the
- * footpath lookout and Kemi picks the fire door; Dex and Taz follow her in
- * through the grow room to the office. Jojo watches the footpath until B.
+ * footpath lookout and Kemi picks the fire door; Dex and Taz follow her into
+ * the hall, Dex to the bagging table by the shutter, Taz to the bedroom. Jojo
+ * watches the footpath until B.
  */
 export function elephantPlans(): Waypoint[][] {
   const out = [wp(116, 44), wp(110, 20), wp(96, 21)];
   const back = [...out].reverse();
+  const inside = [wp(72, 21), wp(71, 23), wp(71, 29)];
+  const outside = [...inside].reverse();
   return [
-    // 1 Dex, Muscle: through the grow room to the office, the takings.
-    [wp(104, 44), ...out, wp(92, 21, 'A'), wp(70, 21), wp(68, 23), wp(68, 35), wp(66, 37), wp(67, 39), wp(66, 37), wp(68, 35), wp(68, 23), wp(70, 21), ...back, wp(104, 44)],
-    // 2 Kemi, Creeper: the fire door, the crop in the aisle.
-    [wp(105, 44), ...out, wp(93, 20, 'A'), wp(69, 21), wp(68, 23), wp(68, 25), wp(68, 31), wp(68, 23), wp(69, 21), ...back, wp(105, 44)],
+    // 1 Dex, Muscle: down the aisle to the bagging table by the shutter.
+    [wp(104, 44), ...out, wp(92, 21, 'A'), ...inside, wp(70, 35), wp(69, 38), wp(67, 39), wp(69, 38), wp(70, 35), ...outside, ...back, wp(104, 44)],
+    // 2 Kemi, Creeper: the fire door, then the drying crop in the stockroom.
+    [wp(105, 44), ...out, wp(93, 20, 'A'), ...inside, wp(67, 29), wp(67, 27), wp(68, 25), wp(67, 27), wp(67, 29), ...outside, ...back, wp(105, 44)],
     // 3 Jojo, Lookout: eyes down the footpath until B.
     [wp(104, 46), ...out, wp(95, 21, 'A'), wp(78, 20, 'B'), ...back, wp(104, 46)],
-    // 4 Taz, Talker: the footpath lookout, then the grower and the float.
-    [wp(105, 46), ...out, wp(91, 20, 'A'), wp(72, 20), wp(69, 21), wp(68, 23), wp(68, 35), wp(67, 37), wp(69, 40), wp(70, 40), wp(67, 37), wp(68, 35), wp(68, 23), wp(69, 21), ...back, wp(105, 46)],
+    // 4 Taz, Talker: the footpath lookout, then the grower in his bedroom and the float.
+    [wp(105, 46), ...out, wp(91, 20, 'A'), ...inside, wp(78, 29), wp(78, 35), wp(79, 36), wp(78, 37), wp(77, 37), wp(78, 40), wp(79, 36), wp(78, 35), wp(78, 29), ...outside, ...back, wp(105, 46)],
   ];
 }
 

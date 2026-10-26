@@ -1,70 +1,126 @@
 {
  "materials": {
-  "ph_korean_fire_extinguisher_01": {
-   "tex": "ph/ph_korean_fire_extinguisher_01",
+  "ph_mk_weed_plant_big": {
+   "tex": "ph/ph_mk_weed_plant_big",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_korean_fire_extinguisher_01_1": {
-   "tex": "ph/ph_korean_fire_extinguisher_01_1",
+  "ph_mk_carbon_filter": {
+   "tex": "ph/ph_mk_carbon_filter",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_korean_fire_extinguisher_01_2": {
-   "tex": "ph/ph_korean_fire_extinguisher_01_2",
+  "ph_mk_weed_plant_small": {
+   "tex": "ph/ph_mk_weed_plant_small",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_plastic_crate_02": {
-   "tex": "ph/ph_plastic_crate_02",
+  "ph_mk_water_tank": {
+   "tex": "ph/ph_mk_water_tank",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_metal_toolbox": {
-   "tex": "ph/ph_metal_toolbox",
+  "ph_mk_nutrient_bottles": {
+   "tex": "ph/ph_mk_nutrient_bottles",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_propane_tank": {
-   "tex": "ph/ph_propane_tank",
+  "ph_mk_scales_table": {
+   "tex": "ph/ph_mk_scales_table",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_small_lpg_tank": {
-   "tex": "ph/ph_small_lpg_tank",
+  "ph_mk_supply_shelf": {
+   "tex": "ph/ph_mk_supply_shelf",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_steel_frame_shelves_02": {
-   "tex": "ph/ph_steel_frame_shelves_02",
+  "ph_mk_flood_table": {
+   "tex": "ph/ph_mk_flood_table",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_seeding_tray_01": {
-   "tex": "ph/ph_seeding_tray_01",
+  "ph_mk_messy_bed": {
+   "tex": "ph/ph_mk_messy_bed",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_compost_bag_02": {
-   "tex": "ph/ph_compost_bag_02",
+  "ph_mk_bedside_lamp": {
+   "tex": "ph/ph_mk_bedside_lamp",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_dehumidifier": {
+   "tex": "ph/ph_mk_dehumidifier",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_floor_fan": {
+   "tex": "ph/ph_mk_floor_fan",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_mk_soil_bags": {
+   "tex": "ph/ph_mk_soil_bags",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_steel_frame_shelves_03": {
+   "tex": "ph/ph_steel_frame_shelves_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_steel_frame_shelves_03_1": {
+   "tex": "ph/ph_steel_frame_shelves_03_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_trashbag": {
+   "tex": "ph/ph_trashbag",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_hand_truck": {
+   "tex": "ph/ph_hand_truck",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_metal_jerrycan_green": {
+   "tex": "ph/ph_metal_jerrycan_green",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -77,8 +133,22 @@
    "rough": 0.5,
    "emissive": null
   },
-  "ph_compost_bags": {
-   "tex": "ph/ph_compost_bags",
+  "ph_plastic_crate_03": {
+   "tex": "ph/ph_plastic_crate_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_jerrycan": {
+   "tex": "ph/ph_plastic_jerrycan",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_container": {
+   "tex": "ph/ph_plastic_container",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -91,8 +161,92 @@
    "rough": 0.5,
    "emissive": null
   },
-  "ph_trashbag": {
-   "tex": "ph/ph_trashbag",
+  "ph_cardboard_box_01": {
+   "tex": "ph/ph_cardboard_box_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_plastic_monobloc_chair_01": {
+   "tex": "ph/ph_plastic_monobloc_chair_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_small_lpg_tank": {
+   "tex": "ph/ph_small_lpg_tank",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_propane_tank": {
+   "tex": "ph/ph_propane_tank",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_steel_frame_shelves_02": {
+   "tex": "ph/ph_steel_frame_shelves_02",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_wooden_stool_01": {
+   "tex": "ph/ph_wooden_stool_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_seeding_tray_01": {
+   "tex": "ph/ph_seeding_tray_01",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_barrel_03": {
+   "tex": "ph/ph_barrel_03",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_portable_generator": {
+   "tex": "ph/ph_portable_generator",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_portable_generator_1": {
+   "tex": "ph/ph_portable_generator_1",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_cement_bag": {
+   "tex": "ph/ph_cement_bag",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_multi_cleaner_5_litre": {
+   "tex": "ph/ph_multi_cleaner_5_litre",
+   "tint": "#ffffff",
+   "size": 1.0,
+   "rough": 0.5,
+   "emissive": null
+  },
+  "ph_can_rusted": {
+   "tex": "ph/ph_can_rusted",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -119,20 +273,6 @@
    "rough": 0.5,
    "emissive": null
   },
-  "ph_can_rusted": {
-   "tex": "ph/ph_can_rusted",
-   "tint": "#ffffff",
-   "size": 1.0,
-   "rough": 0.5,
-   "emissive": null
-  },
-  "ph_spray_paint_bottles_02": {
-   "tex": "ph/ph_spray_paint_bottles_02",
-   "tint": "#ffffff",
-   "size": 1.0,
-   "rough": 0.5,
-   "emissive": null
-  },
   "ph_old_tyre": {
    "tex": "ph/ph_old_tyre",
    "tint": "#ffffff",
@@ -140,15 +280,15 @@
    "rough": 0.5,
    "emissive": null
   },
-  "ph_utility_box_01": {
-   "tex": "ph/ph_utility_box_01",
+  "ph_power_box_01": {
+   "tex": "ph/ph_power_box_01",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
    "emissive": null
   },
-  "ph_power_box_01": {
-   "tex": "ph/ph_power_box_01",
+  "ph_utility_box_01": {
+   "tex": "ph/ph_utility_box_01",
    "tint": "#ffffff",
    "size": 1.0,
    "rough": 0.5,
@@ -996,13 +1136,47 @@
   },
   "emit_grow": {
    "tex": null,
-   "tint": "#ffd8f4",
+   "tint": "#f4c8ff",
    "size": 1.0,
    "rough": 0.3,
    "emissive": [
-    "#ffa8ec",
-    6.0
+    "#d060ff",
+    7.0
    ]
+  },
+  "emit_tube": {
+   "tex": null,
+   "tint": "#e8f0ff",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#e0ecff",
+    3.0
+   ]
+  },
+  "emit_red": {
+   "tex": null,
+   "tint": "#ff6050",
+   "size": 1.0,
+   "rough": 0.3,
+   "emissive": [
+    "#ff2a1a",
+    8.0
+   ]
+  },
+  "duct": {
+   "tex": null,
+   "tint": "#c8ccd4",
+   "size": 0.2,
+   "rough": 0.35,
+   "emissive": null
+  },
+  "tray": {
+   "tex": null,
+   "tint": "#202228",
+   "size": 1.0,
+   "rough": 0.6,
+   "emissive": null
   },
   "emit_pool": {
    "tex": null,
@@ -1031,16 +1205,30 @@
    "rough": 0.7,
    "emissive": null
   },
-  "plaster_office": {
+  "plaster_stock": {
    "tex": "plaster",
-   "tint": "#a8a098",
+   "tint": "#c4c8d0",
+   "size": 2.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "plaster_clone": {
+   "tex": "plaster",
+   "tint": "#ccd0d8",
+   "size": 2.0,
+   "rough": 0.9,
+   "emissive": null
+  },
+  "plaster_bedroom": {
+   "tex": "plaster",
+   "tint": "#8c8490",
    "size": 2.0,
    "rough": 0.9,
    "emissive": null
   },
   "plaster_grow": {
    "tex": "plaster",
-   "tint": "#d8dce4",
+   "tint": "#c8c4d4",
    "size": 2.0,
    "rough": 0.9,
    "emissive": null
@@ -1146,7 +1334,15 @@
   [
    "ceiling",
    [
-    -6.5,
+    -7.5,
+    19.5,
+    2.4000000953674316
+   ]
+  ],
+  [
+   "ceiling",
+   [
+    -1.0,
     5.5,
     2.4000000953674316
    ]
@@ -1154,57 +1350,153 @@
   [
    "ceiling",
    [
-    -6.5,
-    15.5,
+    4.5,
+    5.5,
     2.4000000953674316
    ]
   ],
   [
-   "laptop",
+   "ceiling",
    [
-    -4.550000190734863,
-    6.550000190734863,
-    1.0
+    -1.5,
+    12.5,
+    2.4000000953674316
    ]
   ],
   [
-   "fridge",
+   "grow",
    [
-    -3.7899999618530273,
+    -1.5,
+    20.5,
+    1.2999999523162842
+   ]
+  ],
+  [
+   "grow",
+   [
+    1.5,
+    20.5,
+    1.2999999523162842
+   ]
+  ],
+  [
+   "grow",
+   [
+    4.5,
+    20.5,
+    1.2999999523162842
+   ]
+  ],
+  [
+   "grow",
+   [
+    5.5,
+    14.5,
+    1.2999999523162842
+   ]
+  ],
+  [
+   "grow",
+   [
+    -8.0,
+    14.5,
+    1.399999976158142
+   ]
+  ],
+  [
+   "grow",
+   [
+    -8.0,
+    12.5,
+    1.399999976158142
+   ]
+  ],
+  [
+   "grow",
+   [
+    -8.0,
+    10.5,
+    1.399999976158142
+   ]
+  ],
+  [
+   "grow",
+   [
+    -1.0,
+    14.5,
+    1.399999976158142
+   ]
+  ],
+  [
+   "grow",
+   [
+    -1.0,
+    12.5,
+    1.399999976158142
+   ]
+  ],
+  [
+   "grow",
+   [
+    -1.0,
+    10.5,
+    1.399999976158142
+   ]
+  ],
+  [
+   "redlamp",
+   [
+    6.5,
     7.5,
-    0.800000011920929
+    0.8999999761581421
    ]
   ],
   [
-   "grow",
+   "tube",
    [
-    -9.0,
-    19.5,
-    1.7999999523162842
+    -9.850000381469727,
+    12.0,
+    1.350000023841858
    ]
   ],
   [
-   "grow",
+   "tube",
    [
-    -4.0,
-    19.5,
-    1.7999999523162842
+    6.849999904632568,
+    17.5,
+    1.350000023841858
    ]
   ],
   [
-   "grow",
+   "tube",
    [
-    -9.0,
-    15.5,
-    1.7999999523162842
+    -7.5,
+    21.850000381469727,
+    1.350000023841858
    ]
   ],
   [
-   "grow",
+   "tube",
    [
-    -4.0,
-    15.5,
-    1.7999999523162842
+    -1.0,
+    3.1500000953674316,
+    1.350000023841858
+   ]
+  ],
+  [
+   "tube",
+   [
+    -1.5,
+    9.149999618530273,
+    1.350000023841858
+   ]
+  ],
+  [
+   "tube",
+   [
+    -8.5,
+    3.1500000953674316,
+    1.350000023841858
    ]
   ],
   [
@@ -1241,19 +1533,35 @@
    ],
    "axis": "h"
   },
-  "door_66_36": {
+  "door_71_22": {
    "hinge": [
-    -8.970000267028809,
+    -3.9700000286102295,
+    0.0,
+    22.5
+   ],
+   "axis": "h"
+  },
+  "door_67_28": {
+   "hinge": [
+    -7.96999979019165,
+    0.0,
+    16.5
+   ],
+   "axis": "h"
+  },
+  "door_73_36": {
+   "hinge": [
+    -1.9700000286102295,
     0.0,
     8.5
    ],
    "axis": "h"
   },
-  "door_68_22": {
+  "door_79_36": {
    "hinge": [
-    -6.96999979019165,
+    4.03000020980835,
     0.0,
-    22.5
+    8.5
    ],
    "axis": "h"
   }
@@ -1261,7 +1569,7 @@
  "cut": 1.5,
  "lamp": "#ff9a3c",
  "probe": {
-  "max": 1.168314455581665,
+  "max": 1.2300127015838622,
   "perUnit": 4
  }
 }

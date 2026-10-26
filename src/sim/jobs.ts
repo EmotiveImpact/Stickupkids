@@ -100,9 +100,9 @@ export const JOBS: Job[] = [
     title: 'The grow, Elephant arches',
     place: 'Railway arches, Elephant and Castle SE1',
     brief:
-      "One of the railway arches between Walworth Road and Elephant Road is a weed grow behind a roller shutter, with a car wash run by the same people in the arch next door. Four tents under the lights, a drying rack, and an office at the front where the money sits. A fire door at the back opens onto the footpath behind the viaduct. A lookout walks the lane out front, another walks the footpath, and the van is at the east end of the lane.",
+      "Three of the railway arches between Walworth Road and Elephant Road have been knocked through into one long weed grow behind a roller shutter, with a car wash run by the same people in the arch next door. Four tents and six flood tables under the lights, a stockroom of drying crop in the back corner, and the grower sleeps in a partitioned bedroom at the front with the float. A fire door at the back opens onto the footpath behind the viaduct. A lookout walks the lane out front, another walks the footpath, and the van is at the east end of the lane.",
     intel: [
-      'The grower in the office, a guard on the office door',
+      'The grower in his bedroom, a guard on the shutter, a tender in the aisles',
       'Two and a dog at the car wash',
       'Lookouts on the lane and the footpath, a younger on the corner',
       'Grow room unscouted',
