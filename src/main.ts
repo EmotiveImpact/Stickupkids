@@ -330,6 +330,8 @@ function enterPlanning() {
   changed();
   sim = preview;
   view.setMode('planning');
+  // Plans are drawn from overhead; the angled look is for watching.
+  setAngled(false);
 }
 
 function go() {
@@ -431,8 +433,9 @@ function currentWp(): Waypoint | null {
   return plan[plan.length - 1] ?? null;
 }
 
-function tool(t: 'kick' | 'undo' | 'clear' | 'sample' | 'hand') {
+function tool(t: 'kick' | 'undo' | 'clear' | 'sample' | 'hand' | 'view') {
   if (t === 'hand') return setHand(!hand);
+  if (t === 'view') return setAngled(!view.isAngled);
   if (phase === 'raid' && paused) {
     if (t === 'kick') {
       order((o) => {
@@ -732,6 +735,10 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'a' || k === 'b' || k === 'c') code(k.toUpperCase() as GoCode);
   else if (k === 'k') tool('kick');
   else if (k === 'h') tool('hand');
+  else if (k === 'tab') {
+    e.preventDefault();
+    tool('view');
+  }
   else if (k === 'backspace' || k === 'delete') tool('undo');
   else if (k === 'escape') {
     selectedWp = null;
@@ -774,6 +781,12 @@ function isTrackpad(e: WheelEvent): boolean {
 let panning: { x: number; y: number } | null = null;
 /** The hand: while it is on, an ordinary drag moves round the map instead of drawing. */
 let hand = false;
+/** Overhead or angled camera; the view button and Tab switch it. */
+function setAngled(on: boolean) {
+  view.setAngled(on);
+  hud.setView(on);
+}
+
 function setHand(on: boolean) {
   hand = on;
   hud.setHand(on);
